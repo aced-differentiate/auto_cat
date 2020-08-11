@@ -1,7 +1,7 @@
 # auto_cat
 Tools for automated structure generation of catalyst systems.
 
-Currently writes out all structures as ASE trajectory files which may be using ASE as follows:
+Currently writes out all structures as ASE trajectory files which may be read using ASE as follows:
 ```python
 from ase.io import read
 
