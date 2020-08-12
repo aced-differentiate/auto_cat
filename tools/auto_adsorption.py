@@ -19,7 +19,7 @@ def gen_rxn_int_sym(surf, site_type=['ontop','bridge','hollow'], ads=['NNH','NH2
         surf(str or ase obj): name of traj file of relaxed surface to be adsorbed upon
         site_type(list of str): desired types of adsorption symmetry sites to identify
             Options: 'ontop', 'bridge', 'hollow'
-        ads(list of str): list of adsorbates to be placed
+        ads(list of str or ase obj): list of adsorbates to be placed
 
     Returns:
         None
@@ -43,7 +43,7 @@ def gen_rxn_int_pos(surf, ads=['NNH','NH2'],pos=(0.,0.),height=[1.5,1.5],rots=[[
 
     Parameters:
         surf(str or ase obj): name of traj file containing relaxed surface to be adsorbed upon
-        ads(list of str): list of adsorbates to be placed
+        ads(list of str or ase obj): list of adsorbates to be placed
         pos(tuple,list,or np.array of floats): xy coordinate for where to place adsorbate
         height(list of float): height to place each adsorbate over surface
         rots(list of list of list of float and str): list of list of rotation operations for each adsorbate
