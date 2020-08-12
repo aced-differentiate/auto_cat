@@ -78,13 +78,6 @@ def gen_rxn_int_pos(surf, ads=['NNH','NH2'],pos=(0.,0.),height=[1.5,1.5],rots=[[
 
     print('Completed traj generation for position {}'.format(rpos))
 
-def find_sa_ind(saa):
-    ''' Given an SAA structure, finds the single atom index (and cartesian xy)'''
-    syms = np.array(saa.symbols)
-    unique, counts = np.unique(syms, return_counts=True)
-    ind = np.where(syms==unique[np.argmin(counts)])[0][0] # Finds index of species with lowest count
-    return ind
-
 
 def place_adsorbate(surface, mol, position = (0.0,0.0), height = 1.5, rotations=[[0.0,'x']], write_traj=False):
     '''

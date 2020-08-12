@@ -5,6 +5,7 @@ from ase import Atom,Atoms
 from ase.visualize import view
 from ase.build import fcc100,fcc110,fcc111
 from ase.build import bcc100,bcc110,bcc111
+from ase.data import atomic_numbers,ground_state_magnetic_moments
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 
@@ -90,6 +91,14 @@ def gen_doped_structs(sub_ase,dop, write_traj=False, cent_sa = True):
         i += 1
 
     return all_ase_structs
+
+
+def find_sa_ind(saa):
+    ''' Given an SAA structure (without any adsorbates), finds the single atom index'''
+    syms = np.array(saa.symbols)
+    unique, counts = np.unique(syms, return_counts=True)
+    ind = np.where(syms==unique[np.argmin(counts)])[0][0] # Finds index of species with lowest count
+    return ind
 
 
 def gen_hosts(species, bv = 'fcc', ft=['100','110','111'],supcell=(3,3,4),a=None):
