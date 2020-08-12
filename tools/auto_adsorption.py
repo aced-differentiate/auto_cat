@@ -11,7 +11,7 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 
 
-def gen_rxn_int_sym(surf, site_type=['ontop','bridge','hollow'], ads=['NNH','NH2'],height=[1.5,1.5],rots=[[[0.0,'x']],[[180.,'x']]]):
+def gen_rxn_int_sym(surf, site_type=['ontop','bridge','hollow'], ads=['H'],height=[1.5],rots=[[[0.0,'x']]]):
     '''
     
     Given site types will create subdirectories for each identified symmetry site of that type
@@ -37,7 +37,7 @@ def gen_rxn_int_sym(surf, site_type=['ontop','bridge','hollow'], ads=['NNH','NH2
 
     print('Completed')
 
-def gen_rxn_int_pos(surf, ads=['NNH','NH2'],pos=(0.,0.),height=[1.5,1.5],rots=[[[0.0,'x']],[[180.,'x']]],label='custom'):
+def gen_rxn_int_pos(surf, ads=['H'],pos=(0.,0.),height=[1.5],rots=[[[0.0,'x']]],label='custom'):
     '''
 
     Given relaxed structure & xy position, generates new directories containing traj files of each adsorbate placed over pos
