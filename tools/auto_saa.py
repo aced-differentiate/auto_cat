@@ -71,13 +71,18 @@ def gen_doped_structs(sub_ase,dop, write_traj=False, cent_sa = True):
     finder = AdsorbateSiteFinder(struct)
 
 
-    all_structs = finder.generate_substitution_structures(dop) # collect all adsorption structures
+    all_structs = finder.generate_substitution_structures(dop) # collect all substitution structures
+
+    # magmom guess for dopant. Taken from http://www.webelements.com
+    mag = ground_state_magnetic_moments[atomic_numbers[dop]]
 
     all_ase_structs= []
     i = 0
     while i < len(all_structs):
         ase_struct = conv.get_atoms(all_structs[i]) # converts to ase object
         ase_struct.set_tags(tags)
+        sa_ind = find_sa_ind(ase_struct)
+        ase_struct[sa_ind].magmom = mag # set initial magmom
         if cent_sa: # centers the sa
             cent_x = ase_struct.cell[0][0]/2 + ase_struct.cell[1][0]/2
             cent_y = ase_struct.cell[0][1]/2 + ase_struct.cell[1][1]/2
@@ -142,9 +147,14 @@ def dope_surface(surf, sites, dop, write_traj=False):
     '''
     surf_name = surf.get_chemical_symbols()[0]
     doped_surfs = []
+
+    # magmom guess for dopant. Taken from http://www.webelements.com
+    mag = ground_state_magnetic_moments[atomic_numbers[dop]]
+
     for site in sites: # iterate over all given top sites
         dop_surf = surf.copy()
         dop_surf[site].symbol = dop # updates atom at top site to dopant
+        dop_surf[site].magmom = mag # guesses initial magnetic moment
         doped_surfs.append(dop_surf)
 
         if write_traj:
