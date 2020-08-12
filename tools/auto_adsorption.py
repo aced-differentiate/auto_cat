@@ -5,6 +5,7 @@ from ase import Atom,Atoms
 from ase.build import add_adsorbate
 from ase.build import molecule
 from ase.visualize import view
+from ase.data import chemical_symbols
 from ase.collections import g2
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
@@ -16,10 +17,10 @@ def gen_rxn_int_sym(surf, site_type=['ontop','bridge','hollow'], ads=['NNH','NH2
     Given site types will create subdirectories for each identified symmetry site of that type
 
     Parameters:
-        surf(str or ase obj): name of traj file of relaxed surface to be adsorbed upon
+        surf(str or ase Atoms obj): name of traj file of relaxed surface to be adsorbed upon
         site_type(list of str): desired types of adsorption symmetry sites to identify
             Options: 'ontop', 'bridge', 'hollow'
-        ads(list of str or ase obj): list of adsorbates to be placed
+        ads(list of str or ase Atoms obj): list of adsorbates to be placed
 
     Returns:
         None
@@ -42,8 +43,8 @@ def gen_rxn_int_pos(surf, ads=['NNH','NH2'],pos=(0.,0.),height=[1.5,1.5],rots=[[
     Given relaxed structure & xy position, generates new directories containing traj files of each adsorbate placed over pos
 
     Parameters:
-        surf(str or ase obj): name of traj file containing relaxed surface to be adsorbed upon
-        ads(list of str or ase obj): list of adsorbates to be placed
+        surf(str or ase Atoms obj): name of traj file containing relaxed surface to be adsorbed upon
+        ads(list of str or ase Atoms obj): list of adsorbates to be placed
         pos(tuple,list,or np.array of floats): xy coordinate for where to place adsorbate
         height(list of float): height to place each adsorbate over surface
         rots(list of list of list of float and str): list of list of rotation operations for each adsorbate
@@ -88,8 +89,8 @@ def find_sa_ind(saa):
 def place_adsorbate(surface, mol, position = (0.0,0.0), height = 1.5, rotations=[[0.0,'x']], write_traj=False):
     '''
     Parameters:
-        surface(str or ase obj): surface to adsorb onto. Either str of filename to be read or ase obj
-        mol(str or ase obj): name of molecule to be adsorbed or ase atoms obj
+        surface(str or ase Atoms obj): surface to adsorb onto. Either str of filename to be read or ase obj
+        mol(str or ase Atoms obj): name of molecule to be adsorbed or ase atoms obj
         position(tuple of floats): cartesian coordinates of where the molecule should be placed in the xy plane
         height(float): height above surface where adsorbate should be initially placed
         rotation(tuple of floats): rotation of molecule to be applied about the x,y,z axes
@@ -142,7 +143,11 @@ def generate_molecule_object(mol, rotations = [[0.0,'x']]):
         m(ase Atoms obj): molecule object
     '''
 
-    if mol in g2.names:
+    if mol in chemical_symbols:
+        m = Atoms(mol)
+        return m
+
+    elif mol in g2.names:
         m = molecule(mol)
         for r in rotations:
             m.rotate(r[0],r[1])
