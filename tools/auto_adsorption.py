@@ -11,7 +11,7 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 
 
-def gen_rxn_int_sym(surf, site_type=['ontop','bridge','hollow'], ads=['H'],height=[1.5],rots=[[[0.0,'x']]]):
+def gen_rxn_int_sym(surf, site_type=['ontop','bridge','hollow'], ads=['H'],height=[1.5],rots=[[[0.0,'x']]], site_im=True):
     '''
     
     Given site types will create subdirectories for each identified symmetry site of that type
@@ -21,6 +21,7 @@ def gen_rxn_int_sym(surf, site_type=['ontop','bridge','hollow'], ads=['H'],heigh
         site_type(list of str): desired types of adsorption symmetry sites to identify
             Options: 'ontop', 'bridge', 'hollow'
         ads(list of str or ase Atoms obj): list of adsorbates to be placed
+        site_traj(bool): writes out a traj showing all identified sites in a single file
 
     Returns:
         None
@@ -29,6 +30,10 @@ def gen_rxn_int_sym(surf, site_type=['ontop','bridge','hollow'], ads=['H'],heigh
     curr_dir = os.getcwd()
 
     sites = get_ads_sites(surf, ads_site_type=site_type) # gets dict containing identified sites
+
+    # writes out traj showing all identified symmetry sites
+    if site_im:
+        view_ads_sites(surf,ads_site_type=site_type,write_traj=True,view_im=False)
 
     for typ in sites.keys():
         if typ != 'all':
@@ -199,7 +204,7 @@ def get_ads_sites(surface, ads_site_type=['ontop','bridge','hollow']):
     return sites
 
 
-def view_ads_sites(surface,ads_site_type=['ontop','bridge','hollow'],save_im=False,view_im=True,supcell=(1,1,1)):
+def view_ads_sites(surface,ads_site_type=['ontop','bridge','hollow'],save_im=False,view_im=True,write_traj=False,supcell=(1,1,1)):
     '''
     From given surface, visualizes each of the ads_site_type specified.
     
@@ -207,6 +212,7 @@ def view_ads_sites(surface,ads_site_type=['ontop','bridge','hollow'],save_im=Fal
         surface(str or ase obj): Surface to find sites for 
         save_im(bool): True if the images are to be saved
         view_im(bool): True if the sites are to be viewed using the ase-gui
+        write_traj(bool): True if traj file to be written
         supcell(tuple of ints): supercell size for visualization purposes
 
     Returns:
@@ -234,7 +240,8 @@ def view_ads_sites(surface,ads_site_type=['ontop','bridge','hollow'],save_im=Fal
             write(str(name)+'_'+str(ads_type)+'_sites.png',ase_obj_i*supcell) # Saves image
         if view_im: # Visualizes each site type
             view(ase_obj_i*supcell)
-
+        if write_traj:
+            write(str(name)+'_'+str(ads_type)+'_sites.traj',ase_obj_i*supcell)
 
 
 #def get_ads_struct(sub_file, mol, write_traj=False):
