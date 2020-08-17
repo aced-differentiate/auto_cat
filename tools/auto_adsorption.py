@@ -199,7 +199,7 @@ def get_ads_sites(surface, ads_site_type=['ontop','bridge','hollow']):
     
     finder = AdsorbateSiteFinder(struct) # define site finder
     
-    sites = finder.find_adsorption_sites(positions=ads_site_type)
+    sites = finder.find_adsorption_sites(positions=ads_site_type,symm_reduce=0.05)
     
     return sites
 
