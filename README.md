@@ -1,4 +1,4 @@
-# auto_cat
+# autocat
 Tools for automated structure generation of catalyst systems.
 
 Currently writes out all structures as ASE trajectory files which may be read using ASE as follows:
