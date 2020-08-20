@@ -1,7 +1,7 @@
 import os
 import numpy as np
-from ase.io import read,write
-from ase import Atom,Atoms
+from ase.io import read, write
+from ase import Atom, Atoms
 from ase.build import add_adsorbate
 from ase.build import molecule
 from ase.visualize import view
@@ -11,8 +11,15 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 
 
-def gen_rxn_int_sym(surf, site_type=['ontop','bridge','hollow'], ads=['H'],height=[1.5],rots=[[[0.0,'x']]], site_im=True):
-    '''
+def gen_rxn_int_sym(
+    surf,
+    site_type=["ontop", "bridge", "hollow"],
+    ads=["H"],
+    height=[1.5],
+    rots=[[[0.0, "x"]]],
+    site_im=True,
+):
+    """
     
     Given site types will create subdirectories for each identified symmetry site of that type
 
@@ -26,24 +33,31 @@ def gen_rxn_int_sym(surf, site_type=['ontop','bridge','hollow'], ads=['H'],heigh
     Returns:
         None
 
-    '''
+    """
     curr_dir = os.getcwd()
 
-    sites = get_ads_sites(surf, ads_site_type=site_type) # gets dict containing identified sites
+    sites = get_ads_sites(
+        surf, ads_site_type=site_type
+    )  # gets dict containing identified sites
 
     # writes out traj showing all identified symmetry sites
     if site_im:
-        view_ads_sites(surf,ads_site_type=site_type,write_traj=True,view_im=False)
+        view_ads_sites(surf, ads_site_type=site_type, write_traj=True, view_im=False)
 
     for typ in sites.keys():
-        if typ != 'all':
+        if typ != "all":
             for p in sites[typ]:
-                gen_rxn_int_pos(surf,ads=ads,pos=p[:2],height=height,rots=rots,label=typ)
+                gen_rxn_int_pos(
+                    surf, ads=ads, pos=p[:2], height=height, rots=rots, label=typ
+                )
 
-    print('Completed')
+    print("Completed")
 
-def gen_rxn_int_pos(surf, ads=['H'],pos=(0.,0.),height=[1.5],rots=[[[0.0,'x']]],label='custom'):
-    '''
+
+def gen_rxn_int_pos(
+    surf, ads=["H"], pos=(0.0, 0.0), height=[1.5], rots=[[[0.0, "x"]]], label="custom"
+):
+    """
 
     Given relaxed structure & xy position, generates new directories containing traj files of each adsorbate placed over pos
 
@@ -58,34 +72,56 @@ def gen_rxn_int_pos(surf, ads=['H'],pos=(0.,0.),height=[1.5],rots=[[[0.0,'x']]],
     Returns:
         None 
 
-    '''
+    """
 
-    #sa_ind = find_sa_ind(surf)
-    #pos_x = saa[sa_ind].x
-    #pos_y = saa[sa_ind].y
+    # sa_ind = find_sa_ind(surf)
+    # pos_x = saa[sa_ind].x
+    # pos_y = saa[sa_ind].y
 
-    rpos = np.around(pos,3)
+    rpos = np.around(pos, 3)
 
     curr_dir = os.getcwd()
     i = 0
-    while i < len(ads): # iterates over each of the given adsorbates
+    while i < len(ads):  # iterates over each of the given adsorbates
         try:
-            os.makedirs(ads[i] + '/' + label + '/' + str(rpos[0]) + '_' + str(rpos[1]))
+            os.makedirs(ads[i] + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1]))
         except OSError:
-            print('Failed Creating Directory ./{}'.format(ads[i]+ '/' + label + '/' + str(rpos[0]) + '_' + str(rpos[1])))
+            print(
+                "Failed Creating Directory ./{}".format(
+                    ads[i] + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1])
+                )
+            )
         else:
-            print('Successfully Created Directory ./{}'.format(ads[i]+ '/' + label + '/' + str(rpos[0]) + '_' + str(rpos[1])))
-            os.chdir(ads[i]+ '/' + label + '/' + str(rpos[0]) + '_' + str(rpos[1]))
-            place_adsorbate(surf,ads[i],position=pos,height=height[i],write_traj=True,rotations=rots[i])
-            print('Adsorbed {} traj generated at position {}'.format(ads[i],rpos))
+            print(
+                "Successfully Created Directory ./{}".format(
+                    ads[i] + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1])
+                )
+            )
+            os.chdir(ads[i] + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1]))
+            place_adsorbate(
+                surf,
+                ads[i],
+                position=pos,
+                height=height[i],
+                write_traj=True,
+                rotations=rots[i],
+            )
+            print("Adsorbed {} traj generated at position {}".format(ads[i], rpos))
             os.chdir(curr_dir)
         i += 1
 
-    print('Completed traj generation for position {}'.format(rpos))
+    print("Completed traj generation for position {}".format(rpos))
 
 
-def place_adsorbate(surface, mol, position = (0.0,0.0), height = 1.5, rotations=[[0.0,'x']], write_traj=False):
-    '''
+def place_adsorbate(
+    surface,
+    mol,
+    position=(0.0, 0.0),
+    height=1.5,
+    rotations=[[0.0, "x"]],
+    write_traj=False,
+):
+    """
     Parameters:
         surface(str or ase Atoms obj): surface to adsorb onto. Either str of filename to be read or ase obj
         mol(str or ase Atoms obj): name of molecule to be adsorbed or ase atoms obj
@@ -97,7 +133,7 @@ def place_adsorbate(surface, mol, position = (0.0,0.0), height = 1.5, rotations=
     Returns:
         ads_state(ase obj): surface with the adsorbant placed
 
-    '''
+    """
 
     # Identify if surface specified as filename or atoms object
     if type(surface) is str:
@@ -107,39 +143,37 @@ def place_adsorbate(surface, mol, position = (0.0,0.0), height = 1.5, rotations=
         surf = surface.copy()
 
     else:
-        raise TypeError('surface parameter needs to be either a str or ase.Atoms object')
-
+        raise TypeError(
+            "surface parameter needs to be either a str or ase.Atoms object"
+        )
 
     # Identify if molecule is specified by name or atoms object
     if type(mol) is str:
-        adsorbate = generate_molecule_object(mol, rotations = rotations)
+        adsorbate = generate_molecule_object(mol, rotations=rotations)
     elif type(mol) is Atoms:
         adsorbate = mol.copy()
         for r in rotations:
-            adsorbate.rotate(r[0],r[1])
+            adsorbate.rotate(r[0], r[1])
 
-    lowest_ind = adsorbate.positions[:,2].argmin()
+    lowest_ind = adsorbate.positions[:, 2].argmin()
 
-    add_adsorbate(surf, adsorbate, height, position = position,mol_index=lowest_ind)
+    add_adsorbate(surf, adsorbate, height, position=position, mol_index=lowest_ind)
 
     if write_traj:
-        surf.write(mol + '.i.traj')
-
+        surf.write(mol + ".i.traj")
 
     return surf
 
 
-
-
-def generate_molecule_object(mol, rotations = [[0.0,'x']]):
-    '''
+def generate_molecule_object(mol, rotations=[[0.0, "x"]]):
+    """
     Parameters:
         mol(str): name of molecule to be generated
         rotations(list of floats and strings): list of rotation operations to be carried out
 
     Returns:
         m(ase Atoms obj): molecule object
-    '''
+    """
 
     if mol in chemical_symbols:
         m = Atoms(mol)
@@ -148,29 +182,29 @@ def generate_molecule_object(mol, rotations = [[0.0,'x']]):
     elif mol in g2.names:
         m = molecule(mol)
         for r in rotations:
-            m.rotate(r[0],r[1])
-        lowest_mol = np.min(m.positions[:,2])
+            m.rotate(r[0], r[1])
+        lowest_mol = np.min(m.positions[:, 2])
         for atom in m:
             atom.position[2] -= lowest_mol
         return m
 
-    elif mol == 'N2H' or mol == 'NNH':
-        m = Atoms('N2H',[(0.,0.,0.,),(0.,0.,1.2),(0.71,0,1.91)])
+    elif mol == "N2H" or mol == "NNH":
+        m = Atoms("N2H", [(0.0, 0.0, 0.0,), (0.0, 0.0, 1.2), (0.71, 0, 1.91)])
         for r in rotations:
-            m.rotate(r[0],r[1])
+            m.rotate(r[0], r[1])
         return m
 
-    elif mol == 'N2Hh' or mol == 'NNHh':
-        m = Atoms('N2H',[(-0.55,0.,0.),(0.55,0.,0.),(0.6,0.,1.)])
+    elif mol == "N2Hh" or mol == "NNHh":
+        m = Atoms("N2H", [(-0.55, 0.0, 0.0), (0.55, 0.0, 0.0), (0.6, 0.0, 1.0)])
         for r in rotations:
-            m.rotate(r[0],r[1])
+            m.rotate(r[0], r[1])
         return m
 
     return None
 
 
-def get_ads_sites(surface, ads_site_type=['ontop','bridge','hollow']):
-    '''
+def get_ads_sites(surface, ads_site_type=["ontop", "bridge", "hollow"]):
+    """
     
     From name of file to be read or aseobj, returns dictionary of adsorption sites with the keys given in ads_site_type
     
@@ -181,31 +215,39 @@ def get_ads_sites(surface, ads_site_type=['ontop','bridge','hollow']):
     Returns:
         sites(dict of list of np.arrays): dict with keys being ads_site_type giving a list of the identified sites
     
-    '''
+    """
     # Reads in surface if necessary
     if type(surface) is str:
         surf = read(surface)
-    
+
     elif type(surface) is Atoms:
         surf = surface.copy()
 
     else:
-        raise TypeError('surface parameter needs to be either a str or ase.Atoms object')
+        raise TypeError(
+            "surface parameter needs to be either a str or ase.Atoms object"
+        )
 
+    conv = AseAtomsAdaptor()  # define convertor from ase object to pymatgen structure
 
-    conv = AseAtomsAdaptor() # define convertor from ase object to pymatgen structure
-    
-    struct = conv.get_structure(surf) # make conversion to mg structure object
-    
-    finder = AdsorbateSiteFinder(struct) # define site finder
-    
-    sites = finder.find_adsorption_sites(positions=ads_site_type,symm_reduce=0.05)
-    
+    struct = conv.get_structure(surf)  # make conversion to mg structure object
+
+    finder = AdsorbateSiteFinder(struct)  # define site finder
+
+    sites = finder.find_adsorption_sites(positions=ads_site_type, symm_reduce=0.05)
+
     return sites
 
 
-def view_ads_sites(surface,ads_site_type=['ontop','bridge','hollow'],save_im=False,view_im=True,write_traj=False,supcell=(1,1,1)):
-    '''
+def view_ads_sites(
+    surface,
+    ads_site_type=["ontop", "bridge", "hollow"],
+    save_im=False,
+    view_im=True,
+    write_traj=False,
+    supcell=(1, 1, 1),
+):
+    """
     From given surface, visualizes each of the ads_site_type specified.
     
     Parameters
@@ -217,7 +259,7 @@ def view_ads_sites(surface,ads_site_type=['ontop','bridge','hollow'],save_im=Fal
 
     Returns:
         None
-    '''
+    """
     # Gets the adsorption sites
     sites = get_ads_sites(surface, ads_site_type)
 
@@ -229,22 +271,26 @@ def view_ads_sites(surface,ads_site_type=['ontop','bridge','hollow'],save_im=Fal
         ase_obj = surface.copy()
 
     else:
-        raise TypeError('surface parameter needs to be either a str or ase.Atoms object')
+        raise TypeError(
+            "surface parameter needs to be either a str or ase.Atoms object"
+        )
 
     name = ase_obj.get_chemical_formula()
-    for ads_type in ads_site_type: # Iterates over site type
+    for ads_type in ads_site_type:  # Iterates over site type
         ase_obj_i = ase_obj.copy()
-        for site in sites[ads_type]: # Iterates over site given type
-            ase_obj_i.append(Atom('X',position=site)) # Adds placeholder atom at site
+        for site in sites[ads_type]:  # Iterates over site given type
+            ase_obj_i.append(Atom("X", position=site))  # Adds placeholder atom at site
         if save_im:
-            write(str(name)+'_'+str(ads_type)+'_sites.png',ase_obj_i*supcell) # Saves image
-        if view_im: # Visualizes each site type
-            view(ase_obj_i*supcell)
+            write(
+                str(name) + "_" + str(ads_type) + "_sites.png", ase_obj_i * supcell
+            )  # Saves image
+        if view_im:  # Visualizes each site type
+            view(ase_obj_i * supcell)
         if write_traj:
-            write(str(name)+'_'+str(ads_type)+'_sites.traj',ase_obj_i*supcell)
+            write(str(name) + "_" + str(ads_type) + "_sites.traj", ase_obj_i * supcell)
 
 
-#def get_ads_struct(sub_file, mol, write_traj=False):
+# def get_ads_struct(sub_file, mol, write_traj=False):
 #    '''Given name of substrate file or ase obj, adsorbs mol (str) onto each of the identified adsorption sites.'''
 #
 #    try:
@@ -255,18 +301,18 @@ def view_ads_sites(surface,ads_site_type=['ontop','bridge','hollow'],save_im=Fal
 #    tags = sub_ase.get_tags()
 #
 #    conv = AseAtomsAdaptor() # converter between pymatgen and ase
-#    
+#
 #    struct = conv.get_structure(sub_ase) # convert ase substrate to pymatgen structure
 #
 #    finder = AdsorbateSiteFinder(struct)
 #
 #    m_ase = Atoms(mol) # create ase atoms object of desired adsorbate
-#    
+#
 #    molecule = conv.get_molecule(m_ase) # convert adsorbate to pymatgen molecule
 #
 #    all_structs = finder.generate_adsorption_structures(molecule) # collect all adsorption structures
 #
-#    
+#
 #    all_ase_structs = []
 #    i = 0
 #    while i < len(all_structs):
@@ -281,10 +327,9 @@ def view_ads_sites(surface,ads_site_type=['ontop','bridge','hollow'],save_im=Fal
 #    return all_ase_structs
 
 
-
-if __name__ == '__main__':
-    saa = read('CuFe0.traj')
-    #gen_rxn_int_pos(saa, ads=['NNH','NH2'],pos=np.array([0.,0.]),height=[1.5,1.5],rots=[[[0.0,'x']],[[180.,'x']]])
-    gen_rxn_int_sym(saa, site_type=['ontop'])
-    #s = read('clean/Pt16.traj')
-    #gen_rxn_int_sym(s, site_type=['ontop','hollow'],ads=['CO'],height=[1.5],rots=[[[0.0,'x']]])
+if __name__ == "__main__":
+    saa = read("CuFe0.traj")
+    # gen_rxn_int_pos(saa, ads=['NNH','NH2'],pos=np.array([0.,0.]),height=[1.5,1.5],rots=[[[0.0,'x']],[[180.,'x']]])
+    gen_rxn_int_sym(saa, site_type=["ontop"])
+    # s = read('clean/Pt16.traj')
+    # gen_rxn_int_sym(s, site_type=['ontop','hollow'],ads=['CO'],height=[1.5],rots=[[[0.0,'x']]])

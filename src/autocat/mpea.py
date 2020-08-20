@@ -1,16 +1,18 @@
 import os
 import numpy as np
-from ase.io import read,write
-from ase import Atom,Atoms
+from ase.io import read, write
+from ase import Atom, Atoms
 from ase.visualize import view
-from ase.build import fcc100,fcc110,fcc111
-from ase.build import bcc100,bcc110,bcc111
+from ase.build import fcc100, fcc110, fcc111
+from ase.build import bcc100, bcc110, bcc111
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 
 
-def gen_mpea(spec_list,comp, bv='fcc', ft=['100','110','111'], supcell=(3,3,4),samps=15):
-    '''
+def gen_mpea(
+    spec_list, comp, bv="fcc", ft=["100", "110", "111"], supcell=(3, 3, 4), samps=15
+):
+    """
 
     For the given species list and composition will generate a specified number of samples from this space
     in separate directories
@@ -25,9 +27,9 @@ def gen_mpea(spec_list,comp, bv='fcc', ft=['100','110','111'], supcell=(3,3,4),s
 
     Return:
         None
-    '''
+    """
     # Get MPEA name from species list and composition
-    name = ''
+    name = ""
     j = 0
     while j < len(spec_list):
         name += spec_list[j]
@@ -38,30 +40,34 @@ def gen_mpea(spec_list,comp, bv='fcc', ft=['100','110','111'], supcell=(3,3,4),s
 
     for f in ft:
         try:
-            os.mkdir(name + '_' + bv + f)
+            os.mkdir(name + "_" + bv + f)
         except OSError:
-            print('Failed Creating Directory ./{}'.format(name + '_' + bv + f))
+            print("Failed Creating Directory ./{}".format(name + "_" + bv + f))
         else:
-            print('Successfully Created Directory ./{}'.format(name + '_' + bv + f))
-            os.chdir(name + '_' + bv + f)
+            print("Successfully Created Directory ./{}".format(name + "_" + bv + f))
+            os.chdir(name + "_" + bv + f)
             sub_dir = os.getcwd()
-            print('Beginning Generation of MPEAS for facet {}{}'.format(bv,f))
+            print("Beginning Generation of MPEAS for facet {}{}".format(bv, f))
             i = 0
             while i < samps:
-                os.mkdir(str(i+1))
-                os.chdir(str(i+1))
-                gen_mpea_struct(spec_list,comp,bv=bv,ft=f,supcell=supcell,write_traj=True)
+                os.mkdir(str(i + 1))
+                os.chdir(str(i + 1))
+                gen_mpea_struct(
+                    spec_list, comp, bv=bv, ft=f, supcell=supcell, write_traj=True
+                )
                 os.chdir(sub_dir)
                 i += 1
             os.chdir(curr_dir)
-            print('Completed traj generation for facet {}{}'.format(bv,f))
-    print('Successfully completed traj generation for {}'.format(name + '_' + bv + f))
+            print("Completed traj generation for facet {}{}".format(bv, f))
+    print("Successfully completed traj generation for {}".format(name + "_" + bv + f))
 
     return None
 
 
-def gen_mpea_struct(spec_list,comp, bv='fcc', ft='100',supcell=(3,3,4),write_traj=False):
-    '''
+def gen_mpea_struct(
+    spec_list, comp, bv="fcc", ft="100", supcell=(3, 3, 4), write_traj=False
+):
+    """
     Returns a random mpea traj structure given a species list and composition
 
     Parameters:
@@ -75,50 +81,62 @@ def gen_mpea_struct(spec_list,comp, bv='fcc', ft='100',supcell=(3,3,4),write_tra
     Returns:
         mpea(ase obj): randomly generated mpea
 
-    '''
+    """
     comp_sum = np.sum(comp)
-    p = np.array(comp)/comp_sum
+    p = np.array(comp) / comp_sum
 
     # Optimimum lattice parameters calculated using BEEF-vdW
-    latt_beef = {'Pt':2.014179*2,'Ir':3.84} # Need to fix Ir
-
+    latt_beef = {"Pt": 2.014179 * 2, "Ir": 3.84}  # Need to fix Ir
 
     # Average lattice parameter given composition
     a = 0
     i = 0
     while i < len(spec_list):
-        a += latt_beef[spec_list[i]]*p[i]
+        a += latt_beef[spec_list[i]] * p[i]
         i += 1
 
-
     # Generate atoms list
-    num_atoms = np.prod(supcell) 
+    num_atoms = np.prod(supcell)
 
     atoms_list = []
     i = 0
     while i < num_atoms:
-        atoms_list.append(np.random.choice(spec_list,p=p))
+        atoms_list.append(np.random.choice(spec_list, p=p))
         i += 1
-
 
     # Build structure
 
-    funcs = {'fcc100':fcc100,'fcc110':fcc110,'fcc111':fcc111,'bcc100':bcc100,'bcc110':bcc110,'bcc111':bcc111}
-    
-    host = funcs[bv + ft](spec_list[0],size=supcell, vacuum=10.0, a = a)
+    funcs = {
+        "fcc100": fcc100,
+        "fcc110": fcc110,
+        "fcc111": fcc111,
+        "bcc100": bcc100,
+        "bcc110": bcc110,
+        "bcc111": bcc111,
+    }
+
+    host = funcs[bv + ft](spec_list[0], size=supcell, vacuum=10.0, a=a)
 
     host.set_chemical_symbols(atoms_list)
 
     if write_traj:
-        name = ''
+        name = ""
         j = 0
         while j < len(spec_list):
             name += spec_list[j]
             name += str(comp[j])
             j += 1
-        host.write(name + '.traj')
+        host.write(name + ".traj")
     return host
 
-if __name__ == '__main__':
-    #gen_mpea_struct(['Pt','Ir'],[5,5], bv='fcc', ft='100',supcell=(3,3,4),write_traj=True)
-    gen_mpea(['Pt','Ir'],[1,1], bv='fcc', ft=['100','110','111'], supcell=(3,3,4),samps=15)
+
+if __name__ == "__main__":
+    # gen_mpea_struct(['Pt','Ir'],[5,5], bv='fcc', ft='100',supcell=(3,3,4),write_traj=True)
+    gen_mpea(
+        ["Pt", "Ir"],
+        [1, 1],
+        bv="fcc",
+        ft=["100", "110", "111"],
+        supcell=(3, 3, 4),
+        samps=15,
+    )
