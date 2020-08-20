@@ -7,8 +7,3 @@ from ase.io import read
 
 sys = read('name_of_traj.traj')
 ```
-
-## Requirements
-- numpy
-- ase
-- pymatgen
