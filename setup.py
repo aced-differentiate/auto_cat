@@ -14,7 +14,7 @@ setup(
     description="Tools for automated generation of catalyst structures",
     url="https://github.com/aced-differentiate/auto_cat",
     author="Lance Kavalsky",
-    author_email="lkavalsky@andrew.cmu.edu",
+    author_email="lkavalsk@andrew.cmu.edu",
     license="MIT",
     classifiers=[
         "Development Status :: 3 - Alpha",
