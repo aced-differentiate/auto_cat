@@ -213,8 +213,3 @@ def dope_surface(surf, sites, dop, write_traj=False):
 #                inds.append(i)
 #            i += 1
 #    return inds
-
-
-if __name__ == "__main__":
-    gen_saa(["Cu"], ["Fe"], ft=["111"], supcell=(3, 3, 4), a=1.813471 * 2)
-    # gen_saa(['Cu'],['Fe'],supcell=(5,5,4),a=1.813471*2)
