@@ -35,7 +35,7 @@ def gen_saa(
     """
     i = 0
     while i < len(subs):
-        hosts = gen_hosts([subs[i]], bv, ft, supcell, a)  # generate host structures
+        hosts = gen_host(subs[i], bv, ft, supcell, a)  # generate host structures
         j = 0
         while j < len(dops):  # iterate over dopants
             for f in ft:  # iterate over facets
@@ -132,12 +132,12 @@ def find_sa_ind(saa):
     return ind
 
 
-def gen_hosts(species, bv="fcc", ft=["100", "110", "111"], supcell=(3, 3, 4), a=None):
+def gen_host(species, bv="fcc", ft=["100", "110", "111"], supcell=(3, 3, 4), a=None):
     """
-    Given list of host species, bravais lattice, and facets, generates dict of ase objects for hosts
+    Given host species, bravais lattice, and facets, generates dict of ase objects for hosts
 
     Parameters
-    species (list of str): list of host species
+    species (str): host species
     bv (str): bravais lattice
     ft (list of str): facets to be considered
     supcell (tuple): supercell size
@@ -146,24 +146,23 @@ def gen_hosts(species, bv="fcc", ft=["100", "110", "111"], supcell=(3, 3, 4), a=
     hosts (dict): dictionary of generated host materials
     """
     hosts = {}
-    for s in species:
-        funcs = {
-            "fcc100": fcc100,
-            "fcc110": fcc110,
-            "fcc111": fcc111,
-            "bcc100": bcc100,
-            "bcc110": bcc110,
-            "bcc111": bcc111,
-        }
-        j = 0
-        while j < len(ft):
-            if a is None:
-                hosts[bv + ft[j]] = funcs[bv + ft[j]](str(s), size=supcell, vacuum=10.0)
-            else:
-                hosts[bv + ft[j]] = funcs[bv + ft[j]](
-                    str(s), size=supcell, vacuum=10.0, a=a
-                )
-            j += 1
+    funcs = {
+        "fcc100": fcc100,
+        "fcc110": fcc110,
+        "fcc111": fcc111,
+        "bcc100": bcc100,
+        "bcc110": bcc110,
+        "bcc111": bcc111,
+    }
+    j = 0
+    while j < len(ft):
+        if a is None:
+            hosts[bv + ft[j]] = funcs[bv + ft[j]](species, size=supcell, vacuum=10.0)
+        else:
+            hosts[bv + ft[j]] = funcs[bv + ft[j]](
+                species, size=supcell, vacuum=10.0, a=a
+            )
+        j += 1
     return hosts
 
 
