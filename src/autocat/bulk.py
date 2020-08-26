@@ -5,7 +5,7 @@ from ase import Atom, Atoms
 from ase.visualize import view
 from ase.build import fcc100, fcc110, fcc111
 from ase.build import bcc100, bcc110, bcc111
-from .adsorption import place_adsorbate, get_ads_sites
+from autocat.adsorption import place_adsorbate, get_ads_sites
 
 
 def gen_bulk(species, bv="fcc", ft=["100", "110", "111"], supcell=(3, 3, 4), a=None):

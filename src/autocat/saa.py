@@ -8,7 +8,7 @@ from ase.build import bcc100, bcc110, bcc111
 from ase.data import atomic_numbers, ground_state_magnetic_moments
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
-from .bulk import gen_bulk
+from autocat.bulk import gen_bulk
 
 
 def gen_saa(
