@@ -8,6 +8,7 @@ from ase.build import bcc100, bcc110, bcc111
 from ase.data import atomic_numbers, ground_state_magnetic_moments
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
+from .bulk import gen_bulk
 
 
 def gen_saa(
@@ -35,7 +36,7 @@ def gen_saa(
     """
     i = 0
     while i < len(subs):
-        hosts = gen_host(subs[i], bv, ft, supcell, a)  # generate host structures
+        hosts = gen_bulk(subs[i], bv, ft, supcell, a)  # generate host structures
         j = 0
         while j < len(dops):  # iterate over dopants
             for f in ft:  # iterate over facets
@@ -130,40 +131,6 @@ def find_sa_ind(saa):
         0
     ]  # Finds index of species with lowest count
     return ind
-
-
-def gen_host(species, bv="fcc", ft=["100", "110", "111"], supcell=(3, 3, 4), a=None):
-    """
-    Given host species, bravais lattice, and facets, generates dict of ase objects for hosts
-
-    Parameters
-    species (str): host species
-    bv (str): bravais lattice
-    ft (list of str): facets to be considered
-    supcell (tuple): supercell size
-
-    Returns
-    hosts (dict): dictionary of generated host materials
-    """
-    hosts = {}
-    funcs = {
-        "fcc100": fcc100,
-        "fcc110": fcc110,
-        "fcc111": fcc111,
-        "bcc100": bcc100,
-        "bcc110": bcc110,
-        "bcc111": bcc111,
-    }
-    j = 0
-    while j < len(ft):
-        if a is None:
-            hosts[bv + ft[j]] = funcs[bv + ft[j]](species, size=supcell, vacuum=10.0)
-        else:
-            hosts[bv + ft[j]] = funcs[bv + ft[j]](
-                species, size=supcell, vacuum=10.0, a=a
-            )
-        j += 1
-    return hosts
 
 
 def dope_surface(surf, sites, dop, write_traj=False):
