@@ -8,15 +8,58 @@ from ase.build import bcc100, bcc110, bcc111
 from autocat.adsorption import place_adsorbate, get_ads_sites
 
 
+def gen_bulk_dirs(
+    species_list, bv=["fcc"], ft=["100", "110", "111"], supcell=(3, 3, 4), a=[None]
+):
+    """
+    Given list of species, bravais lattice, and facets creates directories containing traj files for the surfaces
+
+    Parameters:
+        species_list(list of str): list of bulk species to be generated
+        bv(list of str): list of bravais lattices corresponding to each species
+        ft(list of str): list of facets to consider (should be same length as species list)
+        supcell(tuple of int): supercell size to be generated
+        a(list of float): lattice parameters for each species (same length as species list). if None then uses exp. value
+
+    Returns:
+        None
+    """
+    curr_dir = os.getcwd()
+    i = 0
+    while i < len(species_list):
+        b = gen_bulk(species_list[i], bv=bv[i], ft=ft, supcell=supcell, a=a[i])
+        for facet in b.keys():
+            try:
+                os.makedirs(species_list[i] + "/" + facet)
+            except OSError:
+                print(
+                    "Failed Creating Directory ./{}".format(
+                        species_list[i] + "/" + facet
+                    )
+                )
+            else:
+                print(
+                    "Successfully Created Directory ./{}".format(
+                        species_list[i] + "/" + facet
+                    )
+                )
+                os.chdir(species_list[i] + "/" + facet)
+                b[facet].write(species_list[i] + "_" + facet + ".traj")
+                os.chdir(curr_dir)
+        i += 1
+    print("Completed")
+
+
 def gen_bulk(species, bv="fcc", ft=["100", "110", "111"], supcell=(3, 3, 4), a=None):
     """
-    Given bulk species, bravais lattice, and facets, generates dict of ase objects for bulk
+    Given species, bravais lattice, and facets, generates dict of ase objects for surfaces
 
     Parameters
     species (str): bulk species
     bv (str): bravais lattice
     ft (list of str): facets to be considered
     supcell (tuple): supercell size
+    a (float): lattice parameter. if None uses experimental value
 
     Returns
     bulk (dict): dictionary of generated bulk facets
