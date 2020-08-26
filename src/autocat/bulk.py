@@ -1,11 +1,7 @@
 import os
-import numpy as np
 from ase.io import read, write
-from ase import Atom, Atoms
-from ase.visualize import view
 from ase.build import fcc100, fcc110, fcc111
 from ase.build import bcc100, bcc110, bcc111
-from autocat.adsorption import place_adsorbate, get_ads_sites
 
 
 def gen_bulk_dirs(
