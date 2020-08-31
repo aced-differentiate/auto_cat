@@ -40,7 +40,7 @@ def gen_bulk_dirs(
                     )
                 )
                 os.chdir(species_list[i] + "/" + facet)
-                b[facet].write(species_list[i] + "_" + facet + ".traj")
+                b[facet].write(species_list[i] + "_" + facet + ".i.traj")
                 os.chdir(curr_dir)
         i += 1
     print("Completed")

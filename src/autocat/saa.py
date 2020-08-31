@@ -117,7 +117,7 @@ def gen_doped_structs(sub_ase, dop, write_traj=False, cent_sa=True):
 
         all_ase_structs.append(ase_struct)
         if write_traj:
-            write(name + dop + str(i) + ".traj", ase_struct)
+            write(name + dop + str(i) + ".i.traj", ase_struct)
         i += 1
 
     return all_ase_structs
@@ -162,7 +162,7 @@ def dope_surface(surf, sites, dop, write_traj=False):
             i = 0
             while i < len(doped_surfs):
                 doped_surfs[i].write(
-                    surf_name + "_" + dop + "_" + str(site) + ".traj"
+                    surf_name + "_" + dop + "_" + str(site) + ".i.traj"
                 )  # writes the traj files to the directory
                 i += 1
     return doped_surfs

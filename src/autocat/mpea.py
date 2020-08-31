@@ -126,5 +126,5 @@ def gen_mpea_struct(
             name += spec_list[j]
             name += str(comp[j])
             j += 1
-        host.write(name + ".traj")
+        host.write(name + ".i.traj")
     return host
