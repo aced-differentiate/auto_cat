@@ -72,10 +72,10 @@ def gen_bulk(species, bv="fcc", ft=["100", "110", "111"], supcell=(3, 3, 4), a=N
     j = 0
     while j < len(ft):
         if a is None:
-            bulk[bv + ft[j]] = funcs[bv + ft[j]](species, size=supcell, vacuum=20.0)
+            bulk[bv + ft[j]] = funcs[bv + ft[j]](species, size=supcell, vacuum=10.0)
         else:
             bulk[bv + ft[j]] = funcs[bv + ft[j]](
-                species, size=supcell, vacuum=20.0, a=a
+                species, size=supcell, vacuum=10.0, a=a
             )
         j += 1
     return bulk
