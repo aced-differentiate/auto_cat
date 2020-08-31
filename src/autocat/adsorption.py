@@ -10,7 +10,7 @@ from ase.collections import g2
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 from autocat.intermediates.nrr import nrr_intermediate_names, nrr_mols
-from autocat.intermediates.orr import orr_intermediate_names
+from autocat.intermediates.orr import orr_intermediate_names, orr_mols
 
 
 def gen_rxn_int_sym(
@@ -181,7 +181,7 @@ def generate_molecule_object(mol, rotations=[[0.0, "x"]]):
         m = Atoms(mol)
         return m
 
-    elif mol in g2.names:
+    elif mol in g2.names and not "OH":
         m = molecule(mol)
         for r in rotations:
             m.rotate(r[0], r[1])
