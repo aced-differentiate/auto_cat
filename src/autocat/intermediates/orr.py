@@ -1,3 +1,3 @@
 from ase import Atoms
 
-intermediate_names = ["OOH", "OH"]
+orr_intermediate_names = ["OOH", "OH"]
