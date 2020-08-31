@@ -9,7 +9,7 @@ from ase.data import chemical_symbols
 from ase.collections import g2
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
-from autocat.intermediates.nrr import nrr_intermediate_names
+from autocat.intermediates.nrr import nrr_intermediate_names, nrr_mols
 from autocat.intermediates.orr import orr_intermediate_names
 
 
@@ -190,8 +190,14 @@ def generate_molecule_object(mol, rotations=[[0.0, "x"]]):
             atom.position[2] -= lowest_mol
         return m
 
-    elif mol == "N2H" or mol == "NNH":
-        m = Atoms("N2H", [(0.0, 0.0, 0.0,), (0.0, 0.0, 1.2), (0.71, 0, 1.91)])
+    elif mol in nrr_intermediate_names:
+        m = nrr_mols[mol]
+        for r in rotations:
+            m.rotate(r[0], r[1])
+        return m
+
+    elif mol in orr_intermediate_names:
+        m = orr_mols[mol]
         for r in rotations:
             m.rotate(r[0], r[1])
         return m
