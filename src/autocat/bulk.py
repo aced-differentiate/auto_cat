@@ -53,7 +53,13 @@ def gen_bulk_dirs(
 
 
 def gen_bulk(
-    species, bv="fcc", ft=["100", "110", "111"], supcell=(3, 3, 4), a=None, fix=0
+    species,
+    bv="fcc",
+    ft=["100", "110", "111"],
+    supcell=(3, 3, 4),
+    a=None,
+    fix=0,
+    write_traj=False,
 ):
     """
     Given species, bravais lattice, and facets, generates dict of ase objects for surfaces
@@ -92,4 +98,7 @@ def gen_bulk(
             f = FixAtoms(mask=[atom.tag > (supcell[-1] - fix) for atom in bulk[sys]])
             bulk[sys].set_constraint([f])
 
+    if write_traj:
+        for sys in bulk:
+            bulk[sys].write(species + "_" + sys + ".i.traj")
     return bulk
