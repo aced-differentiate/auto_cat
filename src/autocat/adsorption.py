@@ -199,7 +199,7 @@ def generate_molecule_object(mol, rotations=[[0.0, "x"]]):
         m = Atoms(mol)
         return m
 
-    elif mol in g2.names and not "OH":
+    elif mol in g2.names and mol is not "OH":
         m = molecule(mol)
         for r in rotations:
             m.rotate(r[0], r[1])
@@ -209,7 +209,7 @@ def generate_molecule_object(mol, rotations=[[0.0, "x"]]):
         return m
 
     elif mol in nrr_intermediate_names:
-        m = nrr_mols[mol]
+        m = nrr_mols[mol].copy()
         for r in rotations:
             m.rotate(r[0], r[1])
         return m
