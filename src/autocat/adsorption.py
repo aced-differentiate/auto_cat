@@ -17,7 +17,7 @@ def gen_rxn_int_sym(
     surf,
     site_type=["ontop", "bridge", "hollow"],
     ads=["H"],
-    height=[1.5],
+    height={},
     rots={},
     site_im=True,
 ):
@@ -30,7 +30,10 @@ def gen_rxn_int_sym(
         site_type(list of str): desired types of adsorption symmetry sites to identify
             Options: 'ontop', 'bridge', 'hollow'
         ads(list of str or ase Atoms obj): list of adsorbates to be placed
-        site_traj(bool): writes out a traj showing all identified sites in a single file
+        height(dict of float): height to place each adsorbate over surface
+        rots(dict of list of list of float and str): dict of list of rotation operations for each specified adsorbate
+            defaults to no applied rotations
+        site_im(bool): writes out a traj showing all identified sites in a single file
 
     Returns:
         None
@@ -57,7 +60,7 @@ def gen_rxn_int_sym(
 
 
 def gen_rxn_int_pos(
-    surf, ads=["H"], pos=(0.0, 0.0), height=[1.5], rots={}, label="custom"
+    surf, ads=["H"], pos=(0.0, 0.0), height={}, rots={}, label="custom"
 ):
     """
 
@@ -67,7 +70,7 @@ def gen_rxn_int_pos(
         surf(str or ase Atoms obj): name of traj file containing relaxed surface to be adsorbed upon
         ads(list of str or ase Atoms obj): list of adsorbates to be placed
         pos(tuple,list,or np.array of floats): xy coordinate for where to place adsorbate
-        height(list of float): height to place each adsorbate over surface
+        height(dict of float): height to place each adsorbate over surface
         rots(dict of list of list of float and str): dict of list of rotation operations for each specified adsorbate
             defaults to no applied rotations
         label(str): label for selected position (e.g. ontop, bridge, custom, etc.)
@@ -102,9 +105,6 @@ def gen_rxn_int_pos(
             )
             os.chdir(ads[i] + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1]))
 
-            # default zero rotation
-            # r = [[0.0, "x"]]
-
             # checks if rotation for adsorbate specified
             if ads[i] in rots:
                 r = rots[ads[i]]
@@ -112,19 +112,15 @@ def gen_rxn_int_pos(
             else:
                 r = [[0.0, "x"]]
 
-            #            # default height 1.5 A
-            #            h = 1.5
-            #
-            #            # checks if height for adsorbate specified
-            #            if ads[i]
+            # checks if height for adsorbate specified
+            if ads[i] in height:
+                h = height[ads[i]]
+
+            else:
+                h = 1.5  # defaults height 1.5 A
 
             place_adsorbate(
-                surf,
-                ads[i],
-                position=pos,
-                height=height[i],
-                write_traj=True,
-                rotations=r,
+                surf, ads[i], position=pos, height=h, write_traj=True, rotations=r,
             )
             print("Adsorbed {} traj generated at position {}".format(ads[i], rpos))
             os.chdir(curr_dir)
