@@ -18,7 +18,7 @@ def gen_rxn_int_sym(
     site_type=["ontop", "bridge", "hollow"],
     ads=["H"],
     height=[1.5],
-    rots=[[[0.0, "x"]]],
+    rots={},
     site_im=True,
 ):
     """
@@ -57,7 +57,7 @@ def gen_rxn_int_sym(
 
 
 def gen_rxn_int_pos(
-    surf, ads=["H"], pos=(0.0, 0.0), height=[1.5], rots=[[[0.0, "x"]]], label="custom"
+    surf, ads=["H"], pos=(0.0, 0.0), height=[1.5], rots={}, label="custom"
 ):
     """
 
@@ -68,7 +68,8 @@ def gen_rxn_int_pos(
         ads(list of str or ase Atoms obj): list of adsorbates to be placed
         pos(tuple,list,or np.array of floats): xy coordinate for where to place adsorbate
         height(list of float): height to place each adsorbate over surface
-        rots(list of list of list of float and str): list of list of rotation operations for each adsorbate
+        rots(dict of list of list of float and str): dict of list of rotation operations for each specified adsorbate
+            defaults to no applied rotations
         label(str): label for selected position (e.g. ontop, bridge, custom, etc.)
 
     Returns:
@@ -100,13 +101,30 @@ def gen_rxn_int_pos(
                 )
             )
             os.chdir(ads[i] + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1]))
+
+            # default zero rotation
+            # r = [[0.0, "x"]]
+
+            # checks if rotation for adsorbate specified
+            if ads[i] in rots:
+                r = rots[ads[i]]
+
+            else:
+                r = [[0.0, "x"]]
+
+            #            # default height 1.5 A
+            #            h = 1.5
+            #
+            #            # checks if height for adsorbate specified
+            #            if ads[i]
+
             place_adsorbate(
                 surf,
                 ads[i],
                 position=pos,
                 height=height[i],
                 write_traj=True,
-                rotations=rots[i],
+                rotations=r,
             )
             print("Adsorbed {} traj generated at position {}".format(ads[i], rpos))
             os.chdir(curr_dir)
@@ -197,7 +215,7 @@ def generate_molecule_object(mol, rotations=[[0.0, "x"]]):
         return m
 
     elif mol in orr_intermediate_names:
-        m = orr_mols[mol]
+        m = orr_mols[mol].copy()
         for r in rotations:
             m.rotate(r[0], r[1])
         return m
