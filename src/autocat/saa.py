@@ -106,6 +106,7 @@ def gen_doped_structs(sub_ase, dop, write_traj=False, cent_sa=True):
     while i < len(all_structs):
         ase_struct = conv.get_atoms(all_structs[i])  # converts to ase object
         ase_struct.set_tags(tags)
+        ase_struct.pbc = (1, 1, 0)  # ensure pbc in xy only
         sa_ind = find_sa_ind(ase_struct)
         ase_struct[sa_ind].magmom = mag  # set initial magmom
         if cent_sa:  # centers the sa
