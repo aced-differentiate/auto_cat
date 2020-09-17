@@ -90,6 +90,7 @@ def gen_doped_structs(sub_ase, dop, write_traj=False, cent_sa=True):
     """
     name = "".join(np.unique(sub_ase.symbols))
     tags = sub_ase.get_tags()
+    constr = sub_ase.constraints
     conv = AseAtomsAdaptor()  # converter between pymatgen and ase
 
     struct = conv.get_structure(sub_ase)  # convert ase substrate to pymatgen structure
@@ -109,6 +110,7 @@ def gen_doped_structs(sub_ase, dop, write_traj=False, cent_sa=True):
         ase_struct = conv.get_atoms(all_structs[i])  # converts to ase object
         ase_struct.set_tags(tags)
         ase_struct.pbc = (1, 1, 0)  # ensure pbc in xy only
+        ase_struct.constraints = constr  # propagate constraints
         sa_ind = find_sa_ind(ase_struct)
         ase_struct[sa_ind].magmom = mag  # set initial magmom
         if cent_sa:  # centers the sa
