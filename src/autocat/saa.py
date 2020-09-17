@@ -19,6 +19,7 @@ def gen_saa(
     supcell=(3, 3, 4),
     a=None,
     cent_sa=True,
+    fix=0,
 ):
     """
     For each of the substrates and dopants specified, a new directory containing a traj file for the SAA with the 
@@ -30,13 +31,14 @@ def gen_saa(
         bv (str): bravais lattice (currently only fcc and bcc implemented)
         ft (list of str): facets to be considered
         supcell (tuple): supercell
+        fix (int): number of layers from bottom to fix (e.g. value of 2 fixes bottom 2 layers)
 
     Returns:
         None
     """
     i = 0
     while i < len(subs):
-        hosts = gen_bulk(subs[i], bv, ft, supcell, a)  # generate host structures
+        hosts = gen_bulk(subs[i], bv, ft, supcell, a, fix)  # generate host structures
         j = 0
         while j < len(dops):  # iterate over dopants
             for f in ft:  # iterate over facets
