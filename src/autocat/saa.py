@@ -36,6 +36,9 @@ def gen_saa(
     Returns:
         None
     """
+
+    curr_dir = os.getcwd()
+
     i = 0
     while i < len(subs):
         hosts = gen_bulk(subs[i], bv, ft, supcell, a, fix)  # generate host structures
@@ -43,32 +46,32 @@ def gen_saa(
         while j < len(dops):  # iterate over dopants
             for f in ft:  # iterate over facets
                 try:
-                    os.mkdir(
-                        subs[i] + "_" + dops[j] + "_" + bv + f
+                    os.makedirs(
+                        subs[i] + "/" + dops[j] + "/" + bv + f
                     )  # create directory for each sub/dop combo
                 except OSError:
                     print(
-                        "Failed Creating Directory ./{}_{}_{}".format(
+                        "Failed Creating Directory ./{}/{}/{}".format(
                             subs[i], dops[j], bv + f
                         )
                     )
                 else:
                     print(
-                        "Successfully Created Directory ./{}_{}_{}".format(
+                        "Successfully Created Directory ./{}/{}/{}".format(
                             subs[i], dops[j], bv + f
                         )
                     )
                     os.chdir(
-                        subs[i] + "_" + dops[j] + "_" + bv + f
+                        subs[i] + "/" + dops[j] + "/" + bv + f
                     )  # change into new dir
                     slab = hosts[bv + f]  # extract host corresponding to facet
                     gen_doped_structs(
                         slab, dops[j], write_traj=True, cent_sa=cent_sa
                     )  #  generate doped structures
                     print(
-                        "{}_{}_{} SAA trajs generated".format(subs[i], dops[j], bv + f)
+                        "{}/{}/{} SAA trajs generated".format(subs[i], dops[j], bv + f)
                     )
-                    os.chdir("..")
+                    os.chdir(curr_dir)
             j += 1
         i += 1
 
