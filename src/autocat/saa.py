@@ -44,34 +44,37 @@ def gen_saa(
         hosts = gen_bulk(subs[i], bv, ft, supcell, a, fix)  # generate host structures
         j = 0
         while j < len(dops):  # iterate over dopants
-            for f in ft:  # iterate over facets
-                try:
-                    os.makedirs(
-                        subs[i] + "/" + dops[j] + "/" + bv + f
-                    )  # create directory for each sub/dop combo
-                except OSError:
-                    print(
-                        "Failed Creating Directory ./{}/{}/{}".format(
-                            subs[i], dops[j], bv + f
+            if subs[i] != dops[j]:  # ensures different host and sa species
+                for f in ft:  # iterate over facets
+                    try:
+                        os.makedirs(
+                            subs[i] + "/" + dops[j] + "/" + bv + f
+                        )  # create directory for each sub/dop combo
+                    except OSError:
+                        print(
+                            "Failed Creating Directory ./{}/{}/{}".format(
+                                subs[i], dops[j], bv + f
+                            )
                         )
-                    )
-                else:
-                    print(
-                        "Successfully Created Directory ./{}/{}/{}".format(
-                            subs[i], dops[j], bv + f
+                    else:
+                        print(
+                            "Successfully Created Directory ./{}/{}/{}".format(
+                                subs[i], dops[j], bv + f
+                            )
                         )
-                    )
-                    os.chdir(
-                        subs[i] + "/" + dops[j] + "/" + bv + f
-                    )  # change into new dir
-                    slab = hosts[bv + f]  # extract host corresponding to facet
-                    gen_doped_structs(
-                        slab, dops[j], write_traj=True, cent_sa=cent_sa
-                    )  #  generate doped structures
-                    print(
-                        "{}/{}/{} SAA trajs generated".format(subs[i], dops[j], bv + f)
-                    )
-                    os.chdir(curr_dir)
+                        os.chdir(
+                            subs[i] + "/" + dops[j] + "/" + bv + f
+                        )  # change into new dir
+                        slab = hosts[bv + f]  # extract host corresponding to facet
+                        gen_doped_structs(
+                            slab, dops[j], write_traj=True, cent_sa=cent_sa
+                        )  #  generate doped structures
+                        print(
+                            "{}/{}/{} SAA trajs generated".format(
+                                subs[i], dops[j], bv + f
+                            )
+                        )
+                        os.chdir(curr_dir)
             j += 1
         i += 1
 
