@@ -1,6 +1,6 @@
 from ase import Atoms
 
-nrr_intermediate_names = ["NNH", "NNH2", "N", "NH", "NH2", "NHNH", "NHNH2"]
+nrr_intermediate_names = ["NNH", "NNH2", "N", "NH", "NH2", "NHNH", "NHNH2", "NH2NH2"]
 
 # N is in atomic symbols and NH2 is in g2
 nrr_mols = {
