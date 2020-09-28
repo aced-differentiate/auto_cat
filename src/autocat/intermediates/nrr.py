@@ -5,6 +5,14 @@ nrr_intermediate_names = ["NNH", "NNH2", "N", "NH", "NH2", "NHNH", "NHNH2"]
 # N is in atomic symbols and NH2 is in g2
 nrr_mols = {
     "NNH": Atoms("N2H", [(0.0, 0.0, 0.0), (-0.2, 0.0, 1.2), (0.51, 0, 1.91)]),
+    "NH2": Atoms(
+        "NH2",
+        [
+            [0.0, 0.0, 0.0],
+            [8.31e-01, -1.76e-01, 5.48e-01],
+            [-8.12e-01, -1.74e-01, 5.76e-01],
+        ],
+    ),
     "NNH2": Atoms(
         "N2H2",
         [
