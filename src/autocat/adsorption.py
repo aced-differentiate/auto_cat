@@ -20,6 +20,7 @@ def gen_rxn_int_sym(
     height={},
     rots={},
     site_im=True,
+    refs=None,
 ):
     """
     
@@ -34,6 +35,7 @@ def gen_rxn_int_sym(
         rots(dict of list of list of float and str): dict of list of rotation operations for each specified adsorbate
             defaults to no applied rotations
         site_im(bool): writes out a traj showing all identified sites in a single file
+        refs(list of str): names of reference states to be generated
 
     Returns:
         None
@@ -181,11 +183,14 @@ def place_adsorbate(
     return surf
 
 
-def generate_molecule_object(mol, rotations=[[0.0, "x"]]):
+def generate_molecule_object(
+    mol, rotations=[[0.0, "x"]], write_traj=False, cell=[15, 15, 15]
+):
     """
     Parameters:
         mol(str): name of molecule to be generated
         rotations(list of floats and strings): list of rotation operations to be carried out
+        write_traj(bool): True if traj to be written
 
     Returns:
         m(ase Atoms obj): molecule object
@@ -193,6 +198,10 @@ def generate_molecule_object(mol, rotations=[[0.0, "x"]]):
 
     if mol in chemical_symbols:
         m = Atoms(mol)
+        m.cell = cell
+        m.center()
+        if write_traj:
+            m.write(mol + ".m.traj")
         return m
 
     elif mol in g2.names and mol not in ["OH", "NH2", "NH"]:
@@ -202,18 +211,30 @@ def generate_molecule_object(mol, rotations=[[0.0, "x"]]):
         lowest_mol = np.min(m.positions[:, 2])
         for atom in m:
             atom.position[2] -= lowest_mol
+        m.cell = cell
+        m.center()
+        if write_traj:
+            m.write(mol + ".m.traj")
         return m
 
     elif mol in nrr_intermediate_names:
         m = nrr_mols[mol].copy()
         for r in rotations:
             m.rotate(r[0], r[1])
+        m.cell = cell
+        m.center()
+        if write_traj:
+            m.write(mol + ".m.traj")
         return m
 
     elif mol in orr_intermediate_names:
         m = orr_mols[mol].copy()
         for r in rotations:
             m.rotate(r[0], r[1])
+        m.cell = cell
+        m.center()
+        if write_traj:
+            m.write(mol + ".m.traj")
         return m
 
     return None
