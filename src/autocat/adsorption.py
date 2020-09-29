@@ -51,12 +51,17 @@ def gen_rxn_int_sym(
     if site_im:
         view_ads_sites(surf, ads_site_type=site_type, write_traj=True, view_im=False)
 
+    print("Started building adsorbed structures")
     for typ in sites.keys():
         if typ != "all":
             for p in sites[typ]:
                 gen_rxn_int_pos(
                     surf, ads=ads, pos=p[:2], height=height, rots=rots, label=typ
                 )
+
+    if refs is not None:
+        print("Started building reference states")
+        gen_refs_dirs(refs)
 
     print("Completed")
 
