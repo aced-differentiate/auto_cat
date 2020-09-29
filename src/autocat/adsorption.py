@@ -183,6 +183,30 @@ def place_adsorbate(
     return surf
 
 
+def gen_refs_dirs(refs_list, cell=[15, 15, 15]):
+    """
+    Parameters:
+        refs_list(list of str): list of names of reference molecules to be generated
+        cell: size of cell to contain molecule
+    Returns:
+        None
+    """
+    curr_dir = os.getcwd()
+
+    for m in refs_list:
+        try:
+            os.makedirs("references/" + m)
+        except OSError:
+            print("Failed Creating Directory ./references/{}".format(m))
+        else:
+            print("Successfully Created Directory ./references/{}".format(m))
+            os.chdir("references/" + m)
+            generate_molecule_object(m, write_traj=True, cell=cell)
+            print("Created {} reference state".format(m))
+            os.chdir(curr_dir)
+    print("Generation of reference states completed")
+
+
 def generate_molecule_object(
     mol, rotations=[[0.0, "x"]], write_traj=False, cell=[15, 15, 15]
 ):
