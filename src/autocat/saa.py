@@ -8,7 +8,7 @@ from ase.build import bcc100, bcc110, bcc111
 from ase.data import atomic_numbers, ground_state_magnetic_moments
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
-from autocat.bulk import gen_bulk
+from autocat.surface import gen_surf
 
 
 def gen_saa(
@@ -41,7 +41,7 @@ def gen_saa(
 
     i = 0
     while i < len(subs):
-        hosts = gen_bulk(subs[i], bv, ft, supcell, a, fix)  # generate host structures
+        hosts = gen_surf(subs[i], bv, ft, supcell, a, fix)  # generate host structures
         j = 0
         while j < len(dops):  # iterate over dopants
             if subs[i] != dops[j]:  # ensures different host and sa species

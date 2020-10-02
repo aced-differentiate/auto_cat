@@ -5,7 +5,7 @@ from ase.build import bcc100, bcc110, bcc111
 from ase.constraints import FixAtoms
 
 
-def gen_bulk_dirs(
+def gen_surf_dirs(
     species_list,
     bv=["fcc"],
     ft=["100", "110", "111"],
@@ -17,7 +17,7 @@ def gen_bulk_dirs(
     Given list of species, bravais lattice, and facets creates directories containing traj files for the surfaces
 
     Parameters:
-        species_list(list of str): list of bulk species to be generated
+        species_list(list of str): list of surf species to be generated
         bv(list of str): list of bravais lattices corresponding to each species
         ft(list of str): list of facets to consider (should be same length as species list)
         supcell(tuple of int): supercell size to be generated
@@ -29,7 +29,7 @@ def gen_bulk_dirs(
     curr_dir = os.getcwd()
     i = 0
     while i < len(species_list):
-        b = gen_bulk(species_list[i], bv=bv[i], ft=ft, supcell=supcell, a=a[i], fix=fix)
+        b = gen_surf(species_list[i], bv=bv[i], ft=ft, supcell=supcell, a=a[i], fix=fix)
         for facet in b.keys():
             try:
                 os.makedirs(species_list[i] + "/" + facet)
@@ -52,7 +52,7 @@ def gen_bulk_dirs(
     print("Completed")
 
 
-def gen_bulk(
+def gen_surf(
     species,
     bv="fcc",
     ft=["100", "110", "111"],
@@ -65,7 +65,7 @@ def gen_bulk(
     Given species, bravais lattice, and facets, generates dict of ase objects for surfaces
 
     Parameters
-    species (str): bulk species
+    species (str): surf species
     bv (str): bravais lattice
     ft (list of str): facets to be considered
     supcell (tuple): supercell size
@@ -73,9 +73,9 @@ def gen_bulk(
     fix (int): number of layers from bottom to fix (e.g. value of 2 fixes bottom 2 layers)
 
     Returns
-    bulk (dict): dictionary of generated bulk facets
+    surf (dict): dictionary of generated surf facets
     """
-    bulk = {}
+    surf = {}
     funcs = {
         "fcc100": fcc100,
         "fcc110": fcc110,
@@ -87,18 +87,18 @@ def gen_bulk(
     j = 0
     while j < len(ft):
         if a is None:
-            bulk[bv + ft[j]] = funcs[bv + ft[j]](species, size=supcell, vacuum=10.0)
+            surf[bv + ft[j]] = funcs[bv + ft[j]](species, size=supcell, vacuum=10.0)
         else:
-            bulk[bv + ft[j]] = funcs[bv + ft[j]](
+            surf[bv + ft[j]] = funcs[bv + ft[j]](
                 species, size=supcell, vacuum=10.0, a=a
             )
         j += 1
     if fix > 0:
-        for sys in bulk:
-            f = FixAtoms(mask=[atom.tag > (supcell[-1] - fix) for atom in bulk[sys]])
-            bulk[sys].set_constraint([f])
+        for sys in surf:
+            f = FixAtoms(mask=[atom.tag > (supcell[-1] - fix) for atom in surf[sys]])
+            surf[sys].set_constraint([f])
 
     if write_traj:
-        for sys in bulk:
-            bulk[sys].write(species + "_" + sys + ".i.traj")
-    return bulk
+        for sys in surf:
+            surf[sys].write(species + "_" + sys + ".i.traj")
+    return surf
