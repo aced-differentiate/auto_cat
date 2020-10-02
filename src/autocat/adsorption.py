@@ -143,6 +143,7 @@ def place_adsorbate(
     height=1.5,
     rotations=[[0.0, "x"]],
     write_traj=False,
+    mol_index=0,
 ):
     """
     Parameters:
@@ -152,6 +153,7 @@ def place_adsorbate(
         height(float): height above surface where adsorbate should be initially placed
         rotation(tuple of floats): rotation of molecule to be applied about the x,y,z axes
         write_traj(bool): whether to write out traj file
+        mol_index(int): index of atom in molecule for the xy position to be placed
 
     Returns:
         ads_state(ase obj): surface with the adsorbant placed
@@ -178,9 +180,9 @@ def place_adsorbate(
         for r in rotations:
             adsorbate.rotate(r[0], r[1])
 
-    lowest_ind = adsorbate.positions[:, 2].argmin()
+    # lowest_atom = adsorbate.positions[:, 2].min()
 
-    add_adsorbate(surf, adsorbate, height, position=position, mol_index=lowest_ind)
+    add_adsorbate(surf, adsorbate, height, position=position, mol_index=mol_index)
 
     if write_traj:
         surf.write(mol + ".i.traj")
