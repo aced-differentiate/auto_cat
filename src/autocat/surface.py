@@ -2,6 +2,7 @@ import os
 from ase.io import read, write
 from ase.build import fcc100, fcc110, fcc111
 from ase.build import bcc100, bcc110, bcc111
+from ase.build import hcp0001
 from ase.constraints import FixAtoms
 
 
@@ -83,6 +84,7 @@ def gen_surf(
         "bcc100": bcc100,
         "bcc110": bcc110,
         "bcc111": bcc111,
+        "hcp0001": hcp0001,
     }
     j = 0
     while j < len(ft):
