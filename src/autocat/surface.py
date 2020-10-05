@@ -116,7 +116,9 @@ def gen_surf(
     }
     j = 0
     while j < len(ft):
-        surf[bv + ft[j]] = funcs[bv + ft[j]](species, size=supcell, vacuum=10.0, a=a)
+        surf[bv + ft[j]] = funcs[bv + ft[j]](
+            species, size=supcell, vacuum=10.0, a=a, c=c
+        )
         j += 1
     if fix > 0:
         for sys in surf:
