@@ -3,6 +3,7 @@ from ase.io import read, write
 from ase.build import fcc100, fcc110, fcc111
 from ase.build import bcc100, bcc110, bcc111
 from ase.build import hcp0001
+from ase.data import reference_states, atomic_numbers
 from ase.constraints import FixAtoms
 
 
@@ -55,10 +56,11 @@ def gen_surf_dirs(
 
 def gen_surf(
     species,
-    bv="fcc",
+    bv=None,
     ft=["100", "110", "111"],
     supcell=(3, 3, 4),
     a=None,
+    c=None,
     fix=0,
     write_traj=False,
 ):
@@ -70,12 +72,17 @@ def gen_surf(
     bv (str): bravais lattice
     ft (list of str): facets to be considered
     supcell (tuple): supercell size
-    a (float): lattice parameter. if None uses experimental value
+    a (float): lattice parameter. if None uses ASE default
+    c (float): lattice parameter. if None uses ASE default
     fix (int): number of layers from bottom to fix (e.g. value of 2 fixes bottom 2 layers)
 
     Returns
     surf (dict): dictionary of generated surf facets
     """
+
+    if bv is None:  # uses ASE data to get Bravais Lattice
+        bv = reference_states[atomic_numbers[species]]["symmetry"]
+
     surf = {}
     funcs = {
         "fcc100": fcc100,
@@ -88,12 +95,7 @@ def gen_surf(
     }
     j = 0
     while j < len(ft):
-        if a is None:
-            surf[bv + ft[j]] = funcs[bv + ft[j]](species, size=supcell, vacuum=10.0)
-        else:
-            surf[bv + ft[j]] = funcs[bv + ft[j]](
-                species, size=supcell, vacuum=10.0, a=a
-            )
+        surf[bv + ft[j]] = funcs[bv + ft[j]](species, size=supcell, vacuum=10.0, a=a)
         j += 1
     if fix > 0:
         for sys in surf:
