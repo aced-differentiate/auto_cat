@@ -5,19 +5,20 @@ from ase import Atom, Atoms
 from ase.visualize import view
 from ase.build import fcc100, fcc110, fcc111
 from ase.build import bcc100, bcc110, bcc111
-from ase.data import atomic_numbers, ground_state_magnetic_moments
+from ase.data import atomic_numbers, ground_state_magnetic_moments, reference_states
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 from autocat.surface import gen_surf
 
 
-def gen_saa(
+def gen_saa_dirs(
     subs,
     dops,
-    bv="fcc",
+    bv_dict={},
     ft=["100", "110", "111"],
     supcell=(3, 3, 4),
-    a=None,
+    a_dict={},
+    c_dict={},
     cent_sa=True,
     fix=0,
 ):
@@ -28,8 +29,10 @@ def gen_saa(
     Parameters:
         subs (list of str): host species
         dops (list of str): dopant species
-        bv (str): bravais lattice (currently only fcc and bcc implemented)
+        bv_dict (dict): dict of manually specified bravais lattices for specific host species
         ft (list of str): facets to be considered
+        a_dict(dict): manually specified lattice parameters for species. if None then uses ASE default
+        c_dict(dict): manually specified lattice parameters for species. if None then uses ASE default
         supcell (tuple): supercell
         fix (int): number of layers from bottom to fix (e.g. value of 2 fixes bottom 2 layers)
 
@@ -41,7 +44,28 @@ def gen_saa(
 
     i = 0
     while i < len(subs):
-        hosts = gen_surf(subs[i], bv, ft, supcell, a, fix)  # generate host structures
+
+        # Check if Bravais lattice manually specified
+        if subs[i] in bv_dict:
+            bv = bv_dict[subs[i]]
+        else:
+            bv = reference_states[atomic_numbers[subs[i]]]["symmetry"]
+
+        # Check if a manually specified
+        if subs[i] in a_dict:
+            a = a_dict[subs[i]]
+        else:
+            a = None
+
+        # Check if c manually specified
+        if subs[i] in c_dict:
+            c = c_dict[subs[i]]
+        else:
+            c = None
+
+        hosts = gen_surf(
+            subs[i], bv=bv, ft=ft, supcell=supcell, a=a, c=c, fix=fix
+        )  # generate host structures
         j = 0
         while j < len(dops):  # iterate over dopants
             if subs[i] != dops[j]:  # ensures different host and sa species
