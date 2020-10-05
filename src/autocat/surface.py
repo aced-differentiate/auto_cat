@@ -9,10 +9,11 @@ from ase.constraints import FixAtoms
 
 def gen_surf_dirs(
     species_list,
-    bv=["fcc"],
+    bv_dict={},
     ft=["100", "110", "111"],
     supcell=(3, 3, 4),
-    a=[None],
+    a_dict={},
+    c_dict={},
     fix=0,
 ):
     """
@@ -20,10 +21,11 @@ def gen_surf_dirs(
 
     Parameters:
         species_list(list of str): list of surf species to be generated
-        bv(list of str): list of bravais lattices corresponding to each species
+        bv(dict): dict of manually specified bravais lattices for specific species
         ft(list of str): list of facets to consider (should be same length as species list)
         supcell(tuple of int): supercell size to be generated
-        a(list of float): lattice parameters for each species (same length as species list). if None then uses exp. value
+        a(dict): manually specified lattice parameters for species. if None then uses ASE default
+        c(dict): manually specified lattice parameters for species. if None then uses ASE default
 
     Returns:
         None
@@ -31,7 +33,26 @@ def gen_surf_dirs(
     curr_dir = os.getcwd()
     i = 0
     while i < len(species_list):
-        b = gen_surf(species_list[i], bv=bv[i], ft=ft, supcell=supcell, a=a[i], fix=fix)
+
+        # Check if Bravais lattice manually specified
+        if species_list[i] in bv_dict:
+            bv = bv_dict[species_list[i]]
+        else:
+            bv = None
+
+        # Check if a manually specified
+        if species_list[i] in a_dict:
+            a = a_dict[species_list[i]]
+        else:
+            a = None
+
+        # Check if c manually specified
+        if species_list[i] in c_dict:
+            c = c_dict[species_list[i]]
+        else:
+            c = None
+
+        b = gen_surf(species_list[i], bv=bv, ft=ft, supcell=supcell, a=a, c=c, fix=fix)
         for facet in b.keys():
             try:
                 os.makedirs(species_list[i] + "/" + facet)
