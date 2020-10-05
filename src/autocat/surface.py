@@ -116,9 +116,14 @@ def gen_surf(
     }
     j = 0
     while j < len(ft):
-        surf[bv + ft[j]] = funcs[bv + ft[j]](
-            species, size=supcell, vacuum=10.0, a=a, c=c
-        )
+        if c is not None:
+            surf[bv + ft[j]] = funcs[bv + ft[j]](
+                species, size=supcell, vacuum=10.0, a=a, c=c
+            )
+        else:
+            surf[bv + ft[j]] = funcs[bv + ft[j]](
+                species, size=supcell, vacuum=10.0, a=a
+            )
         j += 1
     if fix > 0:
         for sys in surf:
