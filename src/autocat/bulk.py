@@ -1,5 +1,6 @@
 import os
 from ase.build import bulk
+from ase.data import atomic_numbers, ground_state_magnetic_moments, reference_states
 
 
 def gen_bulk_dirs(species_list, a_dict={}, c_dict={}):
@@ -42,6 +43,11 @@ def gen_bulk_dirs(species_list, a_dict={}, c_dict={}):
             )
             os.chdir(species_list[i] + "_bulk")
             bulk_obj = bulk(species_list[i], a=a, c=c)
+            if species_list[i] in ["Fe", "Co", "Ni"]:  # check if ferromagnetic material
+                bulk_obj.set_initial_magnetic_moments(
+                    [ground_state_magnetic_moments[atomic_numbers[species_list[i]]]]
+                    * len(bulk_obj)
+                )
             bulk_obj.write("{}_bulk.traj".format(species_list[i]))
             os.chdir(curr_dir)
         i += 1
