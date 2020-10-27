@@ -48,7 +48,7 @@ def gen_bulk_dirs(species_list, a_dict={}, c_dict={}):
                     [ground_state_magnetic_moments[atomic_numbers[species_list[i]]]]
                     * len(bulk_obj)
                 )
-            bulk_obj.write("{}_bulk.traj".format(species_list[i]))
+            bulk_obj.write("{}_bulk.i.traj".format(species_list[i]))
             os.chdir(curr_dir)
         i += 1
     print("\nCompleted")
