@@ -3,7 +3,7 @@ from ase.io import read, write
 from ase.build import fcc100, fcc110, fcc111
 from ase.build import bcc100, bcc110, bcc111
 from ase.build import hcp0001
-from ase.data import reference_states, atomic_numbers
+from ase.data import reference_states, atomic_numbers, ground_state_magnetic_moments
 from ase.constraints import FixAtoms
 
 
@@ -129,6 +129,11 @@ def gen_surf(
         for sys in surf:
             f = FixAtoms(mask=[atom.tag > (supcell[-1] - fix) for atom in surf[sys]])
             surf[sys].set_constraint([f])
+
+    if species in ["Fe", "Co", "Ni"]:  # check if ferromagnetic material
+        for sys in surf:
+            mag = ground_state_magnetic_moments[atomic_numbers[species]]
+            surf[sys].set_initial_magnetic_moments([mag] * len(surf[sys]))
 
     if write_traj:
         for sys in surf:
