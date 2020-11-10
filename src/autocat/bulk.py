@@ -1,54 +1,139 @@
 import os
+from pathlib import Path
+from typing import List
+from typing import Dict
+from typing import Optional
+
 from ase.build import bulk
-from ase.data import atomic_numbers, ground_state_magnetic_moments, reference_states
+from ase.data import atomic_numbers
+from ase.data import reference_states
+from ase.data import ground_state_magnetic_moments
 
 
-def gen_bulk_dirs(species_list, a_dict={}, c_dict={}):
+def generate_bulk_structures(
+    species_list: List[str],
+    crystal_structures: Dict[str, str] = None,
+    a_dict: Optional[Dict[str, float]] = None,
+    c_dict: Optional[Dict[str, float]] = None,
+    set_magnetic_moments: List[str] = None,
+    magnetic_moments: Optional[Dict[str, float]] = None,
+    write_to_disk: bool = False,
+    write_location: str = ".",
+    dirs_exist_ok: bool = False,
+):
     """
-    Generates bulk structures in separate directories
+    Generates bulk crystal structures and writes them to separate
+    directories, if specified.
 
-    Parameters:
-        species_list(list of str): list of bulk species to be considered
-        a_dict(dict): if lattice parameters want to be specified for a given species
-        c_dict(dict): if lattice parameters want to be specified for a given species
-    Returns:
-        None
+    Parameters
+    ----------
+
+    species_list:
+        List of chemical symbols of the bulk structures to be constructed.
+
+    cystal_structures:
+        Dictionary with crystal structure to be used for each species.
+        These will be passed on as input to `ase.build.bulk`. So, must be one
+        of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic,
+        diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite.
+        If not specified, the default reference crystal structure for each
+        species from `ase.data` will be used.
+
+    a_dict:
+        Dictionary with lattice parameters <a> to be used for each species.
+        If not specified, defaults from the `ase.data` module are used.
+
+    c_dict:
+        Dictionary with lattice parameters <c> to be used for each species.
+        If not specified, defaults from the `ase.data` module are used.
+
+    set_magnetic_moments:
+        List of species for which magnetic moments need to be set.
+        If not specified, magnetic moments will be set only for Fe, Co, Ni
+        (the ferromagnetic elements).
+
+    magnetic_moments:
+        Dictionary with the magnetic moments to be set for the chemical
+        species listed previously.
+        If not specified, default ground state magnetic moments from
+        `ase.data` are used.
+
+    write_to_disk:
+        Boolean specifying whether the bulk structures generated should be
+        written to disk.
+        Defaults to False.
+
+    write_location:
+        String with the location where the per-species/per-crystal structure
+        directories must be constructed and structure files written to disk.
+
+        In the specified write_location, the following directory structure
+        will be created:
+        [species_1]_bulk_[crystal_structure_1]/input.traj
+        [species_1]_bulk_[crystal_structure_2]/input.traj
+        ...
+        [species_2]_bulk_[crystal_structure_2]/input.traj
+        ...
+
+    dirs_exist_ok:
+        Boolean specifying whether existing directories/files should be
+        overwritten or not. This is passed on to the `os.makedirs` builtin.
+        Defaults to False (raises an error if directories corresponding the
+        species and crystal structure already exist).
+
+    Returns
+    -------
+
+    Dictionary with bulk structures (as `ase.Atoms` objects) and
+    write-location (if any) for each input species.
+
     """
-    curr_dir = os.getcwd()
-    i = 0
-    print("\nStarted creating bulk directories")
-    while i < len(species_list):
+    if crystal_structures is None:
+        crystal_structures = {}
+    if a_dict is None:
+        a_dict = {}
+    if c_dict is None:
+        c_dict = {}
+    if set_magnetic_moments is None:
+        set_magnetic_moments = ["Fe", "Co", "Ni"]
+    if magnetic_moments is None:
+        magnetic_moments = {}
 
-        # Check if a manually specified
-        if species_list[i] in a_dict:
-            a = a_dict[species_list[i]]
-        else:
-            a = None
+    # load crystal structure defaults from `ase.data`, override with user input
+    cs_library = {
+        species: reference_states[atomic_numbers[species]].get("symmetry")
+        for species in species_list
+    }
+    cs_library.update(crystal_structures)
 
-        # Check if c manually specified
-        if species_list[i] in c_dict:
-            c = c_dict[species_list[i]]
-        else:
-            c = None
+    # load magnetic moment defaults from `ase.data`, override with user input
+    mm_library = {
+        species: ground_state_magnetic_moments[atomic_numbers[species]]
+        for species in species_list
+    }
+    mm_library.update(magnetic_moments)
 
-        try:
-            os.mkdir(species_list[i] + "_bulk")
-        except OSError:
-            print("\nFailed Creating Directory ./{}".format(species_list[i] + "_bulk"))
-        else:
-            print(
-                "\nSuccessfully Created Directory ./{}".format(
-                    species_list[i] + "_bulk"
-                )
-            )
-            os.chdir(species_list[i] + "_bulk")
-            bulk_obj = bulk(species_list[i], a=a, c=c)
-            if species_list[i] in ["Fe", "Co", "Ni"]:  # check if ferromagnetic material
-                bulk_obj.set_initial_magnetic_moments(
-                    [ground_state_magnetic_moments[atomic_numbers[species_list[i]]]]
-                    * len(bulk_obj)
-                )
-            bulk_obj.write("{}_bulk.i.traj".format(species_list[i]))
-            os.chdir(curr_dir)
-        i += 1
-    print("\nCompleted")
+    bulk_structures = {}
+    for species in species_list:
+        cs = cs_library.get(species)
+        a = a_dict.get(species)
+        c = c_dict.get(species)
+
+        bs = bulk(species, crystalstructure=cs, a=a, c=c)
+
+        if species in set_magnetic_moments:
+            bs.set_initial_magnetic_moments([mm_library[species]] * len(bs))
+
+        traj_file_path = None
+        if write_to_disk:
+            dir_path = os.path.join(write_location, f"{species}_bulk_{cs}")
+            os.makedirs(dir_path, exist_ok=dirs_exist_ok)
+            traj_file_path = os.path.join(dir_path, "input.traj")
+            bs.write(traj_file_path)
+
+        bulk_structures[species] = {
+            "crystal_structure": bs,
+            "traj_file_path": traj_file_path,
+        }
+
+    return bulk_structures
