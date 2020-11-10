@@ -344,6 +344,9 @@ def view_ads_sites(
         )
 
     name = ase_obj.get_chemical_formula()
+
+    ase_obj.set_constraint()  # Ensures that any constraints are removed for visualization purposes
+
     for ads_type in ads_site_type:  # Iterates over site type
         ase_obj_i = ase_obj.copy()
         for site in sites[ads_type]:  # Iterates over site given type
