@@ -26,10 +26,10 @@ Calculator Settings:
         (https://wiki.fysik.dtu.dk/ase/ase/constraints.html#the-expcellfilter-class)
 
         FCC/BCC
-        mode=PW(550), kpts = (12,12,12)
+        mode=PW(550), kpts = (12,12,12), fmax = 0.05 eV/A
 
         HCP
-        mode=PW(550), kpts = (12,12,6)
+        mode=PW(550), kpts = (12,12,6), fmax = 0.05 eV/A
 """
 
 raw_pbe_fd = pkg_resources.resource_filename("autocat.data", "pbe_fd.json")
