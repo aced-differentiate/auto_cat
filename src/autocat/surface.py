@@ -29,18 +29,90 @@ def generate_surface_structures(
     dirs_exist_ok: bool = False,
 ):
     """
-    Given list of species, bravais lattice, and facets creates directories containing traj files for the surfaces
+    Generates mono-element slabs and writes them to separate directories,
+    if specified.
 
-    Parameters:
-        species_list(list of str): list of surf species to be generated
-        cs(dict): dict of manually specified bravais lattices for specific species
-        ft_dict(dict): facets to be considered for each species
-        supcell(tuple of int): supercell size to be generated
-        a(dict): manually specified lattice parameters for species. if None then uses ASE default
-        c(dict): manually specified lattice parameters for species. if None then uses ASE default
+    Parameters
+    ----------
 
-    Returns:
-        None
+    species_list:
+        List of chemical symbols of the slabs to be built
+
+    crystal_structures:
+        Dictionary with crystal structure to be used for each species.
+        Options are fcc, bcc, or hcp. If not specified, will use the
+        default reference crystal for each species from `ase.data`.
+    
+    ft_dict:
+        Dictionary with the surface facets to be considered for each
+        species. 
+
+        If not specified for a given species, the following
+        defaults will be used based on the crystal structure:
+        fcc/bcc: 100,111,110
+        hcp: 0001
+        
+    supcell: 
+        Tuple or List specifying the size of the supercell to be
+        generated in the format (nx,ny,nz).
+
+    a_dict:
+        Dictionary with lattice parameters <a> to be used for each species.
+        If not specified, defaults from the `ase.data` module are used.
+
+    c_dict:
+        Dictionary with lattice parameters <c> to be used for each species.
+        If not specified, defaults from the `ase.data` module are used.
+
+    set_magnetic_moments:
+        List of species for which magnetic moments need to be set.
+        If not specified, magnetic moments will be set only for Fe, Co, Ni
+        (the ferromagnetic elements).
+
+    magnetic_moments:
+        Dictionary with the magnetic moments to be set for the chemical
+        species listed previously.
+        If not specified, default ground state magnetic moments from
+        `ase.data` are used. 
+
+    vac:
+        Float specifying the amount of vacuum to be added on each
+        side of the slab.
+
+    fix:
+        Integer giving the number of layers of the slab to be fixed
+        starting from the bottom up. (e.g. a value of 2 will fix the
+        bottom 2 layers)
+
+    write_to_disk:
+        Boolean specifying whether the bulk structures generated should be
+        written to disk.
+        Defaults to False.
+
+    write_location:
+        String with the location where the per-species/per-crystal structure
+        directories must be constructed and structure files written to disk.
+
+        In the specified write_location, the following directory structure
+        will be created:
+        [species_1]_bulk_[crystal_structure_1]/input.traj
+        [species_1]_bulk_[crystal_structure_2]/input.traj
+        ...
+        [species_2]_bulk_[crystal_structure_2]/input.traj
+        ...
+
+    dirs_exist_ok:
+        Boolean specifying whether existing directories/files should be
+        overwritten or not. This is passed on to the `os.makedirs` builtin.
+        Defaults to False (raises an error if directories corresponding the
+        species and crystal structure already exist).
+
+    Returns
+    -------
+ 
+    Dictionary with surface structures (as `ase.Atoms` objects) and
+    write-location (if any) for each input species.
+
     """
 
     if crystal_structures is None:
