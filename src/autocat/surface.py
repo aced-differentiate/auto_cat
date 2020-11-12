@@ -22,6 +22,7 @@ def generate_surface_structures(
     c_dict: Optional[Dict[str, float]] = None,
     set_magnetic_moments: List[str] = None,
     magnetic_moments: Optional[Dict[str, float]] = None,
+    vac: float = 10.0,
     fix: int = 0,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -79,8 +80,6 @@ def generate_surface_structures(
         "hcp0001": hcp0001,
     }
 
-    curr_dir = os.getcwd()
-
     surface_structures = {}
     for species in species_list:
         cs = cs_library.get(species)
@@ -90,9 +89,9 @@ def generate_surface_structures(
         surf = {}
         for facet in ft:
             if c is not None:
-                struct = funcs[cs + facet](species, size=supcell, vacuum=10.0, a=a, c=c)
+                struct = funcs[cs + facet](species, size=supcell, vacuum=vac, a=a, c=c)
             else:
-                struct = funcs[cs + facet](species, size=supcell, vacuum=10.0, a=a)
+                struct = funcs[cs + facet](species, size=supcell, vacuum=vac, a=a)
 
             if fix > 0:
                 f = FixAtoms(mask=[atom.tag > (supcell[-1] - fix) for atom in struct])
