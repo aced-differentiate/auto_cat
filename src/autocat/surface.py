@@ -16,7 +16,7 @@ from ase.constraints import FixAtoms
 def generate_surface_structures(
     species_list: List[str],
     crystal_structures: Dict[str, str] = None,
-    ft: List[str] = None,
+    ft_dict: Dict[str, str] = None,
     supcell: Union[Tuple[int], List[int]] = (3, 3, 4),
     a_dict: Optional[Dict[str, float]] = None,
     c_dict: Optional[Dict[str, float]] = None,
@@ -34,7 +34,7 @@ def generate_surface_structures(
     Parameters:
         species_list(list of str): list of surf species to be generated
         cs(dict): dict of manually specified bravais lattices for specific species
-        ft(list of str): list of facets to consider (should be same length as species list)
+        ft_dict(dict): facets to be considered for each species
         supcell(tuple of int): supercell size to be generated
         a(dict): manually specified lattice parameters for species. if None then uses ASE default
         c(dict): manually specified lattice parameters for species. if None then uses ASE default
@@ -45,8 +45,6 @@ def generate_surface_structures(
 
     if crystal_structures is None:
         crystal_structures = {}
-    if ft is None:
-        ft = ["100", "110", "111"]
     if a_dict is None:
         a_dict = {}
     if c_dict is None:
@@ -55,6 +53,8 @@ def generate_surface_structures(
         set_magnetic_moments = ["Fe", "Co", "Ni"]
     if magnetic_moments is None:
         magnetic_moments = {}
+    if ft_dict is None:
+        ft_dict = {}
 
     # load crystal structure defaults from `ase.data`, override with user input
     cs_library = {
@@ -80,6 +80,16 @@ def generate_surface_structures(
         "hcp0001": hcp0001,
     }
 
+    # set default facets for each crystal structure, override with user input
+    ft_defaults = {
+        "fcc": ["100", "111", "110"],
+        "bcc": ["100", "111", "110"],
+        "hcp": ["0001"],
+    }
+
+    ft_library = {species: ft_defaults[cs_library[species]] for species in species_list}
+    ft_library.update(ft_dict)
+
     surface_structures = {}
     for species in species_list:
         cs = cs_library.get(species)
@@ -87,7 +97,7 @@ def generate_surface_structures(
         c = c_dict.get(species)
 
         surf = {}
-        for facet in ft:
+        for facet in ft_library[species]:
             if c is not None:
                 struct = funcs[cs + facet](species, size=supcell, vacuum=vac, a=a, c=c)
             else:
