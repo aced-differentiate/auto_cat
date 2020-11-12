@@ -129,6 +129,7 @@ def generate_bulk_structures(
             os.makedirs(dir_path, exist_ok=dirs_exist_ok)
             traj_file_path = os.path.join(dir_path, "input.traj")
             bs.write(traj_file_path)
+            print(f"{species}_bulk_{cs} structure written to {traj_file_path}")
 
         bulk_structures[species] = {
             "crystal_structure": bs,
