@@ -188,6 +188,7 @@ def generate_surface_structures(
                 os.makedirs(dir_path, exist_ok=dirs_exist_ok)
                 traj_file_path = os.path.join(dir_path, "input.traj")
                 struct.write(traj_file_path)
+                print(f"{species}_{cs}{facet} structure written to {traj_file_path}")
 
             surf[cs + facet] = {"structure": struct, "traj_file_path": traj_file_path}
 
