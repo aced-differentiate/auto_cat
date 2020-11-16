@@ -221,25 +221,70 @@ def gen_refs_dirs(refs_list, cell=[15, 15, 15]):
 
 
 def generate_molecule_object(
-    mol, rotations=[[0.0, "x"]], write_traj=False, cell=[15, 15, 15]
+    mol: str,
+    rotations: List[List[Union[float, str]]] = None,
+    cell: Union[List[int], Tuple[int]] = (15, 15, 15),
+    write_to_disk: bool = False,
+    write_location: str = ".",
+    dirs_exist_ok: bool = False,
 ):
     """
-    Parameters:
-        mol(str): name of molecule to be generated
-        rotations(list of floats and strings): list of rotation operations to be carried out
-        write_traj(bool): True if traj to be written
+    Generates an `ase.Atoms` object of an isolated molecule specified via a string
+    If specified, can write out a traj containing the isolated molecule in a box
 
-    Returns:
-        m(ase Atoms obj): molecule object
+    Parameters
+    ----------
+
+    mol:
+        String of the name of the molecule to be generated. Will search in the `ase` g2
+        database first, then in `autocat.intermediates`
+
+    rotations:
+        List of rotation operations to be carried out which will be fed into
+        the `ase.Atoms.rotate` method
+
+        e.g. Rotating 90degrees around the z axis followed by 45 degrees
+        around the y-axis can be specified as
+            [[90.0,'z'],[45.0,'y']]
+
+    write_to_disk:
+        Boolean specifying whether the bulk structures generated should be
+        written to disk.
+        Defaults to False.
+
+    write_location:
+        String with the location where the per-species/per-crystal structure
+        directories must be constructed and structure files written to disk.
+        In the specified write_location, the following directory structure
+        will be created:
+        [species_1]_bulk_[crystal_structure_1]/input.traj
+        [species_1]_bulk_[crystal_structure_2]/input.traj
+        ...
+        [species_2]_bulk_[crystal_structure_2]/input.traj
+        ...
+
+    dirs_exist_ok:
+        Boolean specifying whether existing directories/files should be
+        overwritten or not. This is passed on to the `os.makedirs` builtin.
+        Defaults to False (raises an error if directories corresponding the
+        species and crystal structure already exist).
+
+    Returns
+    -------
+
+    m:
+        Atoms object of the generated molecule object
     """
+
+    if rotations is None:
+        rotations = [[0.0, "x"]]
+
+    m = None
 
     if mol in chemical_symbols:
         m = Atoms(mol)
         m.cell = cell
         m.center()
-        if write_traj:
-            m.write(mol + ".m.traj")
-        return m
 
     elif mol in g2.names and mol not in ["OH", "NH2", "NH"]:
         m = molecule(mol)
@@ -250,9 +295,6 @@ def generate_molecule_object(
             atom.position[2] -= lowest_mol
         m.cell = cell
         m.center()
-        if write_traj:
-            m.write(mol + ".m.traj")
-        return m
 
     elif mol in nrr_intermediate_names:
         m = nrr_mols[mol].copy()
@@ -260,9 +302,6 @@ def generate_molecule_object(
             m.rotate(r[0], r[1])
         m.cell = cell
         m.center()
-        if write_traj:
-            m.write(mol + ".m.traj")
-        return m
 
     elif mol in orr_intermediate_names:
         m = orr_mols[mol].copy()
@@ -270,11 +309,15 @@ def generate_molecule_object(
             m.rotate(r[0], r[1])
         m.cell = cell
         m.center()
-        if write_traj:
-            m.write(mol + ".m.traj")
-        return m
 
-    return None
+    if write_to_disk:
+        dir_path = os.path.join(write_location, f"{mol}_isolated")
+        os.makedirs(dir_path, exist_ok=dirs_exist_ok)
+        traj_file_path = os.path.join(dir_path, "input.traj")
+        m.write(traj_file_path)
+        print(f"{mol} structure written to {traj_file_path}")
+
+    return m
 
 
 def get_adsorption_sites(surface: Union[Atoms, str], ads_site_type: List[str] = None):
@@ -285,21 +328,21 @@ def get_adsorption_sites(surface: Union[Atoms, str], ads_site_type: List[str] = 
     Parameters
     ----------
 
-        surface:
-            Atoms object or name of file containing structure 
-            as a string specifying the surface for which the symmetry surface 
-            sites should be identified
+    surface:
+        Atoms object or name of file containing structure 
+        as a string specifying the surface for which the symmetry surface 
+        sites should be identified
 
-        ads_site_type:
-            List of adsorption site types to be searched for.
-            Options are ontop, bridge, and hollow
+    ads_site_type:
+        List of adsorption site types to be searched for.
+        Options are ontop, bridge, and hollow
 
     Returns
     -------
 
-        sites:
-            Dictionary containing the reference structures with the identified
-            sites for each desired site type
+    sites:
+        Dictionary containing the reference structures with the identified
+        sites for each desired site type
     """
 
     if ads_site_type is None:
@@ -348,59 +391,59 @@ def view_adsorption_sites(
     Parameters
     ----------
 
-        surface: 
-            Atoms object or name of file containing structure 
-            as a string specifying the surface for which the symmetry surface 
-            sites should be identified
+    surface: 
+        Atoms object or name of file containing structure 
+        as a string specifying the surface for which the symmetry surface 
+        sites should be identified
 
-        ads_site_type:
-            List of adsorption site types to be searched for.
-            Options are ontop, bridge, and hollow
+    ads_site_type:
+        List of adsorption site types to be searched for.
+        Options are ontop, bridge, and hollow
 
-        supcell:
-            Tuple or List specifying the dimension if a supercell
-            should be made of the input surface.
-            Defaults to searching for sites on the input surface without
-            any repetition.
+    supcell:
+        Tuple or List specifying the dimension if a supercell
+        should be made of the input surface.
+        Defaults to searching for sites on the input surface without
+        any repetition.
 
-        view_im: 
-            Boolean specifying if the sites are to be viewed using the `ase-gui`.
-            If True, will automatically call `ase.visualize.view` to visualize
-            the identified sites
+    view_im: 
+        Boolean specifying if the sites are to be viewed using the `ase-gui`.
+        If True, will automatically call `ase.visualize.view` to visualize
+        the identified sites
 
-        write_to_disk:
-            Boolean specifying whether the bulk structures generated should be
-            written to disk.
-            Defaults to False.
+    write_to_disk:
+        Boolean specifying whether the bulk structures generated should be
+        written to disk.
+        Defaults to False.
 
-        write_to_disk_format:
-            String specifying the format that the references structures should
-            be written out to which will be fed into the `ase write` function.
-            Defaults to a traj format
+    write_to_disk_format:
+        String specifying the format that the references structures should
+        be written out to which will be fed into the `ase write` function.
+        Defaults to a traj format
 
-        write_location:
-            String with the location where the per-species/per-crystal structure
-            directories must be constructed and structure files written to disk.
-            In the specified write_location, the following directory structure
-            will be created:
-            [species_1]_bulk_[crystal_structure_1]/input.traj
-            [species_1]_bulk_[crystal_structure_2]/input.traj
-            ...
-            [species_2]_bulk_[crystal_structure_2]/input.traj
-            ...
+    write_location:
+        String with the location where the per-species/per-crystal structure
+        directories must be constructed and structure files written to disk.
+        In the specified write_location, the following directory structure
+        will be created:
+        [species_1]_bulk_[crystal_structure_1]/input.traj
+        [species_1]_bulk_[crystal_structure_2]/input.traj
+        ...
+        [species_2]_bulk_[crystal_structure_2]/input.traj
+        ...
 
-        dirs_exist_ok:
-            Boolean specifying whether existing directories/files should be
-            overwritten or not. This is passed on to the `os.makedirs` builtin.
-            Defaults to False (raises an error if directories corresponding the
-            species and crystal structure already exist).
+    dirs_exist_ok:
+        Boolean specifying whether existing directories/files should be
+        overwritten or not. This is passed on to the `os.makedirs` builtin.
+        Defaults to False (raises an error if directories corresponding the
+        species and crystal structure already exist).
 
     Returns
     -------
 
-        sites:
-            Dictionary containing the reference structures with the identified
-            sites for each desired site type
+    sites:
+        Dictionary containing the reference structures with the identified
+        sites for each desired site type
     """
     # Gets the adsorption sites
     sites = get_adsorption_sites(surface, ads_site_type)
