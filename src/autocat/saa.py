@@ -88,8 +88,8 @@ def generate_saa_structures(
 
     set_sa_magnetic_moments:
         List of single-atom species for which magnetic moments need to be set.
-        If not specified, magnetic moments will be set only for Fe, Co, Ni
-        (the ferromagnetic elements).
+        If not specified, magnetic moments will guessed for all dopants from
+        `ase.data`.
 
     sa_magnetic_moments:
         Dictionary with the magnetic moments to be set for the single-atom 
@@ -152,43 +152,52 @@ def generate_saa_structures(
         fix=fix,
     )
 
-    for host in hosts:
-        j = 0
-        while j < len(dops):  # iterate over dopants
-            if subs[i] != dops[j]:  # ensures different host and sa species
-                for f in ft:  # iterate over facets
-                    try:
-                        os.makedirs(
-                            subs[i] + "/" + dops[j] + "/" + bv + f
-                        )  # create directory for each sub/dop combo
-                    except OSError:
-                        print(
-                            "Failed Creating Directory ./{}/{}/{}".format(
-                                subs[i], dops[j], bv + f
-                            )
-                        )
-                    else:
-                        print(
-                            "Successfully Created Directory ./{}/{}/{}".format(
-                                subs[i], dops[j], bv + f
-                            )
-                        )
-                        os.chdir(
-                            subs[i] + "/" + dops[j] + "/" + bv + f
-                        )  # change into new dir
-                        slab = hosts[bv + f]  # extract host corresponding to facet
-                        gen_doped_structs(
-                            slab, dops[j], write_traj=True, cent_sa=cent_sa
-                        )  #  generate doped structures
-                        print(
-                            "{}/{}/{} SAA trajs generated".format(
-                                subs[i], dops[j], bv + f
-                            )
-                        )
-                        os.chdir(curr_dir)
-            j += 1
+    if set_sa_magnetic_moments is None:
+        set_sa_magnetic_moments = dops
+    if sa_magnetic_moments is None:
+        sa_magnetic_moments = {}
 
-    print("Completed")
+    dop_mm_library = {
+        dop: ground_state_magnetic_moments[atomic_numbers[dop]] for dop in dops
+    }
+    dop_mm_library.update(sa_magnetic_moments)
+
+    saa_dict = {}
+    # iterate over hosts
+    for host in hosts:
+        saa_dict[host] = {}
+        # iterate over single-atoms
+        for dop in dops:
+            saa_dict[host][dop] = {}
+            # ensure host != single-atom
+            if dop != host:
+                # iterate over surface facets
+                for ft in hosts[host]:
+                    struct = hosts[host][ft].get("structure")
+                    dop_gen = generate_doped_structures(
+                        sub_ase=struct,
+                        dop=dop,
+                        cent_sa=cent_sa,
+                        dopant_magnetic_moment=dop_mm_library.get(dop),
+                    )
+                    # pull the structure
+                    dop_struct = list(dop_gen.values())[0]["structure"]
+
+                    traj_file_path = None
+                    if write_to_disk:
+                        dir_path = os.path.join(write_location, f"{host}/{dop}/{ft}")
+                        os.makedirs(dir_path, exist_ok=dirs_exist_ok)
+                        traj_file_path = os.path.join(dir_path, "input.traj")
+                        dop_struct.write(traj_file_path)
+                        print(
+                            f"{dop}1/{host}({ft}) structure written to {traj_file_path}"
+                        )
+
+                    saa_dict[host][dop][ft] = {
+                        "structure": dop_struct,
+                        "traj_file_path": traj_file_path,
+                    }
+    return saa_dict
 
 
 def generate_doped_structures(
@@ -224,9 +233,8 @@ def generate_doped_structures(
         String of the dopant species to be introduced into the system
 
     cent_sa:
-        Boolean specifying that the single-atom should be placed
-        at the center of the unit cell if True. If False will leave
-        the single-atom at the origin
+        Boolean specifying that the single-atom dopant should be placed
+        at the center of the unit cell if True.
 
     dopant_magnetic_moment:
         Float of initial magnetic moment attributed to the doped single-atom.
@@ -290,7 +298,9 @@ def generate_doped_structures(
     Returns
     -------
     
-    all_ase_structs (list of ase Atoms obj): doped structures
+    all_ase_structs:
+        Dictionary with doped structures (as `ase.Atoms` objects) and write
+        location (if-any) for each generated doped structure.
 
     """
     name = "".join(np.unique(sub_ase.symbols))
@@ -331,11 +341,6 @@ def generate_doped_structures(
             struct = sub_ase.copy()
             struct[index].symbol = dop
             all_ase_structs.append(struct)
-
-    # magmom guess for dopant taken from http://www.webelements.com
-    # unless specified by user
-    #    if dopant_magnetic_moment is None:
-    #        dopant_magnetic_moment = ground_state_magnetic_moments[atomic_numbers[dop]]
 
     all_ase_dict = {}
 
