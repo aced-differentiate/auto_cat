@@ -19,14 +19,17 @@ from autocat.intermediates.nrr import nrr_intermediate_names, nrr_mols
 from autocat.intermediates.orr import orr_intermediate_names, orr_mols
 
 
-def gen_rxn_int_sym(
-    surf,
-    site_type=["ontop", "bridge", "hollow"],
-    ads=["H"],
-    height={},
-    rots={},
-    site_im=True,
-    refs=None,
+def generate_rxn_structures(
+    surf: Union[str, Atoms],
+    site_type: List[str] = None,
+    ads: List[str] = None,
+    height: Dict[str, float] = None,
+    rots: Dict[str, List[List[Union[float, str]]]] = None,
+    site_im: bool = True,
+    refs: List[Union[str, Atoms]] = None,
+    write_to_disk: bool = False,
+    write_location: str = ".",
+    dirs_exist_ok: bool = False,
 ):
     """
     
@@ -381,7 +384,7 @@ def generate_molecule_object(
     return m
 
 
-def get_adsorption_sites(surface: Union[Atoms, str], ads_site_type: List[str] = None):
+def find_adsorption_sites(surface: Union[Atoms, str], ads_site_type: List[str] = None):
     """
     Wrapper for `pymatgen.analysis.adsorption.AdsorbateSiteFinder.find_adsorption_sites`
     which takes in an ase object and returns all of the identified sites in a dictionary
@@ -434,20 +437,21 @@ def get_adsorption_sites(surface: Union[Atoms, str], ads_site_type: List[str] = 
     return sites
 
 
-def view_adsorption_sites(
+def get_adsorption_sites(
     surface: Union[Atoms, str],
     ads_site_type: List[str] = None,
     supcell: Union[Tuple[int], List[int]] = (1, 1, 1),
-    view_im: bool = True,
+    view_im: bool = False,
     write_to_disk: bool = False,
     write_to_disk_format: str = "traj",
     write_location: str = ".",
     dirs_exist_ok: bool = False,
 ):
     """
-    From given surface, visualizes each of the ads_site_type specified.
+    From given surface, gets each of the sites for the ads_site_type specified.
     Writes reference structures containing all of the identified sites
-    if specified.
+    if specified. Can also visualize all of the identified sites by
+    automatically calling the ase-gui
     
     Parameters
     ----------
@@ -507,7 +511,7 @@ def view_adsorption_sites(
         sites for each desired site type
     """
     # Gets the adsorption sites
-    sites = get_adsorption_sites(surface, ads_site_type)
+    sites = find_adsorption_sites(surface, ads_site_type)
 
     if ads_site_type is None:
         ads_site_type = ["ontop", "bridge", "hollow"]
