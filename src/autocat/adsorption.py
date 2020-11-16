@@ -143,26 +143,77 @@ def gen_rxn_int_pos(
 
 
 def place_adsorbate(
-    surface,
-    mol,
-    position=(0.0, 0.0),
-    height=1.5,
-    rotations=[[0.0, "x"]],
-    write_traj=False,
-    mol_index=0,
+    surface: Union[str, Atoms],
+    mol: Union[str, Atoms],
+    position: Union[Tuple[float], List[float]] = (0.0, 0.0),
+    height: float = 1.5,
+    rotations: List[List[Union[float, str]]] = None,
+    mol_index: int = 0,
+    write_to_disk: bool = False,
+    write_location: str = ".",
+    dirs_exist_ok: bool = False,
 ):
     """
-    Parameters:
-        surface(str or ase Atoms obj): surface to adsorb onto. Either str of filename to be read or ase obj
-        mol(str or ase Atoms obj): name of molecule to be adsorbed or ase atoms obj
-        position(tuple of floats): cartesian coordinates of where the molecule should be placed in the xy plane
-        height(float): height above surface where adsorbate should be initially placed
-        rotation(tuple of floats): rotation of molecule to be applied about the x,y,z axes
-        write_traj(bool): whether to write out traj file
-        mol_index(int): index of atom in molecule for the xy position to be placed
+    Places an adsorbate onto a given surface. If specified will write
+    the structure to disk
 
-    Returns:
-        ads_state(ase obj): surface with the adsorbant placed
+    Parameters
+    ----------
+
+    surface: 
+        Atoms object or name of file containing structure 
+        as a string specifying the surface for which the adsorbate should be placed
+
+    mol:
+        Atoms object or string of the name of the molecule to be generated. If the latter,
+        will search in the `ase` g2 database first, then in `autocat.intermediates`
+
+    position:
+        Tuple or list of the xy cartesian coordinates for where the molecule should be placed
+
+    height:
+        Float specifying the height above surface where adsorbate should be initially placed
+
+    rotations:
+        List of rotation operations to be carried out which will be fed into
+        the `ase.Atoms.rotate` method
+
+        e.g. Rotating 90degrees around the z axis followed by 45 degrees
+        around the y-axis can be specified as
+            [[90.0,'z'],[45.0,'y']]
+
+    mol_index:
+        Integer index of atom in molecule that will be the reference for placing the molecule
+        at (x,y). Will be fed into `ase.build.add_adsorbate` function.
+        Defaults to the molecule at index 0
+
+    write_to_disk:
+        Boolean specifying whether the bulk structures generated should be
+        written to disk.
+        Defaults to False.
+
+    write_location:
+        String with the location where the per-species/per-crystal structure
+        directories must be constructed and structure files written to disk.
+        In the specified write_location, the following directory structure
+        will be created:
+        [species_1]_bulk_[crystal_structure_1]/input.traj
+        [species_1]_bulk_[crystal_structure_2]/input.traj
+        ...
+        [species_2]_bulk_[crystal_structure_2]/input.traj
+        ...
+
+    dirs_exist_ok:
+        Boolean specifying whether existing directories/files should be
+        overwritten or not. This is passed on to the `os.makedirs` builtin.
+        Defaults to False (raises an error if directories corresponding the
+        species and crystal structure already exist).
+
+    Returns
+    -------
+
+    surf:
+        Atoms object of the surface with the molecule adsorbed
 
     """
 
@@ -178,20 +229,30 @@ def place_adsorbate(
             "surface parameter needs to be either a str or ase.Atoms object"
         )
 
+    if rotations is None:
+        rotations = [[0.0, "x"]]
+
     # Identify if molecule is specified by name or atoms object
     if type(mol) is str:
         adsorbate = generate_molecule_object(mol, rotations=rotations)
+        name = mol
     elif type(mol) is Atoms:
         adsorbate = mol.copy()
+        name = mol.get_chemical_formula()
         for r in rotations:
             adsorbate.rotate(r[0], r[1])
 
-    # lowest_atom = adsorbate.positions[:, 2].min()
-
     add_adsorbate(surf, adsorbate, height, position=position, mol_index=mol_index)
 
-    if write_traj:
-        surf.write(mol + ".i.traj")
+    if write_to_disk:
+        rpos = np.around(position, 3)
+        dir_path = os.path.join(
+            write_location, name + "/" + str(rpos[0]) + "_" + str(rpos[1])
+        )
+        os.makedirs(dir_path, exist_ok=dirs_exist_ok)
+        traj_file_path = os.path.join(dir_path, "input.traj")
+        surf.write(traj_file_path)
+        print(f"{name} structure written to {traj_file_path}")
 
     return surf
 
@@ -273,7 +334,7 @@ def generate_molecule_object(
     -------
 
     m:
-        Atoms object of the generated molecule object
+        Atoms object of the generated molecule object within a references directory
     """
 
     if rotations is None:
@@ -311,7 +372,7 @@ def generate_molecule_object(
         m.center()
 
     if write_to_disk:
-        dir_path = os.path.join(write_location, f"{mol}_isolated")
+        dir_path = os.path.join(write_location, f"references/{mol}")
         os.makedirs(dir_path, exist_ok=dirs_exist_ok)
         traj_file_path = os.path.join(dir_path, "input.traj")
         m.write(traj_file_path)
