@@ -15,8 +15,7 @@ from ase.data import chemical_symbols
 from ase.collections import g2
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
-from autocat.intermediates.nrr import nrr_intermediate_names, nrr_mols
-from autocat.intermediates.orr import orr_intermediate_names, orr_mols
+from autocat.intermediates import *
 
 
 def generate_rxn_structures(
