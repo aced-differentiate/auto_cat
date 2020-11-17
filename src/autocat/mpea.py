@@ -19,74 +19,150 @@ from autocat.surface import generate_surface_structures
 
 
 def generate_mpea_random(
-    species_list,
-    comp={},
-    latts={},
-    bv="fcc",
-    ft=["100", "110", "111"],
-    supcell=(3, 3, 4),
-    samps=15,
+    species_list: List[str],
+    composition: Dict[str, float] = None,
+    lattice_parameters: Dict[str, float] = None,
+    crystal_structure: str = "fcc",
+    facets: List[str] = None,
+    supcell: Union[Tuple[int], List[int]] = (3, 3, 4),
+    num_of_samples: int = 15,
+    vac: float = 10.0,
+    fix: int = 0,
+    write_to_disk: bool = False,
+    write_location: str = ".",
+    dirs_exist_ok: bool = False,
 ):
     """
 
-    For the given species list and composition will generate a specified number of samples from this space
-    in separate directories
+    For the given species list and composition will generate a specified number of samples from this space.
+    If specified will write these samples in separate directories
 
-    Parameters:
-        species_list(list of str): names of chemical species to be included
-        comp(dict): desired composition, if species in list not mentioned, assumed to be 1/sum(comp)
-        latts(dict): lattice parameters for each species (defaults to ASE values if not specified)
-        bv(str): bravais lattice
-        ft(list of str): facets to be considered
-        supcell(tuple of int): supercell size
-        samps(int): number of samples to be taken from this phase space
+    Parameters
+    ----------
 
-    Return:
-        None
+    species_list:
+        List of species that will populate the skeleton structure
+
+    composition:
+        Dictionary of desired composition, defaults to be 1/sum(composition) for each species
+        not mentioned. Used for calculating probabilities of each species occupying a given site.
+
+        e.g. species_list = ["Pt","Fe","Cu"], composition = {"Pt":2,"Fe":3} corresponds to Pt2Fe3Cu
+
+    lattice_parameters:
+        Dictionary for lattice parameters <a> for each species.
+        If not specified, defaults from the `ase.data` module are used
+
+    crystal_structure:
+        String indicated the crystal structure of the skeleton lattice to be populated.
+        Defaults to fcc
+
+    facets:
+        List of surface facets to be considered when generating the randomly populated MPEA.
+
+        The following defaults will be used based on the crystal structure unless
+        otherwise specified:
+        fcc/bcc: 100,111,110
+        hcp: 0001
+
+    supcell: 
+        Tuple or List specifying the size of the supercell to be
+        generated in the format (nx,ny,nz).
+
+    num_of_samples:
+        Integer specifying the number of samples to be taken for each surface facet
+        (e.g. num_of_samples = 15 will generate 15 structures for each facet)
+
+    vac:
+        Float specifying the amount of vacuum to be added on each
+        side of the slab.
+
+    fix:
+        Integer giving the number of layers of the slab to be fixed
+        starting from the bottom up. (e.g. a value of 2 will fix the
+        bottom 2 layers)
+
+    write_to_disk:
+        Boolean specifying whether the bulk structures generated should be
+        written to disk.
+        Defaults to False.
+
+    write_location:
+        String with the location where the per-species/per-crystal structure
+        directories must be constructed and structure files written to disk.
+        In the specified write_location, the following directory structure
+        will be created:
+        [species_1]_bulk_[crystal_structure_1]/input.traj
+        [species_1]_bulk_[crystal_structure_2]/input.traj
+        ...
+        [species_2]_bulk_[crystal_structure_2]/input.traj
+        ...
+
+    dirs_exist_ok:
+        Boolean specifying whether existing directories/files should be
+        overwritten or not. This is passed on to the `os.makedirs` builtin.
+        Defaults to False (raises an error if directories corresponding the
+        species and crystal structure already exist).
+
+    Returns
+    -------
+
+    mpeas:
+        Dictionary containing all generated mpeas for each surface facet
+        (and corresponding paths to the structures if written to disk)
+
     """
+
+    if composition is None:
+        composition = {}
+
+    comp_library = {species: 1.0 for species in species_list}
+    comp_library.update(composition)
+
     # Get MPEA name from species list and composition
     name = ""
-    j = 0
-    while j < len(species_list):
-        name += species_list[j]
-        if species_list[j] in comp:
-            name += str(comp[species_list[j]])
-        else:
-            name += str(1)
-        j += 1
+    for species in species_list:
+        name += species + str(comp_library[species])
 
-    curr_dir = os.getcwd()
+    ft_defaults = {
+        "fcc": ["100", "111", "110"],
+        "bcc": ["100", "111", "110"],
+    }
 
-    for f in ft:
-        try:
-            os.makedirs(name + "/" + bv + f)
-        except OSError:
-            print("Failed Creating Directory ./{}".format(name + "/" + bv + f))
-        else:
-            print("Successfully Created Directory ./{}".format(name + "/" + bv + f))
-            os.chdir(name + "/" + bv + f)
-            sub_dir = os.getcwd()
-            print("Beginning Generation of MPEAS for facet {}{}".format(bv, f))
-            i = 0
-            while i < samps:
-                os.mkdir(str(i + 1))
-                os.chdir(str(i + 1))
-                gen_mpea(
-                    species_list=species_list,
-                    comp=comp,
-                    latts=latts,
-                    bv=bv,
-                    ft=f,
-                    supcell=supcell,
-                    write_traj=True,
+    if facets is None:
+        facets = ft_defaults[crystal_structure]
+
+    mpeas = {}
+    for ft in facets:
+        mpeas[crystal_structure + ft] = {}
+        for i in range(num_of_samples):
+            samp = random_population(
+                species_list=species_list,
+                composition=composition,
+                lattice_parameters=lattice_parameters,
+                crystal_structure=crystal_structure,
+                ft=ft,
+                supcell=supcell,
+                vac=vac,
+                fix=fix,
+            )
+            traj_file_path = None
+            if write_to_disk:
+                dir_path = os.path.join(
+                    write_location, name + "/" + crystal_structure + ft + "/" + str(i)
                 )
-                os.chdir(sub_dir)
-                i += 1
-            os.chdir(curr_dir)
-            print("Completed traj generation for facet {}{}".format(bv, f))
-    print("Successfully completed traj generation for {}".format(name + "_" + bv + f))
+                os.makedirs(dir_path, exist_ok=dirs_exist_ok)
+                traj_file_path = os.path.join(dir_path, "input.traj")
+                samp.write(traj_file_path)
+                print(
+                    f"Sample #{str(i)} for {crystal_structure + ft} written to {traj_file_path}"
+                )
 
-    return None
+            mpeas[crystal_structure + ft][str(i)] = {
+                "structure": samp,
+                "traj_file_path": None,
+            }
+    return mpeas
 
 
 def random_population(
@@ -110,7 +186,7 @@ def random_population(
 
     composition:
         Dictionary of desired composition, defaults to be 1/sum(composition) for each species
-        not mentioned.
+        not mentioned. Used for calculating probabilities of each species occupying a given site.
 
         e.g. species_list = ["Pt","Fe","Cu"], composition = {"Pt":2,"Fe":3} corresponds to Pt2Fe3Cu
 
@@ -138,18 +214,18 @@ def random_population(
 
     """
 
-    # Checks if any of the species in the species list are specified in composition
-    # Otherwise sets it to 1
-
     if composition is None:
-        composition = {species: 1.0 for species in species_list}
+        composition = {}
+
+    comp_library = {species: 1.0 for species in species_list}
+    comp_library.update(composition)
+
+    comp_list = list(comp_library.values())
+    comp_sum = np.sum(comp_list)
+    p = np.array(comp_list) / comp_sum
 
     if lattice_parameters is None:
         lattice_parameters = {}
-
-    comp_list = list(composition.values())
-    comp_sum = np.sum(comp_list)
-    p = np.array(comp_list) / comp_sum
 
     latt_library = {
         species: reference_states[atomic_numbers[species]].get("a")
