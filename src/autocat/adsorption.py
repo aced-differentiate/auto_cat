@@ -21,58 +21,152 @@ from autocat.intermediates.orr import orr_intermediate_names, orr_mols
 
 def generate_rxn_structures(
     surf: Union[str, Atoms],
+    sites: Dict[str, Union[Tuple[float], List[float]]] = None,
+    all_sym_sites: bool = True,
     site_type: List[str] = None,
     ads: List[str] = None,
     height: Dict[str, float] = None,
     rots: Dict[str, List[List[Union[float, str]]]] = None,
-    site_im: bool = True,
-    refs: List[Union[str, Atoms]] = None,
+    site_im: bool = False,
+    refs: List[str] = None,
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
 ):
     """
     
-    Given site types will create subdirectories for each identified symmetry site of that type
+    Builds structures for reaction intermediates given a surface and list of adatoms
 
-    Parameters:
-        surf(str or ase Atoms obj): name of traj file of relaxed surface to be adsorbed upon
-        site_type(list of str): desired types of adsorption symmetry sites to identify
-            Options: 'ontop', 'bridge', 'hollow'
-        ads(list of str or ase Atoms obj): list of adsorbates to be placed
-        height(dict of float): height to place each adsorbate over surface
-        rots(dict of list of list of float and str): dict of list of rotation operations for each specified adsorbate
-            defaults to no applied rotations
-        site_im(bool): writes out a traj showing all identified sites in a single file
-        refs(list of str): names of reference states to be generated
+    Parameters
+    ----------
 
-    Returns:
-        None
+    surf:
+        Atoms object or name of file containing structure 
+        as a string specifying the surface for which the adsorbate should be placed
+
+    sites:
+        Dictionary of sites to be considered with the keys being user defined labels
+        (e.g. {origin: (0.0,0.0)})
+
+    all_sym_sites:
+        Bool specifying if all sites identified by
+        `pymatgen.analysis.adsorption.AdsorbateSiteFinder.find_adsorption_sites`.
+
+        If True, overrides any sites defined in `sites` and uses all identified sites
+
+    site_type:
+        List of adsorption site types to be searched for.
+        Options are ontop, bridge, and hollow
+
+    ads:
+        List of adsorbates to be placed on the surface.
+        Defaults to placing only H
+
+    height:
+        Float specifying the height above surface where adsorbate should be initially placed
+
+    rots:
+        Dictionary of rotations to be applied to each adatom in `ads`.
+        Defaults to no rotations applied
+
+    site_im:
+        Boolean specifying if reference structures showing all of the automatically
+        identified sites should be written to disk
+            
+    refs:
+        List of reference molecular structures to be generated if specified
+        e.g. H2, H2O molecules for ORR
+
+    write_to_disk:
+        Boolean specifying whether the bulk structures generated should be
+        written to disk.
+        Defaults to False.
+
+    write_location:
+        String with the location where the per-species/per-crystal structure
+        directories must be constructed and structure files written to disk.
+        In the specified write_location, the following directory structure
+        will be created:
+        [species_1]_bulk_[crystal_structure_1]/input.traj
+        [species_1]_bulk_[crystal_structure_2]/input.traj
+        ...
+        [species_2]_bulk_[crystal_structure_2]/input.traj
+        ...
+
+    dirs_exist_ok:
+        Boolean specifying whether existing directories/files should be
+        overwritten or not. This is passed on to the `os.makedirs` builtin.
+        Defaults to False (raises an error if directories corresponding the
+        species and crystal structure already exist).
+            
+    Returns
+    -------
+
+    rxn_structs:
+        Dictionary containing all of the reaction structures (and reference
+        states if specified)
 
     """
-    curr_dir = os.getcwd()
 
-    sites = get_adsorption_sites(
-        surf, ads_site_type=site_type
-    )  # gets dict containing identified sites
+    if ads is None:
+        ads = ["H"]
 
-    # writes out traj showing all identified symmetry sites
-    if site_im:
-        view_ads_sites(surf, ads_site_type=site_type, write_traj=True, view_im=False)
+    if height is None:
+        height = {}
 
-    print("Started building adsorbed structures")
-    for typ in sites.keys():
-        if typ != "all":
-            for p in sites[typ]:
-                gen_rxn_int_pos(
-                    surf, ads=ads, pos=p[:2], height=height, rots=rots, label=typ
-                )
+    if rots is None:
+        rots = {}
 
-    if refs is not None:
-        print("Started building reference states")
-        gen_refs_dirs(refs)
+    height_library = {a: 1.5 for a in ads}
+    height_library.update(height)
 
-    print("Completed")
+    rots_library = {a: [[0.0, "x"]] for a in ads}
+    rots_library.update(rots)
+
+    if all_sym_sites:
+        # gets identified sites as dict
+        sites = get_adsorption_sites(
+            surf, ads_site_type=site_type, write_to_disk=site_im
+        )
+
+    if sites is None:
+        sites = {"origin": (0.0, 0.0)}
+
+    rxn_structs = {}
+    for a in ads:
+        rxn_structs[a] = {}
+        for typ in sites:
+            if typ != "all":
+                for p in sites[typ]:
+                    st = place_adsorbate(
+                        surf,
+                        mol=a,
+                        write_to_disk=write_to_disk,
+                        write_location=write_location,
+                        dirs_exist_ok=dirs_exist_ok,
+                        rotations=rots_library[a],
+                        height=height_library[a],
+                        position=p[:2],
+                        label=typ,
+                    )
+                    rxn_structs[a].update(st)
+
+    if refs is None:
+        refs = {}
+
+    else:
+        rxn_structs["references"] = {}
+
+    for ref in refs:
+        r = generate_molecule_object(
+            ref,
+            write_to_disk=write_to_disk,
+            write_location=write_location,
+            dirs_exist_ok=dirs_exist_ok,
+        )
+        rxn_structs["references"][ref] = r
+
+    return rxn_structs
 
 
 def gen_rxn_int_pos(
@@ -155,6 +249,7 @@ def place_adsorbate(
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
+    label: str = "custom",
 ):
     """
     Places an adsorbate onto a given surface. If specified will write
@@ -212,6 +307,10 @@ def place_adsorbate(
         Defaults to False (raises an error if directories corresponding the
         species and crystal structure already exist).
 
+    label:
+        String giving a user specified label of the position when writing
+        to disk which will be used in the directory name.
+
     Returns
     -------
 
@@ -237,7 +336,7 @@ def place_adsorbate(
 
     # Identify if molecule is specified by name or atoms object
     if type(mol) is str:
-        adsorbate = generate_molecule_object(mol, rotations=rotations)
+        adsorbate = generate_molecule_object(mol, rotations=rotations).get("structure")
         name = mol
     elif type(mol) is Atoms:
         adsorbate = mol.copy()
@@ -247,17 +346,20 @@ def place_adsorbate(
 
     add_adsorbate(surf, adsorbate, height, position=position, mol_index=mol_index)
 
+    traj_file_path = None
     if write_to_disk:
         rpos = np.around(position, 3)
         dir_path = os.path.join(
-            write_location, name + "/" + str(rpos[0]) + "_" + str(rpos[1])
+            write_location, name + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1])
         )
         os.makedirs(dir_path, exist_ok=dirs_exist_ok)
         traj_file_path = os.path.join(dir_path, "input.traj")
         surf.write(traj_file_path)
-        print(f"{name} structure written to {traj_file_path}")
+        print(f"{name} at ({rpos[0]},{rpos[1]}) written to {traj_file_path}")
 
-    return surf
+    ads_structs = {label: {"structure": surf, "traj_file_path": traj_file_path}}
+
+    return ads_structs
 
 
 def gen_refs_dirs(refs_list, cell=[15, 15, 15]):
@@ -374,14 +476,15 @@ def generate_molecule_object(
         m.cell = cell
         m.center()
 
+    traj_file_path = None
     if write_to_disk:
         dir_path = os.path.join(write_location, f"references/{mol}")
         os.makedirs(dir_path, exist_ok=dirs_exist_ok)
         traj_file_path = os.path.join(dir_path, "input.traj")
         m.write(traj_file_path)
-        print(f"{mol} structure written to {traj_file_path}")
+        print(f"{mol} molecule structure written to {traj_file_path}")
 
-    return m
+    return {"structure": m, "traj_file_path": traj_file_path}
 
 
 def find_adsorption_sites(surface: Union[Atoms, str], ads_site_type: List[str] = None):
