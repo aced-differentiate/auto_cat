@@ -136,7 +136,10 @@ def generate_rxn_structures(
         rxn_structs[a] = {}
         for typ in sites:
             if typ != "all":
+                rxn_structs[a][typ] = {}
                 for p in sites[typ]:
+                    rpos = np.around(p, 3)
+                    loc = str(rpos[0]) + "_" + str(rpos[1])
                     st = place_adsorbate(
                         surf,
                         mol=a,
@@ -148,7 +151,10 @@ def generate_rxn_structures(
                         position=p[:2],
                         label=typ,
                     )
-                    rxn_structs[a].update(st)
+                    rxn_structs[a][typ][loc] = {
+                        "structure": st[typ].get("structure"),
+                        "traj_file_path": st[typ].get("traj_file_path"),
+                    }
 
     if refs is None:
         refs = {}
