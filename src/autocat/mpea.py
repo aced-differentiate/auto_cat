@@ -1,5 +1,11 @@
 import os
 import numpy as np
+from typing import List
+from typing import Tuple
+from typing import Dict
+from typing import Optional
+from typing import Union
+
 from ase.io import read, write
 from ase import Atom, Atoms
 from ase.visualize import view
@@ -9,8 +15,10 @@ from ase.data import reference_states, atomic_numbers
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 
+from autocat.surface import generate_surface_structures
 
-def gen_mpea_dirs(
+
+def generate_mpea_random(
     species_list,
     comp={},
     latts={},
@@ -81,87 +89,98 @@ def gen_mpea_dirs(
     return None
 
 
-def gen_mpea(
-    species_list,
-    comp={},
-    latts={},
-    bv="fcc",
-    ft="100",
-    supcell=(3, 3, 4),
-    write_traj=False,
+def random_population(
+    species_list: List[str],
+    composition: Dict[str, float] = None,
+    lattice_parameters: Dict[str, float] = None,
+    crystal_structure: str = "fcc",
+    ft: str = "100",
+    supcell: Union[Tuple[int], List[int]] = (3, 3, 4),
+    vac: float = 10.0,
+    fix: int = 0,
 ):
     """
-    Returns a random mpea traj structure given a species list and composition
+    Returns a randomly populated structure from a species list and composition
 
-    Parameters:
-        species_list(list of str): list of species to include
-        comp(dict): desired composition, if species in list not mentioned, assumed to be 1/sum(comp)
-        latts(dict): lattice parameters for each species (defaults to ASE values if not specified)
-        bv(str): bravais lattice of structure (currently only supports fcc & bcc)
-        ft(str): facet to be considered
-        supcell(tuple of ints): supercell size
-        write_traj(bool): whether to write the traj file or not
+    Parameters
+    ----------
 
-    Returns:
-        mpea(ase obj): randomly generated mpea
+    species_list:
+        List of species that will populate the skeleton structure
+
+    composition:
+        Dictionary of desired composition, defaults to be 1/sum(composition) for each species
+        not mentioned.
+
+        e.g. species_list = ["Pt","Fe","Cu"], composition = {"Pt":2,"Fe":3} corresponds to Pt2Fe3Cu
+
+    lattice_parameters:
+        Dictionary for lattice parameters <a> for each species.
+        If not specified, defaults from the `ase.data` module are used
+
+    crystal_structure:
+        String indicated the crystal structure of the skeleton lattice to be populated.
+        Defaults to fcc
+
+    ft:
+        String indicating the surface facet to be considered.
+        Defaults to 100
+
+    supcell:
+        Tuple or List specifying the size of the supercell to be
+        generated in the format (nx,ny,nz).
+
+    Returns
+    -------
+
+    rand_struct:
+        Atoms object for the randomly populated structure
 
     """
 
-    # Checks if any of the species in the species list are specified in comp
+    # Checks if any of the species in the species list are specified in composition
     # Otherwise sets it to 1
 
-    i = 0
-    comp_list = []
-    while i < len(species_list):
-        if species_list[i] not in comp:
-            comp_list.append(1.0)
-        else:
-            comp_list.append(comp[species_list[i]])
-        i += 1
+    if composition is None:
+        composition = {species: 1.0 for species in species_list}
 
+    if lattice_parameters is None:
+        lattice_parameters = {}
+
+    comp_list = list(composition.values())
     comp_sum = np.sum(comp_list)
     p = np.array(comp_list) / comp_sum
 
-    # Average lattice parameter given composition
-    a = 0
-    i = 0
-    while i < len(species_list):
-        if species_list[i] in latts:
-            a += latts[species_list[i]] * p[i]
-        else:
-            a += reference_states[atomic_numbers[species_list[i]]]["a"] * p[i]
-        i += 1
+    latt_library = {
+        species: reference_states[atomic_numbers[species]].get("a")
+        for species in species_list
+    }
+
+    latt_library.update(lattice_parameters)
+
+    # calculate lattice parameter as weighted average based on composition
+    a = np.average(list(latt_library.values()), weights=p)
 
     # Generate atoms list
     num_atoms = np.prod(supcell)
-
     atoms_list = []
     i = 0
     while i < num_atoms:
         atoms_list.append(np.random.choice(species_list, p=p))
         i += 1
 
-    # Build structure
+    # use the first species to build a skeleton lattice which will be populated
+    skel = species_list[0]
+    rand_struct = generate_surface_structures(
+        [skel],
+        supcell=supcell,
+        vac=vac,
+        fix=fix,
+        a_dict={skel: a},
+        crystal_structures={skel: crystal_structure},
+        ft_dict={skel: [ft]},
+    )[skel][crystal_structure + ft].get("structure")
 
-    funcs = {
-        "fcc100": fcc100,
-        "fcc110": fcc110,
-        "fcc111": fcc111,
-        "bcc100": bcc100,
-        "bcc110": bcc110,
-        "bcc111": bcc111,
-    }
+    rand_struct.set_chemical_symbols(atoms_list)
 
-    host = funcs[bv + ft](species_list[0], size=supcell, vacuum=10.0, a=a)
-
-    host.set_chemical_symbols(atoms_list)
-
-    if write_traj:
-        name = ""
-        j = 0
-        while j < len(species_list):
-            name += species_list[j]
-            name += str(comp_list[j])
-            j += 1
-        host.write(name + ".i.traj")
-    return host
+    return rand_struct
