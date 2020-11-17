@@ -168,76 +168,6 @@ def generate_rxn_structures(
     return rxn_structs
 
 
-def gen_rxn_int_pos(
-    surf, ads=["H"], pos=(0.0, 0.0), height={}, rots={}, label="custom"
-):
-    """
-
-    Given relaxed structure & xy position, generates new directories containing traj files of each adsorbate placed over pos
-
-    Parameters:
-        surf(str or ase Atoms obj): name of traj file containing relaxed surface to be adsorbed upon
-        ads(list of str or ase Atoms obj): list of adsorbates to be placed
-        pos(tuple,list,or np.array of floats): xy coordinate for where to place adsorbate
-        height(dict of float): height to place each adsorbate over surface
-        rots(dict of list of list of float and str): dict of list of rotation operations for each specified adsorbate
-            defaults to no applied rotations
-        label(str): label for selected position (e.g. ontop, bridge, custom, etc.)
-
-    Returns:
-        None 
-
-    """
-
-    # sa_ind = find_sa_ind(surf)
-    # pos_x = saa[sa_ind].x
-    # pos_y = saa[sa_ind].y
-
-    rpos = np.around(pos, 3)
-
-    curr_dir = os.getcwd()
-    i = 0
-    while i < len(ads):  # iterates over each of the given adsorbates
-        try:
-            os.makedirs(ads[i] + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1]))
-        except OSError:
-            print(
-                "Failed Creating Directory ./{}".format(
-                    ads[i] + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1])
-                )
-            )
-        else:
-            print(
-                "Successfully Created Directory ./{}".format(
-                    ads[i] + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1])
-                )
-            )
-            os.chdir(ads[i] + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1]))
-
-            # checks if rotation for adsorbate specified
-            if ads[i] in rots:
-                r = rots[ads[i]]
-
-            else:
-                r = [[0.0, "x"]]
-
-            # checks if height for adsorbate specified
-            if ads[i] in height:
-                h = height[ads[i]]
-
-            else:
-                h = 1.5  # defaults height 1.5 A
-
-            place_adsorbate(
-                surf, ads[i], position=pos, height=h, write_traj=True, rotations=r,
-            )
-            print("Adsorbed {} traj generated at position {}".format(ads[i], rpos))
-            os.chdir(curr_dir)
-        i += 1
-
-    print("Completed traj generation for position {}".format(rpos))
-
-
 def place_adsorbate(
     surface: Union[str, Atoms],
     mol: Union[str, Atoms],
@@ -359,30 +289,6 @@ def place_adsorbate(
     ads_structs = {label: {"structure": surf, "traj_file_path": traj_file_path}}
 
     return ads_structs
-
-
-def gen_refs_dirs(refs_list, cell=[15, 15, 15]):
-    """
-    Parameters:
-        refs_list(list of str): list of names of reference molecules to be generated
-        cell: size of cell to contain molecule
-    Returns:
-        None
-    """
-    curr_dir = os.getcwd()
-
-    for m in refs_list:
-        try:
-            os.makedirs("references/" + m)
-        except OSError:
-            print("Failed Creating Directory ./references/{}".format(m))
-        else:
-            print("Successfully Created Directory ./references/{}".format(m))
-            os.chdir("references/" + m)
-            generate_molecule_object(m, write_traj=True, cell=cell)
-            print("Created {} reference state".format(m))
-            os.chdir(curr_dir)
-    print("Generation of reference states completed")
 
 
 def generate_molecule_object(
@@ -658,40 +564,3 @@ def get_adsorption_sites(
             )
 
     return sites
-
-
-# def get_ads_struct(sub_file, mol, write_traj=False):
-#    '''Given name of substrate file or ase obj, adsorbs mol (str) onto each of the identified adsorption sites.'''
-#
-#    try:
-#        sub_ase = read(sub_file)
-#    except AttributeError:
-#        sub_ase = sub_file
-#
-#    tags = sub_ase.get_tags()
-#
-#    conv = AseAtomsAdaptor() # converter between pymatgen and ase
-#
-#    struct = conv.get_structure(sub_ase) # convert ase substrate to pymatgen structure
-#
-#    finder = AdsorbateSiteFinder(struct)
-#
-#    m_ase = Atoms(mol) # create ase atoms object of desired adsorbate
-#
-#    molecule = conv.get_molecule(m_ase) # convert adsorbate to pymatgen molecule
-#
-#    all_structs = finder.generate_adsorption_structures(molecule) # collect all adsorption structures
-#
-#
-#    all_ase_structs = []
-#    i = 0
-#    while i < len(all_structs):
-#        ase_struct = conv.get_atoms(all_structs[i]) # converts to ase object
-#        #ase_struct.set_tags(tags)
-#        all_ase_structs.append(ase_struct)
-#        if write_traj:
-#            write('struct_'+str(i)+'.traj',ase_struct) # writes all adsorption structures to a separate ase traj file
-#        i += 1
-#
-#
-#    return all_ase_structs
