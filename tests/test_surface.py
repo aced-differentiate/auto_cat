@@ -55,6 +55,37 @@ def test_generate_surface_structures_vacuum():
     ) / 2.0 == approx(10.0)
 
 
+def test_generate_surface_structures_cell():
+    # Test default a
+    surf = generate_surface_structures(["Fe"], supcell=(1, 1, 3))
+    assert surf["Fe"]["bcc110"]["structure"].cell[0][0] == approx(2.87)
+    # Test a_dict
+    surf = generate_surface_structures(["Pt"], a_dict={"Pt": 3.95}, supcell=(1, 1, 3))
+    assert surf["Pt"]["fcc111"]["structure"].cell[0][0] == approx(2.793071785)
+    # Test default c
+    surf = generate_surface_structures(["Zn"], supcell=(1, 1, 3), vac=10.0)
+    assert (surf["Zn"]["hcp0001"]["structure"].cell[2][2] - 20.0) == approx(4.93696)
+    # Test c_dict
+    surf = generate_surface_structures(
+        ["Ru"], c_dict={"Ru": 4.35}, supcell=(1, 1, 3), vac=10.0
+    )
+    assert (surf["Ru"]["hcp0001"]["structure"].cell[2][2] - 20.0) == approx(4.35)
+
+
+def test_generate_surface_structures_supcell():
+    # Test supercell size in the xy plane
+    surf1 = generate_surface_structures(["Pt"], supcell=(1, 1, 3))
+    surf2 = generate_surface_structures(["Pt"], supcell=(2, 2, 3))
+    assert surf2["Pt"]["fcc111"]["structure"].cell[0][0] == approx(
+        2.0 * surf1["Pt"]["fcc111"]["structure"].cell[0][0]
+    )
+    assert surf2["Pt"]["fcc111"]["structure"].cell[1][1] == approx(
+        2.0 * surf1["Pt"]["fcc111"]["structure"].cell[1][1]
+    )
+    # Test supercell size in the z axis
+    assert max(surf2["Pt"]["fcc100"]["structure"].get_tags()) == 3
+
+
 def test_generate_surface_structures_write_location():
     # Test user-specified write location
     surf = generate_surface_structures(
