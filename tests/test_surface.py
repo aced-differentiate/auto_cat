@@ -42,6 +42,7 @@ def test_generate_surface_structures_fix_layers():
 
 
 def test_generate_surface_structures_vacuum():
+    # Test vacuum size
     surf = generate_surface_structures(["Fe"], ft_dict={"Fe": ["111"]}, vac=15.0)
     st = surf["Fe"]["bcc111"]["structure"]
     assert (
@@ -52,3 +53,32 @@ def test_generate_surface_structures_vacuum():
     assert (
         st.cell[2][2] - (max(st.positions[:, 2]) - min(st.positions[:, 2]))
     ) / 2.0 == approx(10.0)
+
+
+def test_generate_surface_structures_write_location():
+    # Test user-specified write location
+    surf = generate_surface_structures(
+        ["Au", "Ir"], write_to_disk=True, write_location="test_dir"
+    )
+    assert os.path.samefile(
+        surf["Ir"]["fcc111"]["traj_file_path"], "test_dir/Ir/fcc111/input.traj"
+    )
+    shutil.rmtree("test_dir")
+
+
+def test_generate_surface_structures_dirs_exist_ok():
+    surf = generate_surface_structures(
+        ["Au"], ft_dict={"Au": ["100"]}, write_to_disk=True
+    )
+    with raises(FileExistsError):
+        surf = generate_surface_structures(
+            ["Au"], ft_dict={"Au": ["100"]}, write_to_disk=True
+        )
+    # Test no error on dirs_exist_ok = True, and check default file path
+    surf = generate_surface_structures(
+        ["Au"], ft_dict={"Au": ["100"]}, write_to_disk=True, dirs_exist_ok=True
+    )
+    assert os.path.samefile(
+        surf["Au"]["fcc100"]["traj_file_path"], "Au/fcc100/input.traj"
+    )
+    shutil.rmtree("Au")
