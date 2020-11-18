@@ -168,9 +168,9 @@ def generate_saa_structures(
         saa_dict[host] = {}
         # iterate over single-atoms
         for dop in dops:
-            saa_dict[host][dop] = {}
             # ensure host != single-atom
             if dop != host:
+                saa_dict[host][dop] = {}
                 # iterate over surface facets
                 for ft in hosts[host]:
                     struct = hosts[host][ft].get("structure")
