@@ -31,7 +31,7 @@ def test_generate_surface_structures_facets():
 
 def test_generate_surface_structures_fix_layers():
     # Test fixing of layers of the slab
-    surf = generate_surface_structures(["Pt"], fix=2)
+    surf = generate_surface_structures(["Pt"], supcell=(3, 3, 4), fix=2)
     assert (
         surf["Pt"]["fcc111"]["structure"].constraints[0].get_indices()
         == np.arange(0, 18)
