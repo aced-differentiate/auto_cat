@@ -79,11 +79,34 @@ def test_generate_doped_structures_fix_layers():
 
 def test_generate_doped_structures_keep_host_mag():
     # Test that host magnetization is kept after doping
-    host = generate_surface_structures(["Fe"], fix=2, supcell=(3, 3, 4))["Fe"][
-        "bcc111"
-    ]["structure"]
+    host = generate_surface_structures(["Fe"])["Fe"]["bcc111"]["structure"]
     dop_host = generate_doped_structures(host, "Ni", dopant_magnetic_moment=2.0)["27"][
         "structure"
     ]
     assert 4.0 in dop_host.get_initial_magnetic_moments()
     assert 0.0 not in dop_host.get_initial_magnetic_moments()
+
+
+def test_generate_doped_structures_cent_sa():
+    # Test that dopant becomes centered within the cell
+    host = generate_surface_structures(["Fe"])["Fe"]["bcc111"]["structure"]
+    dop_host = generate_doped_structures(host, "Ni", cent_sa=True)["27"]["structure"]
+    x = (dop_host.cell[0][0] + dop_host.cell[1][0]) / 2.0
+    y = (dop_host.cell[0][1] + dop_host.cell[1][1]) / 2.0
+    assert dop_host[_find_sa_ind(dop_host, "Ni")].x == approx(x)
+    assert dop_host[_find_sa_ind(dop_host, "Ni")].y == approx(y)
+
+
+def test_generate_doped_structures_target_indices():
+    # Test doping of specific target indices
+    host = generate_surface_structures(["Fe"])["Fe"]["bcc111"]["structure"]
+    dop_hosts = generate_doped_structures(
+        host, "Ni", all_possible_configs=False, target_indices=[0, 3, 4]
+    )
+    # Test that only the target indices is substituted
+    with raises(KeyError):
+        dh = dop_hosts["27"]
+    assert list(dop_hosts.keys()) == ["0", "3", "4"]
+    # Ensure that doping takes place with the correct species substituted one at a time
+    assert dop_hosts["0"]["structure"][0].symbol == "Ni"
+    assert dop_hosts["0"]["structure"][3].symbol == "Fe"
