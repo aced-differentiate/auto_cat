@@ -9,6 +9,7 @@ from pytest import raises
 
 import numpy as np
 from autocat.saa import generate_saa_structures
+from autocat.saa import _find_sa_ind
 
 
 def test_generate_saa_structures_host_species_list():
@@ -25,6 +26,15 @@ def test_generate_saa_structures_dops_species_list():
     # Test dopant species not added to itself
     saa = generate_saa_structures(["Pt", "Cu"], ["Fe", "Cu"])
     assert "Cu" not in saa["Cu"]
+
+
+def test_generate_saa_structures_sa_mag_defaults():
+    # Test default magnetic moment given to SA
+    saa = generate_saa_structures(["Cu"], ["Fe", "Ni"])
+    st = saa["Cu"]["Fe"]["fcc111"]["structure"]
+    assert st[_find_sa_ind(st, "Fe")].magmom == approx(4.0)
+    st = saa["Cu"]["Ni"]["fcc111"]["structure"]
+    assert st[_find_sa_ind(st, "Ni")].magmom == approx(2.0)
 
 
 def test_generate_saa_structures_write_location():
