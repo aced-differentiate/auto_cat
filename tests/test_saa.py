@@ -9,7 +9,9 @@ from pytest import raises
 
 import numpy as np
 from autocat.saa import generate_saa_structures
+from autocat.saa import generate_doped_structures
 from autocat.saa import _find_sa_ind
+from autocat.surface import generate_surface_structures
 
 
 def test_generate_saa_structures_host_species_list():
@@ -63,3 +65,25 @@ def test_generate_saa_structures_dirs_exist_ok():
     )
     shutil.rmtree("Pt")
     shutil.rmtree("Cu")
+
+
+def test_generate_doped_structures_fix_layers():
+    # Test layers remain fixed after doping
+    host = generate_surface_structures(["Pt"], fix=2, supcell=(3, 3, 4))["Pt"][
+        "fcc111"
+    ]["structure"]
+    dop_host = generate_doped_structures(host, "Fe")["27"]["structure"]
+    assert (dop_host.constraints[0].get_indices() == np.arange(0, 18)).any()
+    assert dop_host.constraints[0].todict()["name"] == "FixAtoms"
+
+
+def test_generate_doped_structures_keep_host_mag():
+    # Test that host magnetization is kept after doping
+    host = generate_surface_structures(["Fe"], fix=2, supcell=(3, 3, 4))["Fe"][
+        "bcc111"
+    ]["structure"]
+    dop_host = generate_doped_structures(host, "Ni", dopant_magnetic_moment=2.0)["27"][
+        "structure"
+    ]
+    assert 4.0 in dop_host.get_initial_magnetic_moments()
+    assert 0.0 not in dop_host.get_initial_magnetic_moments()
