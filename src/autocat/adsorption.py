@@ -20,7 +20,7 @@ from autocat.intermediates import *
 
 def generate_rxn_structures(
     surf: Union[str, Atoms],
-    sites: Dict[str, Union[Tuple[float], List[float]]] = None,
+    sites: Dict[str, List[Union[Tuple[float], List[float]]]] = None,
     all_sym_sites: bool = True,
     site_type: List[str] = None,
     ads: List[str] = None,
@@ -44,8 +44,8 @@ def generate_rxn_structures(
         as a string specifying the surface for which the adsorbate should be placed
 
     sites:
-        Dictionary of sites to be considered with the keys being user defined labels
-        (e.g. {origin: (0.0,0.0)})
+        Dictionary of list of sites to be considered with the keys being user defined labels
+        (e.g. {'custom': [(0.0,0.0),(1.5,1.5)]})
 
     all_sym_sites:
         Bool specifying if all sites identified by
@@ -129,7 +129,7 @@ def generate_rxn_structures(
         )
 
     if sites is None:
-        sites = {"origin": (0.0, 0.0)}
+        sites = {"origin": [(0.0, 0.0)]}
 
     rxn_structs = {}
     for a in ads:
