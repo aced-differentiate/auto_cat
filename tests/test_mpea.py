@@ -20,3 +20,9 @@ def test_random_population_lattice():
         ["Pt", "Fe", "Cu"], composition={"Pt": 2}, supcell=(1, 1, 3)
     )
     assert mpea.cell[0][0] == approx(2.531442276)
+
+
+def test_generate_mpea_random_samples():
+    # Test that the number of samples specified are generated
+    mpeas = generate_mpea_random(["Pt", "Pd", "Ir", "Cu"], num_of_samples=20)
+    assert len(list(mpeas["fcc110"].keys())) == 20
