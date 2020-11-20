@@ -1,17 +1,22 @@
-import unittest
+"""Unit tests for the `autocat.mpea` module."""
+
 import os
+import shutil
+
+import pytest
+from pytest import approx
+from pytest import raises
+
+from autocat.mpea import generate_mpea_random
+from autocat.mpea import random_population
 
 
-# gen_mpea_struct(['Pt','Ir'],[5,5], bv='fcc', ft='100',supcell=(3,3,4),write_traj=True)
-# gen_mpea(
-# ["Pt", "Ir"],
-# [1, 1],
-# bv="fcc",
-# ft=["100", "110", "111"],
-# supcell=(3, 3, 4),
-# samps=15,
-# )
-
-
-if __name__ == "__main__":
-    unittest.main()
+def test_random_population_lattice():
+    # Test that lattice parameter is average
+    mpea = random_population(["Pt", "Fe", "Cu"], supcell=(1, 1, 3))
+    assert mpea.cell[0][0] == approx(2.4513035081)
+    # Test that lattice parameter is weighted based on composition
+    mpea = random_population(
+        ["Pt", "Fe", "Cu"], composition={"Pt": 2}, supcell=(1, 1, 3)
+    )
+    assert mpea.cell[0][0] == approx(2.531442276)
