@@ -160,7 +160,7 @@ def generate_mpea_random(
 
             mpeas[crystal_structure + ft][str(i)] = {
                 "structure": samp,
-                "traj_file_path": None,
+                "traj_file_path": traj_file_path,
             }
     return mpeas
 
