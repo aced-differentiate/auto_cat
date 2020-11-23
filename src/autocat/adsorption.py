@@ -23,8 +23,9 @@ def generate_rxn_structures(
     sites: Dict[str, List[Union[Tuple[float], List[float]]]] = None,
     all_sym_sites: bool = True,
     site_type: List[str] = None,
-    ads: List[str] = None,
+    ads: List[Union[str, Atoms]] = None,
     height: Dict[str, float] = None,
+    mol_indices: Dict[str, int] = None,
     rots: Dict[str, List[List[Union[float, str]]]] = None,
     site_im: bool = False,
     refs: List[str] = None,
@@ -58,15 +59,32 @@ def generate_rxn_structures(
         Options are ontop, bridge, and hollow
 
     ads:
-        List of adsorbates to be placed on the surface.
+        List of names of adsorbates or Atoms objects to be placed on the surface.
         Defaults to placing only H
 
     height:
-        Float specifying the height above surface where adsorbate should be initially placed
+        Float specifying the height above surface where adsorbate should be initially placed.
+        
+        If adsorbate given as an Atoms object, the key here should be specified using the result
+        of `adsorbate.get_chemical_formula()`.
+        e.g. ads=[adsorbate], height={adsorbate.get_chemical_formala():2.0}
+
+    mol_indices:
+        Dictionary specifying the molecule index to be used as the reference point
+        for the placement of each adsorbate. Will be fed into `ase.build.add_adsorbate` function.
+        Defaults to the molecule at index 0 for each adsorbate
+
+        If adsorbate given as an Atoms object, the key here should be specified using the result
+        of `adsorbate.get_chemical_formula()`.
+        e.g. ads=[adsorbate], mol_indicies={adsorbate.get_chemical_formala():1}
 
     rots:
         Dictionary of rotations to be applied to each adatom in `ads`.
         Defaults to no rotations applied
+
+        If adsorbate given as an Atoms object, the key here should be specified using the result
+        of `adsorbate.get_chemical_formula()`.
+        e.g. ads=[adsorbate], rots={adsorbate.get_chemical_formala():[[90.0,'y']]}
 
     site_im:
         Boolean specifying if reference structures showing all of the automatically
@@ -113,13 +131,26 @@ def generate_rxn_structures(
     if height is None:
         height = {}
 
+    if mol_indices is None:
+        mol_indices = {}
+
     if rots is None:
         rots = {}
 
-    height_library = {a: 1.5 for a in ads}
+    ads_dict = {}
+    for a in ads:
+        if type(a) is str:
+            ads_dict[a] = a
+        else:
+            ads_dict[a.get_chemical_formula()] = a
+
+    height_library = {a: 1.5 for a in ads_dict}
     height_library.update(height)
 
-    rots_library = {a: [[0.0, "x"]] for a in ads}
+    mol_indices_library = {a: 0 for a in ads_dict}
+    mol_indices_library.update(mol_indices)
+
+    rots_library = {a: [[0.0, "x"]] for a in ads_dict}
     rots_library.update(rots)
 
     if all_sym_sites:
@@ -132,7 +163,7 @@ def generate_rxn_structures(
         sites = {"origin": [(0.0, 0.0)]}
 
     rxn_structs = {}
-    for a in ads:
+    for a in ads_dict:
         rxn_structs[a] = {}
         for typ in sites:
             if typ != "all":
@@ -142,11 +173,12 @@ def generate_rxn_structures(
                     loc = str(rpos[0]) + "_" + str(rpos[1])
                     st = place_adsorbate(
                         surf,
-                        mol=a,
+                        mol=ads_dict[a],
                         write_to_disk=write_to_disk,
                         write_location=write_location,
                         dirs_exist_ok=dirs_exist_ok,
                         rotations=rots_library[a],
+                        mol_index=mol_indices_library[a],
                         height=height_library[a],
                         position=p[:2],
                         label=typ,
@@ -157,9 +189,11 @@ def generate_rxn_structures(
                     }
 
     if refs is None:
+        # Defaults to no references added, setting to {} will skip the later for loop
         refs = {}
 
     else:
+        # Since references specified, initializes appropriate key for dict to be returned
         rxn_structs["references"] = {}
 
     for ref in refs:

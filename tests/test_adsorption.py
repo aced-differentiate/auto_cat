@@ -7,6 +7,7 @@ import pytest
 from pytest import approx
 from pytest import raises
 
+from ase.build import molecule
 from autocat.adsorption import generate_rxn_structures
 from autocat.adsorption import generate_molecule_object
 from autocat.intermediates import *
@@ -47,6 +48,23 @@ def test_generate_rxn_structures_manualsites():
     assert ads["O"]["origin"]["0.0_0.0"]["structure"][-1].symbol == "O"
     assert ads["O"]["origin"]["0.0_0.0"]["structure"][-1].x == approx(0.0)
     assert ads["O"]["custom"]["0.5_0.5"]["structure"][-1].y == approx(0.5)
+
+
+def test_generate_rxn_structures_atoms_object():
+    # Tests giving an Atoms object instead of a str as the adsorbate to be placed
+    surf = generate_surface_structures(["Pt"])["Pt"]["fcc111"]["structure"]
+    m = molecule("CO")
+    ads = generate_rxn_structures(
+        surf,
+        ads=[m, "H"],
+        all_sym_sites=False,
+        sites={"origin": [(0.0, 0.0)]},
+        mol_indices={m.get_chemical_formula(): 1},
+    )
+    assert "CO" in ads
+    assert len(ads["CO"]["origin"]["0.0_0.0"]["structure"]) == (len(surf) + len(m))
+    assert ads["CO"]["origin"]["0.0_0.0"]["structure"][-1].symbol == "C"
+    assert ads["CO"]["origin"]["0.0_0.0"]["structure"][-2].symbol == "O"
 
 
 def test_generate_rxn_structures_autosites():
