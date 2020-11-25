@@ -12,10 +12,148 @@ from ase.visualize import view
 from ase.build import fcc100, fcc110, fcc111
 from ase.build import bcc100, bcc110, bcc111
 from ase.data import reference_states, atomic_numbers
+from icet import ClusterSpace
+from icet.tools.structure_generation import generate_sqs_by_enumeration
+from icet.tools.structure_generation import generate_sqs
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 
+from autocat.bulk import generate_bulk_structures
 from autocat.surface import generate_surface_structures
+
+
+def sqs_bulk(
+    species_list: Union[List[str], List[List[str]]],
+    cutoffs: List[float],
+    max_size: int,
+    composition: Dict[str, float] = None,
+    crystal_structure: str = "fcc",
+    lattice_parameters: Dict[str, float] = None,
+    a: float = None,
+    prim_structure: Atoms = None,
+    enum: bool = False,
+    include_smaller_cells: bool = True,
+):
+    """
+    Generates a bulk special quasirandom structure. Wrapper for `icet.tool.structure_generation.generate_sqs_by_enumeration`
+    and `icet.tool.structure_generation.generate_sqs_by_enumeration`.
+
+
+    Parameters
+    ----------
+    species_list:
+        List of species or list of list to be included in the structure to be fed into the `icet` tools.
+        The latter case defines species to populate sub-lattices, with the outer length corresponding
+        to the number of sites in the structure.
+
+    composition:
+        Dictionary of desired target composition, defaults to be 1/sum(composition) for each species
+        not mentioned.
+
+        e.g. species_list = ["Pt","Fe","Cu"], composition = {"Pt":2,"Fe":3} corresponds to Pt2Fe3Cu
+    
+    crystal_structure:
+        String specifying the crystal structure of the desired lattice which will use 
+        `autocat.bulk.generate_bulk_structures` to build the primitive structure.
+        Options are fcc or bcc.
+
+    lattice_parameters:
+        Dictionary with bulk lattice parameters <a> for each species.
+        The cell parameter defaults to the weighted average of these values unless
+        either the primitive structure or `a` is provided by the user.
+        If not specified, defaults from the `ase.data` module are used.
+
+    a:
+        Float specifying the lattice parameter <a> to be used for the cell
+        unless the primitive structure is given by the user.
+
+    prim_structure:
+        Atoms object giving the primitive structure to be used for generation.
+        Overrides crystal_structure if given.
+
+    enum:
+        Bool specifying if the cell should be generated via enumeration.
+        Defaults to false
+
+    include_smaller_cells:
+        Bool indicating whether only the max_size cell should be considered or
+        if smaller cells should also be considered.
+        Defaults to True.
+
+    cutoff:
+        List of floats giving the radius for each order of clustering during generation in angstroms
+
+    max_size:
+        Int giving the maximum number of atoms allowed in the cell.
+
+        This quantity must scale appropriately with the number of species and target composition.
+        e.g. Pt1Au1 -> 2
+             Pt1Au1Cu1 -> 3
+             Pt2Au1Cu1 -> 4
+
+    Returns
+    -------
+
+    sqs:
+        Atoms object of the generated SQS structure
+    """
+
+    if composition is None:
+        composition = {}
+
+    comp_library = {species: 1.0 for species in species_list}
+    comp_library.update(composition)
+
+    comp_list = list(comp_library.values())
+    comp_sum = np.sum(comp_list)
+    p = np.array(comp_list) / comp_sum
+
+    # normalized target concentration
+    target_conc = {
+        species: comp_library[species] / comp_sum for species in comp_library
+    }
+
+    # if a not given, take the weighted average
+    if a is None:
+        if lattice_parameters is None:
+            lattice_parameters = {}
+
+        latt_library = {
+            species: reference_states[atomic_numbers[species]].get("a")
+            for species in species_list
+        }
+
+        latt_library.update(lattice_parameters)
+        a = np.average(list(latt_library.values()), weights=p)
+
+    # generate primitive structure unless otherwise given
+    if prim_structure is None:
+        ps = generate_bulk_structures(
+            ["Pt"], crystal_structures={"Pt": crystal_structure}, a_dict={"Pt": a}
+        )
+        prim_structure = ps["Pt"].get("crystal_structure")
+
+    cs = ClusterSpace(
+        structure=prim_structure, cutoffs=cutoffs, chemical_symbols=species_list,
+    )
+
+    if enum:
+        sqs = generate_sqs_by_enumeration(
+            cluster_space=cs,
+            include_smaller_cells=include_smaller_cells,
+            max_size=max_size,
+            target_concentrations=target_conc,
+        )
+
+    else:
+        sqs = generate_sqs(
+            cluster_space=cs,
+            include_smaller_cells=include_smaller_cells,
+            max_size=max_size,
+            target_concentrations=target_conc,
+        )
+
+    return sqs
 
 
 def generate_mpea_random(
@@ -44,7 +182,7 @@ def generate_mpea_random(
         List of species that will populate the skeleton structure
 
     composition:
-        Dictionary of desired composition, defaults to be 1/sum(composition) for each species
+        Dictionary of desired target composition, defaults to be 1/sum(composition) for each species
         not mentioned. Used for calculating probabilities of each species occupying a given site.
 
         e.g. species_list = ["Pt","Fe","Cu"], composition = {"Pt":2,"Fe":3} corresponds to Pt2Fe3Cu
