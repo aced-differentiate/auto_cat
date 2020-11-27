@@ -54,6 +54,19 @@ def test_generate_bulk_structures_lattice_parameters():
     assert bs["Fe"]["crystal_structure"].cell[2][2] == approx(4.5)
 
 
+def test_generate_bulk_structures_ref_library():
+    # Tests pulling lattice parameters from pbe_fd ref library
+    bs = generate_bulk_structures(
+        ["W", "Pd"], a_dict={"Pd": 3.94}, default_lattice_library="pbe_fd"
+    )
+    assert bs["W"]["crystal_structure"].cell[0][0] == approx(-1.590292)
+    assert bs["Pd"]["crystal_structure"].cell[1][0] == approx(1.97)
+    # Tests pulling lattice parameters from beefvdw_pw ref library
+    bs = generate_bulk_structures(["Ru"], default_lattice_library="beefvdw_pw")
+    assert bs["Ru"]["crystal_structure"].cell[0][0] == approx(2.738748)
+    assert bs["Ru"]["crystal_structure"].cell[2][2] == approx(4.316834)
+
+
 def test_generate_bulk_structures_magnetic_moments():
     # Test ground state magnetic moments from `ase.data`
     bs = generate_bulk_structures(["Cu"], set_magnetic_moments=["Cu"])

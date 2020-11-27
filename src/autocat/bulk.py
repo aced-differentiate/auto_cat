@@ -116,19 +116,24 @@ def generate_bulk_structures(
     if crystal_structures is None:
         crystal_structures = {}
     if a_dict is None:
-        if default_lattice_library == "ase":
-            a_dict = {}
-        else:
-            lib = latt_const_libraries[default_lattice_library]
-            a_dict = {species: lib[species]["a"] for species in lib}
+        a_dict = {}
+    if default_lattice_library != "ase":
+        lib = latt_const_libraries[default_lattice_library]
+        a_dict.update(
+            {species: lib[species]["a"] for species in lib if species not in a_dict}
+        )
     if c_dict is None:
-        if default_lattice_library == "ase":
-            c_dict = {}
-        else:
-            lib = latt_const_libraries[default_lattice_library]
-            c_dict = {
-                species: lib[species]["c"] for species in lib if "c" in lib[species]
+        c_dict = {}
+    if default_lattice_library != "ase":
+        lib = latt_const_libraries[default_lattice_library]
+        c_dict.update(
+            {
+                species: lib[species]["c"]
+                for species in lib
+                if species not in c_dict and "c" in lib[species]
             }
+        )
+
     if set_magnetic_moments is None:
         set_magnetic_moments = ["Fe", "Co", "Ni"]
     if magnetic_moments is None:
