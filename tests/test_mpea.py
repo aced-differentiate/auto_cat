@@ -20,6 +20,11 @@ def test_random_population_lattice():
         ["Pt", "Fe", "Cu"], composition={"Pt": 2}, supcell=(1, 1, 3)
     )
     assert mpea.cell[0][0] == approx(2.531442276)
+    # Test that lattice parameters are pulled from the correct default library
+    mpea = random_population(
+        ["Pt", "Pd", "Fe"], supcell=(1, 1, 3), default_lattice_library="beefvdw_fd"
+    )
+    assert mpea.cell[0][0] == approx(2.57036143)
 
 
 def test_generate_mpea_random_samples():

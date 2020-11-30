@@ -19,6 +19,7 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 
 from autocat.bulk import generate_bulk_structures
+from autocat.data import *
 from autocat.surface import generate_surface_structures
 
 
@@ -160,6 +161,7 @@ def generate_mpea_random(
     species_list: List[str],
     composition: Dict[str, float] = None,
     lattice_parameters: Dict[str, float] = None,
+    default_lattice_library: str = "ase",
     crystal_structure: str = "fcc",
     facets: List[str] = None,
     supcell: Union[Tuple[int], List[int]] = (3, 3, 4),
@@ -190,6 +192,21 @@ def generate_mpea_random(
     lattice_parameters:
         Dictionary for lattice parameters <a> for each species.
         If not specified, defaults from the `ase.data` module are used
+
+    default_lattice_library:
+        String indicating which library the lattice constants should be pulled
+        from if not specified in lattice_parameters. Defaults to ase.
+
+        Options are:
+        ase: defaults given in `ase.data`
+        pbe_fd: parameters calculated using xc=pbe and finite-difference
+        beefvdw_fd: parameters calculated using xc=BEEF-vdW and finite-difference
+        pbe_pw: parameters calculated using xc=pbe and a plane-wave basis set
+        beefvdw_fd: parameters calculated using xc=BEEF-vdW and a plane-wave basis set
+
+        N.B. if there is a species present in species_list that is NOT in the
+        reference library specified, it will be pulled from `ase.data`
+
 
     crystal_structure:
         String indicated the crystal structure of the skeleton lattice to be populated.
@@ -307,6 +324,7 @@ def random_population(
     species_list: List[str],
     composition: Dict[str, float] = None,
     lattice_parameters: Dict[str, float] = None,
+    default_lattice_library: str = "ase",
     crystal_structure: str = "fcc",
     ft: str = "100",
     supcell: Union[Tuple[int], List[int]] = (3, 3, 4),
@@ -332,6 +350,20 @@ def random_population(
         Dictionary for lattice parameters <a> for each species.
         If not specified, defaults from the `ase.data` module are used
 
+    default_lattice_library:
+        String indicating which library the lattice constants should be pulled
+        from if not specified in lattice_parameters. Defaults to ase.
+
+        Options are:
+        ase: defaults given in `ase.data`
+        pbe_fd: parameters calculated using xc=pbe and finite-difference
+        beefvdw_fd: parameters calculated using xc=BEEF-vdW and finite-difference
+        pbe_pw: parameters calculated using xc=pbe and a plane-wave basis set
+        beefvdw_fd: parameters calculated using xc=BEEF-vdW and a plane-wave basis set
+
+        N.B. if there is a species present in species_list that is NOT in the
+        reference library specified, it will be pulled from `ase.data`
+
     crystal_structure:
         String indicated the crystal structure of the skeleton lattice to be populated.
         Defaults to fcc
@@ -352,6 +384,13 @@ def random_population(
 
     """
 
+    latt_const_libraries = {
+        "pbe_fd": pbe_fd,
+        "beefvdw_fd": beefvdw_fd,
+        "pbe_pw": pbe_pw,
+        "beefvdw_pw": beefvdw_pw,
+    }
+
     if composition is None:
         composition = {}
 
@@ -369,6 +408,12 @@ def random_population(
         species: reference_states[atomic_numbers[species]].get("a")
         for species in species_list
     }
+
+    if default_lattice_library != "ase":
+        lib = latt_const_libraries[default_lattice_library]
+        latt_library.update(
+            {species: lib[species]["a"] for species in species_list if species in lib}
+        )
 
     latt_library.update(lattice_parameters)
 
