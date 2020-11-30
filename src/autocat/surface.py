@@ -11,6 +11,7 @@ from ase.build import bcc100, bcc110, bcc111
 from ase.build import hcp0001
 from ase.data import reference_states, atomic_numbers, ground_state_magnetic_moments
 from ase.constraints import FixAtoms
+from autocat.data import *
 
 
 def generate_surface_structures(
@@ -18,6 +19,7 @@ def generate_surface_structures(
     crystal_structures: Dict[str, str] = None,
     ft_dict: Dict[str, str] = None,
     supcell: Union[Tuple[int], List[int]] = (3, 3, 4),
+    default_lattice_library: str = "ase",
     a_dict: Optional[Dict[str, float]] = None,
     c_dict: Optional[Dict[str, float]] = None,
     set_magnetic_moments: List[str] = None,
@@ -55,6 +57,22 @@ def generate_surface_structures(
     supcell: 
         Tuple or List specifying the size of the supercell to be
         generated in the format (nx,ny,nz).
+
+
+    default_lattice_library:
+        String indicating which library the lattice constants should be pulled
+        from if not specified in either a_dict or c_dict. Defaults to ase.
+
+        Options are:
+        ase: defaults given in `ase.data`
+        pbe_fd: parameters calculated using xc=pbe and finite-difference
+        beefvdw_fd: parameters calculated using xc=BEEF-vdW and finite-difference
+        pbe_pw: parameters calculated using xc=pbe and a plane-wave basis set
+        beefvdw_fd: parameters calculated using xc=BEEF-vdW and a plane-wave basis set
+
+        N.B. if there is a species present in species_list that is NOT in the
+        reference library specified, it will be pulled from `ase.data`
+
 
     a_dict:
         Dictionary with lattice parameters <a> to be used for each species.
@@ -115,12 +133,33 @@ def generate_surface_structures(
 
     """
 
+    latt_const_libraries = {
+        "pbe_fd": pbe_fd,
+        "beefvdw_fd": beefvdw_fd,
+        "pbe_pw": pbe_pw,
+        "beefvdw_pw": beefvdw_pw,
+    }
+
     if crystal_structures is None:
         crystal_structures = {}
     if a_dict is None:
         a_dict = {}
+    if default_lattice_library != "ase":
+        lib = latt_const_libraries[default_lattice_library]
+        a_dict.update(
+            {species: lib[species]["a"] for species in lib if species not in a_dict}
+        )
     if c_dict is None:
         c_dict = {}
+    if default_lattice_library != "ase":
+        lib = latt_const_libraries[default_lattice_library]
+        c_dict.update(
+            {
+                species: lib[species]["c"]
+                for species in lib
+                if species not in c_dict and "c" in lib[species]
+            }
+        )
     if set_magnetic_moments is None:
         set_magnetic_moments = ["Fe", "Co", "Ni"]
     if magnetic_moments is None:

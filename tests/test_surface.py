@@ -29,6 +29,28 @@ def test_generate_surface_structures_facets():
     assert list(surf["Pd"].keys()) == ["fcc100"]
 
 
+def test_generate_surface_structures_ref_library():
+    # Tests pulling lattice parameters from pbe_pw ref library
+    surf = generate_surface_structures(
+        ["Ni", "V"],
+        a_dict={"Ni": 3.53},
+        supcell=(2, 2, 4),
+        default_lattice_library="pbe_pw",
+    )
+    assert surf["Ni"]["fcc111"]["structure"].cell[0][0] == approx(4.99217387)
+    assert surf["V"]["bcc100"]["structure"].cell[1][1] == approx(6.00742)
+    # Tests pulling lattice parameters from beefvdw_fd ref library
+    surf = generate_surface_structures(
+        ["Ti", "Ru"],
+        c_dict={"Ti": 4.65},
+        default_lattice_library="beefvdw_fd",
+        vac=10.0,
+        supcell=(3, 3, 4),
+    )
+    assert surf["Ru"]["hcp0001"]["structure"].cell[0][0] == approx(8.245353)
+    assert surf["Ru"]["hcp0001"]["structure"].cell[2][2] == approx(26.4721475)
+
+
 def test_generate_surface_structures_fix_layers():
     # Test fixing of layers of the slab
     surf = generate_surface_structures(["Pt"], supcell=(3, 3, 4), fix=2)
