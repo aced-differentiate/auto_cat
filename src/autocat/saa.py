@@ -23,6 +23,7 @@ def generate_saa_structures(
     crystal_structures: Dict[str, str] = None,
     ft_dict: Dict[str, str] = None,
     supcell: Union[Tuple[int], List[int]] = (3, 3, 4),
+    default_lattice_library: str = "ase",
     a_dict: Optional[Dict[str, float]] = None,
     c_dict: Optional[Dict[str, float]] = None,
     set_host_magnetic_moments: List[str] = None,
@@ -67,13 +68,27 @@ def generate_saa_structures(
         Tuple or List specifying the size of the supercell to be
         generated in the format (nx,ny,nz).
 
+    default_lattice_library:
+        String indicating which library the lattice constants should be pulled
+        from if not specified in either a_dict or c_dict. Defaults to ase.
+
+        Options are:
+        ase: defaults given in `ase.data`
+        pbe_fd: parameters calculated using xc=pbe and finite-difference
+        beefvdw_fd: parameters calculated using xc=BEEF-vdW and finite-difference
+        pbe_pw: parameters calculated using xc=pbe and a plane-wave basis set
+        beefvdw_fd: parameters calculated using xc=BEEF-vdW and a plane-wave basis set
+
+        N.B. if there is a species present in species_list that is NOT in the
+        reference library specified, it will be pulled from `ase.data`
+
     a_dict:
         Dictionary with lattice parameters <a> to be used for each species.
-        If not specified, defaults from the `ase.data` module are used.
+        If not specified, defaults from the default_lattice_library are used.
 
     c_dict:
         Dictionary with lattice parameters <c> to be used for each species.
-        If not specified, defaults from the `ase.data` module are used.
+        If not specified, defaults from the default_lattice_library module are used.
 
     set_host_magnetic_moments:
         List of host species for which magnetic moments need to be set.
@@ -144,6 +159,7 @@ def generate_saa_structures(
         crystal_structures=crystal_structures,
         ft_dict=ft_dict,
         supcell=supcell,
+        default_lattice_library=default_lattice_library,
         a_dict=a_dict,
         c_dict=c_dict,
         set_magnetic_moments=set_host_magnetic_moments,
