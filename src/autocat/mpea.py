@@ -207,7 +207,6 @@ def generate_mpea_random(
         N.B. if there is a species present in species_list that is NOT in the
         reference library specified, it will be pulled from `ase.data`
 
-
     crystal_structure:
         String indicated the crystal structure of the skeleton lattice to be populated.
         Defaults to fcc

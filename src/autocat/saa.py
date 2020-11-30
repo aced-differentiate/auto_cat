@@ -151,7 +151,9 @@ def generate_saa_structures(
     Returns
     -------
 
-    Dictionary
+    saa_dict:
+        Dictionary containing the generated single-atom alloy structures.
+        Organized by host -> sa -> facet
     """
 
     hosts = generate_surface_structures(

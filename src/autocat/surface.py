@@ -58,7 +58,6 @@ def generate_surface_structures(
         Tuple or List specifying the size of the supercell to be
         generated in the format (nx,ny,nz).
 
-
     default_lattice_library:
         String indicating which library the lattice constants should be pulled
         from if not specified in either a_dict or c_dict. Defaults to ase.
@@ -76,11 +75,11 @@ def generate_surface_structures(
 
     a_dict:
         Dictionary with lattice parameters <a> to be used for each species.
-        If not specified, defaults from the `ase.data` module are used.
+        If not specified, defaults from default_lattice_library are used.
 
     c_dict:
         Dictionary with lattice parameters <c> to be used for each species.
-        If not specified, defaults from the `ase.data` module are used.
+        If not specified, defaults from default_lattice_library are used.
 
     set_magnetic_moments:
         List of species for which magnetic moments need to be set.
