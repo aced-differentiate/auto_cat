@@ -1,11 +1,15 @@
 #!/usr/bin/env python
 import fire
 
-from autocat.adsorption import get_adsorption_sites
+from autocat.adsorption import (
+    get_adsorption_sites,
+    generate_rxn_structures,
+    place_adsorbate,
+)
 from autocat.bulk import generate_bulk_structures
-from autocat.mpea import generate_mpea_random
+from autocat.mpea import generate_mpea_random, random_population
 from autocat.surface import generate_surface_structures
-from autocat.saa import generate_saa_structures
+from autocat.saa import generate_saa_structures, generate_doped_structures
 
 if __name__ == "__main__":
     fire.Fire()
