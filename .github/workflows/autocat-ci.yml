@@ -25,5 +25,5 @@ jobs:
       run: |
         python -m pip install -r requirements.txt
         python -m pip install -r test_requirements.txt
-    - Run tests
+    - name: Run tests
       run: pytest --cov=autocat --cov-report term-missing -svv
