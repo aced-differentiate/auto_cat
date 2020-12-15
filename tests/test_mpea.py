@@ -56,7 +56,7 @@ def test_generate_mpea_random_write_location():
     )
     assert os.path.samefile(
         mpeas["fcc111"]["1"]["traj_file_path"],
-        "test_dir/Pt1.0Pd1.0Ir1.0Cu1.0/fcc111/1/input.traj",
+        "test_dir/Pt1.0Pd1.0Ir1.0Cu1.0/fcc111/1/structure/input.traj",
     )
     shutil.rmtree("test_dir")
 
@@ -70,6 +70,6 @@ def test_generate_mpea_random_dirs_exist_ok():
     )
     assert os.path.samefile(
         mpeas["fcc100"]["5"]["traj_file_path"],
-        "Pt1.0Pd1.0Ir1.0Cu1.0/fcc100/5/input.traj",
+        "Pt1.0Pd1.0Ir1.0Cu1.0/fcc100/5/structure/input.traj",
     )
     shutil.rmtree("Pt1.0Pd1.0Ir1.0Cu1.0")

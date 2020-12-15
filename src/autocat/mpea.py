@@ -246,11 +246,7 @@ def generate_mpea_random(
         directories must be constructed and structure files written to disk.
         In the specified write_location, the following directory structure
         will be created:
-        [species_1]_bulk_[crystal_structure_1]/input.traj
-        [species_1]_bulk_[crystal_structure_2]/input.traj
-        ...
-        [species_2]_bulk_[crystal_structure_2]/input.traj
-        ...
+        [chemical_formula]/[crystal_structure + facet]/[sample number]/structure/input.traj
 
     dirs_exist_ok:
         Boolean specifying whether existing directories/files should be
@@ -303,7 +299,8 @@ def generate_mpea_random(
             traj_file_path = None
             if write_to_disk:
                 dir_path = os.path.join(
-                    write_location, name + "/" + crystal_structure + ft + "/" + str(i)
+                    write_location,
+                    name + "/" + crystal_structure + ft + "/" + str(i) + "/structure",
                 )
                 os.makedirs(dir_path, exist_ok=dirs_exist_ok)
                 traj_file_path = os.path.join(dir_path, "input.traj")

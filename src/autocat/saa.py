@@ -136,11 +136,7 @@ def generate_saa_structures(
         directories must be constructed and structure files written to disk.
         In the specified write_location, the following directory structure
         will be created:
-        [species_1]_bulk_[crystal_structure_1]/input.traj
-        [species_1]_bulk_[crystal_structure_2]/input.traj
-        ...
-        [species_2]_bulk_[crystal_structure_2]/input.traj
-        ...
+        [host]/[dopant]/[facet]/[substrate]/input.traj
 
     dirs_exist_ok:
         Boolean specifying whether existing directories/files should be
@@ -203,7 +199,9 @@ def generate_saa_structures(
 
                     traj_file_path = None
                     if write_to_disk:
-                        dir_path = os.path.join(write_location, f"{host}/{dop}/{ft}")
+                        dir_path = os.path.join(
+                            write_location, f"{host}/{dop}/{ft}/substrate"
+                        )
                         os.makedirs(dir_path, exist_ok=dirs_exist_ok)
                         traj_file_path = os.path.join(dir_path, "input.traj")
                         dop_struct.write(traj_file_path)
@@ -301,11 +299,7 @@ def generate_doped_structures(
 
         In the specified write_location, the following directory structure
         will be created:
-        [species_1]_bulk_[crystal_structure_1]/input.traj
-        [species_1]_bulk_[crystal_structure_2]/input.traj
-        ...
-        [species_2]_bulk_[crystal_structure_2]/input.traj
-        ...
+        [host]_[dopant]_[atom index substituted]/input.traj
 
     dirs_exist_ok:
         Boolean specifying whether existing directories/files should be

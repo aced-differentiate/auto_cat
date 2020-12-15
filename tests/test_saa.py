@@ -45,10 +45,12 @@ def test_generate_saa_structures_write_location():
         ["Pt", "Cu"], ["Fe"], write_to_disk=True, write_location="test_dir"
     )
     assert os.path.samefile(
-        saa["Pt"]["Fe"]["fcc111"]["traj_file_path"], "test_dir/Pt/Fe/fcc111/input.traj"
+        saa["Pt"]["Fe"]["fcc111"]["traj_file_path"],
+        "test_dir/Pt/Fe/fcc111/substrate/input.traj",
     )
     assert os.path.samefile(
-        saa["Cu"]["Fe"]["fcc100"]["traj_file_path"], "test_dir/Cu/Fe/fcc100/input.traj"
+        saa["Cu"]["Fe"]["fcc100"]["traj_file_path"],
+        "test_dir/Cu/Fe/fcc100/substrate/input.traj",
     )
     shutil.rmtree("test_dir")
 
@@ -61,7 +63,7 @@ def test_generate_saa_structures_dirs_exist_ok():
         ["Pt", "Cu"], ["Fe"], write_to_disk=True, dirs_exist_ok=True
     )
     assert os.path.samefile(
-        saa["Pt"]["Fe"]["fcc110"]["traj_file_path"], "Pt/Fe/fcc110/input.traj"
+        saa["Pt"]["Fe"]["fcc110"]["traj_file_path"], "Pt/Fe/fcc110/substrate/input.traj"
     )
     shutil.rmtree("Pt")
     shutil.rmtree("Cu")

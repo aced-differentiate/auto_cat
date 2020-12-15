@@ -155,15 +155,15 @@ def test_generate_rxn_structures_write_location():
     )
     assert os.path.samefile(
         ads["OH"]["origin"]["0.0_0.0"]["traj_file_path"],
-        "test_dir/OH/origin/0.0_0.0/input.traj",
+        "test_dir/adsorbates/OH/origin/0.0_0.0/input.traj",
     )
     assert os.path.samefile(
         ads["O"]["origin"]["0.5_0.5"]["traj_file_path"],
-        "test_dir/O/origin/0.5_0.5/input.traj",
+        "test_dir/adsorbates/O/origin/0.5_0.5/input.traj",
     )
     assert os.path.samefile(
         ads["O"]["custom"]["0.3_0.3"]["traj_file_path"],
-        "test_dir/O/custom/0.3_0.3/input.traj",
+        "test_dir/adsorbates/O/custom/0.3_0.3/input.traj",
     )
     ads = generate_rxn_structures(
         surf,
@@ -174,7 +174,7 @@ def test_generate_rxn_structures_write_location():
     )
     assert os.path.samefile(
         ads["OH"]["bridge"]["7.623_6.001"]["traj_file_path"],
-        "test_dir/OH/bridge/7.623_6.001/input.traj",
+        "test_dir/adsorbates/OH/bridge/7.623_6.001/input.traj",
     )
     shutil.rmtree("test_dir")
 
@@ -199,6 +199,7 @@ def test_generate_rxn_structure_dirs_exist_ok():
         dirs_exist_ok=True,
     )
     assert os.path.samefile(
-        ads["H"]["origin"]["0.0_0.0"]["traj_file_path"], "H/origin/0.0_0.0/input.traj"
+        ads["H"]["origin"]["0.0_0.0"]["traj_file_path"],
+        "adsorbates/H/origin/0.0_0.0/input.traj",
     )
-    shutil.rmtree("H")
+    shutil.rmtree("adsorbates")

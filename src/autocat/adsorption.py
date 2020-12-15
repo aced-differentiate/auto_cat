@@ -104,10 +104,10 @@ def generate_rxn_structures(
         directories must be constructed and structure files written to disk.
         In the specified write_location, the following directory structure
         will be created:
-        [species_1]_bulk_[crystal_structure_1]/input.traj
-        [species_1]_bulk_[crystal_structure_2]/input.traj
+        adsorbates/[adsorbate1]/[site_type]/[xy_site_coord1]/input.traj
+        adsorbates/[adsorbate1]/[site_type]/[xy_site_coord2]/input.traj
         ...
-        [species_2]_bulk_[crystal_structure_2]/input.traj
+        adsorbates/[adsorbate2]/[site_type]/[xy_site_coord1]/input.traj
         ...
 
     dirs_exist_ok:
@@ -264,10 +264,10 @@ def place_adsorbate(
         directories must be constructed and structure files written to disk.
         In the specified write_location, the following directory structure
         will be created:
-        [species_1]_bulk_[crystal_structure_1]/input.traj
-        [species_1]_bulk_[crystal_structure_2]/input.traj
+        adsorbates/[adsorbate1]/[label]/[xy_site_coord1]/input.traj
+        adsorbates/[adsorbate1]/[label]/[xy_site_coord2]/input.traj
         ...
-        [species_2]_bulk_[crystal_structure_2]/input.traj
+        adsorbates/[adsorbate2]/[label]/[xy_site_coord1]/input.traj
         ...
 
     dirs_exist_ok:
@@ -319,7 +319,15 @@ def place_adsorbate(
     if write_to_disk:
         rpos = np.around(position, 3)
         dir_path = os.path.join(
-            write_location, name + "/" + label + "/" + str(rpos[0]) + "_" + str(rpos[1])
+            write_location,
+            "adsorbates/"
+            + name
+            + "/"
+            + label
+            + "/"
+            + str(rpos[0])
+            + "_"
+            + str(rpos[1]),
         )
         os.makedirs(dir_path, exist_ok=dirs_exist_ok)
         traj_file_path = os.path.join(dir_path, "input.traj")
