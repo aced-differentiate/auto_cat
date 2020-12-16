@@ -492,7 +492,8 @@ def generate_molecule_object(
     -------
 
     m:
-        Atoms object of the generated molecule object within a references directory
+        Dictionary containing Atoms object of the generated molecule object and
+        path to traj file if written to disk
     """
 
     if rotations is None:

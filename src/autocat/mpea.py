@@ -39,7 +39,6 @@ def sqs_bulk(
     Generates a bulk special quasirandom structure. Wrapper for `icet.tool.structure_generation.generate_sqs_by_enumeration`
     and `icet.tool.structure_generation.generate_sqs_by_enumeration`.
 
-
     Parameters
     ----------
     species_list:
