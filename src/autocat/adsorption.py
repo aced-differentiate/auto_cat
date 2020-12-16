@@ -145,7 +145,7 @@ def generate_rxn_structures(
         else:
             ads_dict[a.get_chemical_formula()] = a
 
-    height_library = {a: 1.5 for a in ads_dict}
+    height_library = {a: None for a in ads_dict}
     height_library.update(height)
 
     mol_indices_library = {a: 0 for a in ads_dict}
@@ -240,7 +240,8 @@ def place_adsorbate(
         Tuple or list of the xy cartesian coordinates for where the molecule should be placed
 
     height:
-        Float specifying the height above surface where adsorbate should be initially placed
+        Float specifying the height above surface where adsorbate should be initially placed.
+        If None, will guess initial height based on covalent radii of nearest neighbors
 
     rotations:
         List of rotation operations to be carried out which will be fed into
@@ -378,6 +379,12 @@ def get_adsorbate_height_estimate(
     scale:
         Float giving a scale factor to be applied to the calculated bond length
         e.g. scale=1.1 -> bond length = 1.1*(covalent_radius1 + covalent_radius2)
+
+    Returns
+    -------
+
+    height_estimate:
+        Float giving estimated good initial height for adsorbate
     """
     nn_list = get_adsorbate_slab_nn_list(surface, position)
     rad_ads = covalent_radii[atomic_numbers[adsorbate[mol_index].symbol]]
@@ -386,16 +393,22 @@ def get_adsorbate_height_estimate(
         rad_nn = covalent_radii[atomic_numbers[nn[0]]]
         r_dist = scale * (rad_ads + rad_nn)
         position_array = np.array(position)
-        height = np.sqrt(
-            np.maximum(r_dist ** 2 - np.sum((position_array - nn[1][:2]) ** 2), 0)
-        )
+        if (r_dist ** 2 - np.sum((position_array - nn[1][:2]) ** 2)) >= 0.0:
+            height = np.sqrt(r_dist ** 2 - np.sum((position_array - nn[1][:2]) ** 2))
+        else:
+            height = np.nan
         guessed_heights.append(height)
-    height = np.mean(guessed_heights)
-    return height
+
+    if np.isnan(np.nanmean(guessed_heights)):
+        height_estimate = 0.0
+    else:
+        height_estimate = np.nanmean(guessed_heights)
+
+    return height_estimate
 
 
 def get_adsorbate_slab_nn_list(
-    surface: Atoms, position: Union[List[float], Tuple[float]]
+    surface: Atoms, position: Union[List[float], Tuple[float]], height: float = 1.5
 ):
     """
     Gets list of nearest neighbors for the adsorbate on the surface at a given position.
@@ -419,7 +432,7 @@ def get_adsorbate_slab_nn_list(
     """
     surf = surface.copy()
     conv = AseAtomsAdaptor()
-    add_adsorbate(surf, "X", height=1.5, position=position)
+    add_adsorbate(surf, "X", height=height, position=position)
     init_guess = conv.get_structure(surf)
     nn = get_neighbors_of_site_with_index(init_guess, -1)
     nn_list = [[nn[i].species.hill_formula, nn[i].coords] for i in range(len(nn))]
