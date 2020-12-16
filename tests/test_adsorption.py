@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import numpy as np
 
 import pytest
 from pytest import approx
@@ -10,12 +11,16 @@ from pytest import raises
 from ase.build import molecule
 from autocat.adsorption import generate_rxn_structures
 from autocat.adsorption import generate_molecule_object
+from autocat.adsorption import get_adsorbate_height_estimate
+from autocat.adsorption import get_adsorbate_slab_nn_list
+from autocat.adsorption import place_adsorbate
 from autocat.intermediates import *
+from autocat.saa import generate_saa_structures
 from autocat.surface import generate_surface_structures
 
 
 def test_generate_rxn_structures_adsorbates():
-    surf = generate_surface_structures(["Fe"])["Fe"]["bcc111"]["structure"]
+    surf = generate_surface_structures(["Fe"])["Fe"]["bcc100"]["structure"]
     # Test default
     ads = generate_rxn_structures(surf)
     assert "H" in ads
@@ -31,7 +36,7 @@ def test_generate_rxn_structures_adsorbates():
 
 def test_generate_rxn_structures_references():
     # Test generation of reference states
-    surf = generate_surface_structures(["Fe"])["Fe"]["bcc111"]["structure"]
+    surf = generate_surface_structures(["Fe"])["Fe"]["bcc100"]["structure"]
     ads = generate_rxn_structures(surf, ads=["NH"], refs=["N2", "H2", "NH3"])
     assert list(ads["references"].keys()) == ["N2", "H2", "NH3"]
 
@@ -67,6 +72,51 @@ def test_generate_rxn_structures_atoms_object():
     assert ads["CO"]["origin"]["0.0_0.0"]["structure"][-2].symbol == "O"
 
 
+def test_get_adsorbate_height_estimate():
+    # Tests height estimation based on covalent radii of nn
+    surf = generate_surface_structures(["Pt"])["Pt"]["fcc100"]["structure"]
+    m = generate_molecule_object("O")["structure"]
+    # Checks ontop corresponds to cov_rad1 + cov_rad2
+    assert get_adsorbate_height_estimate(surf, (0.0, 0.0), m) == approx(2.02)
+    # Checks hollow placement maintains distance of cov_rad1+cov_rad2
+    surf = generate_surface_structures(["Cu"])["Cu"]["fcc111"]["structure"]
+    m = generate_molecule_object("OH")["structure"]
+    # Checks average estimated height based on nn is used
+    assert get_adsorbate_height_estimate(surf, (3.82898322, 0.73688816), m) == approx(
+        1.3222644717
+    )
+    saa = generate_saa_structures(["Ag"], ["Cu"])["Ag"]["Cu"]["fcc111"]["structure"]
+    m = generate_molecule_object("NH")["structure"]
+    ads = place_adsorbate(saa, m, (5.78413347, 5.00920652))["custom"]["structure"]
+    pos_array = np.array([5.78413347, 5.00920652])
+    r_dist_ag_n = 1.45 + 0.71
+    z1 = np.sqrt(r_dist_ag_n ** 2 - np.sum((pos_array - ads[32].position[:2]) ** 2))
+    r_dist_cu_n = 1.32 + 0.71
+    z2 = np.sqrt(r_dist_cu_n ** 2 - np.sum((pos_array - ads[27].position[:2]) ** 2))
+    z_est = np.mean([z1, z2])
+    assert get_adsorbate_height_estimate(saa, (5.78413347, 5.00920652), m) == approx(
+        z_est
+    )
+
+
+def test_get_adsorbate_slab_nn_list():
+    # Tests generation of nn list for adsorbate placement
+    # Checks number of nn identified
+    surf = generate_surface_structures(["Cu"])["Cu"]["fcc111"]["structure"]
+    assert len(get_adsorbate_slab_nn_list(surf, (3.82898322, 0.73688816))) == 3
+    surf = generate_surface_structures(["Fe"])["Fe"]["bcc100"]["structure"]
+    assert len(get_adsorbate_slab_nn_list(surf, (0.0, 0.0))) == 1
+    surf = generate_surface_structures(["Pt"])["Pt"]["fcc100"]["structure"]
+    assert len(get_adsorbate_slab_nn_list(surf, (6.92964646, 4.15778787))) == 4
+    saa = generate_saa_structures(["Cu"], ["Pt"])["Cu"]["Pt"]["fcc111"]["structure"]
+    nn_list = get_adsorbate_slab_nn_list(saa, (7.01980257, 3.31599674))
+    # Checks correct nn identified
+    assert nn_list[0][0] == "Pt"
+    assert nn_list[1][0] == "Cu"
+    assert nn_list[0][1][0] == approx(saa[27].x)
+    assert nn_list[1][1][1] == approx(saa[28].y)
+
+
 def test_generate_rxn_structures_mol_placement():
     # Tests default height
     surf = generate_surface_structures(["Pt"])["Pt"]["fcc111"]["structure"]
@@ -76,23 +126,23 @@ def test_generate_rxn_structures_mol_placement():
     assert (
         ads["H"]["origin"]["0.0_0.0"]["structure"][-1].z
         - ads["H"]["origin"]["0.0_0.0"]["structure"][27].z
-    ) == approx(1.5)
+    ) == approx(1.67)
     # Tests manually specifying height
     ads = generate_rxn_structures(
         surf,
         ads=["OH", "O"],
         all_sym_sites=False,
         sites={"origin": [(0.0, 0.0)]},
-        height={"OH": 2.0},
+        height={"OH": 2.3},
     )
     assert (
         ads["OH"]["origin"]["0.0_0.0"]["structure"][-2].z
         - ads["OH"]["origin"]["0.0_0.0"]["structure"][27].z
-    ) == approx(2.0)
+    ) == approx(2.3)
     assert (
         ads["O"]["origin"]["0.0_0.0"]["structure"][-1].z
         - ads["O"]["origin"]["0.0_0.0"]["structure"][27].z
-    ) == approx(1.5)
+    ) == approx(2.02)
     # Tests manually specifying mol_indices
     m = molecule("CO")
     ads = generate_rxn_structures(
@@ -105,7 +155,7 @@ def test_generate_rxn_structures_mol_placement():
     assert (
         ads["CO"]["origin"]["0.0_0.0"]["structure"][-1].z
         - ads["CO"]["origin"]["0.0_0.0"]["structure"][27].z
-    ) == approx(1.5)
+    ) == approx(2.12)
 
 
 def test_generate_rxn_structures_mol_rotation():
@@ -116,12 +166,13 @@ def test_generate_rxn_structures_mol_rotation():
         ads=["NH3", "CO"],
         all_sym_sites=False,
         sites={"origin": [(0.0, 0.0)]},
+        height={"CO": 1.5},
         rots={"NH3": [[180.0, "x"], [90.0, "z"]], "CO": [[180.0, "y"]]},
     )
     # Check orientation of NH3
     assert ads["NH3"]["origin"]["0.0_0.0"]["structure"][-2].x == approx(-0.469865)
     assert ads["NH3"]["origin"]["0.0_0.0"]["structure"][-2].y == approx(0.813831)
-    assert ads["NH3"]["origin"]["0.0_0.0"]["structure"][-2].z == approx(18.67793617)
+    assert ads["NH3"]["origin"]["0.0_0.0"]["structure"][-2].z == approx(19.2479361)
     # Check orientation of CO
     assert ads["CO"]["origin"]["0.0_0.0"]["structure"][-2].z == approx(18.28963917)
     assert ads["CO"]["origin"]["0.0_0.0"]["structure"][-1].z == approx(19.43997917)
