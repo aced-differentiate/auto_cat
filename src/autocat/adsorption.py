@@ -11,10 +11,11 @@ from ase import Atom, Atoms
 from ase.build import add_adsorbate
 from ase.build import molecule
 from ase.visualize import view
-from ase.data import chemical_symbols
+from ase.data import chemical_symbols, atomic_numbers, covalent_radii
 from ase.collections import g2
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
+from pymatgen.analysis.local_env import get_neighbors_of_site_with_index, VoronoiNN
 from autocat.intermediates import *
 
 
@@ -212,7 +213,7 @@ def place_adsorbate(
     surface: Union[str, Atoms],
     mol: Union[str, Atoms],
     position: Union[Tuple[float], List[float]] = (0.0, 0.0),
-    height: float = 1.5,
+    height: float = None,
     rotations: List[List[Union[float, str]]] = None,
     mol_index: int = 0,
     write_to_disk: bool = False,
@@ -313,6 +314,12 @@ def place_adsorbate(
         for r in rotations:
             adsorbate.rotate(r[0], r[1])
 
+    # If height not given takes educated guess
+    if height is None:
+        height = get_adsorbate_height_estimate(
+            surf, position, adsorbate, mol_index=mol_index
+        )
+
     add_adsorbate(surf, adsorbate, height, position=position, mol_index=mol_index)
 
     traj_file_path = None
@@ -337,6 +344,86 @@ def place_adsorbate(
     ads_structs = {label: {"structure": surf, "traj_file_path": traj_file_path}}
 
     return ads_structs
+
+
+def get_adsorbate_height_estimate(
+    surface: Atoms,
+    position: Union[Tuple[float], List[float]],
+    adsorbate: Atoms,
+    mol_index: int = 0,
+    scale: float = 1.0,
+):
+    """
+    Guesses initial height for adsorbate placement based on summing covalent radii
+    to get the approximate bond length with each nearest neighbor. Takes the average
+    height based on each nearest neighbor contribution.
+
+    Parameters
+    ----------
+
+    surface:
+        Atoms object the surface for which nearest neighbors 
+        of the adsorbate should be identified
+
+    position:
+        Tuple or list of the xy cartesian coordinates for where the adsorbate would be placed 
+
+    adsorbate:
+        Atoms object of adsorbate to be placed on `surface`
+
+    mol_index:
+        Integer index of atom in molecule that will be the reference for placing the molecule
+        at `position`. Defaults to the atom at index 0
+
+    scale:
+        Float giving a scale factor to be applied to the calculated bond length
+        e.g. scale=1.1 -> bond length = 1.1*(covalent_radius1 + covalent_radius2)
+    """
+    nn_list = get_adsorbate_slab_nn_list(surface, position)
+    rad_ads = covalent_radii[atomic_numbers[adsorbate[mol_index].symbol]]
+    guessed_heights = []
+    for nn in nn_list:
+        rad_nn = covalent_radii[atomic_numbers[nn[0]]]
+        r_dist = scale * (rad_ads + rad_nn)
+        position_array = np.array(position)
+        height = np.sqrt(
+            np.maximum(r_dist ** 2 - np.sum((position_array - nn[1][:2]) ** 2), 0)
+        )
+        guessed_heights.append(height)
+    height = np.mean(guessed_heights)
+    return height
+
+
+def get_adsorbate_slab_nn_list(
+    surface: Atoms, position: Union[List[float], Tuple[float]]
+):
+    """
+    Gets list of nearest neighbors for the adsorbate on the surface at a given position.
+
+    Parameters
+    ----------
+
+    surface:
+        Atoms object the surface for which nearest neighbors 
+        of the adsorbate should be identified
+
+    position:
+        Tuple or list of the xy cartesian coordinates for where the adsorbate would be placed
+
+    Returns
+    -------
+
+    nn_list:
+        List containing the species and coordinates of each identified n.n. in the form:
+        [[species1,[x1,y1]],[species2,[x2,y2]],...]
+    """
+    surf = surface.copy()
+    conv = AseAtomsAdaptor()
+    add_adsorbate(surf, "X", height=1.5, position=position)
+    init_guess = conv.get_structure(surf)
+    nn = get_neighbors_of_site_with_index(init_guess, -1)
+    nn_list = [[nn[i].species.hill_formula, nn[i].coords] for i in range(len(nn))]
+    return nn_list
 
 
 def generate_molecule_object(
