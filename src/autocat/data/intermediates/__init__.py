@@ -1,4 +1,4 @@
-from autocat.intermediates.nrr import nrr_mols, nrr_intermediate_names
-from autocat.intermediates.orr import orr_mols, orr_intermediate_names
+from autocat.intermediates.nrr import NRR_MOLS, NRR_INTERMEDIATE_NAMES
+from autocat.intermediates.orr import ORR_MOLS, ORR_INTERMEDIATE_NAMES
 
-__all__ = ["nrr_mols", "nrr_intermediate_names", "orr_mols", "orr_intermediate_names"]
+__all__ = ["NRR_MOLS", "NRR_INTERMEDIATE_NAMES", "ORR_MOLS", "ORR_INTERMEDIATE_NAMES"]
