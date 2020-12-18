@@ -31,28 +31,32 @@ Calculator Settings:
 
 """
 
-raw_bulk_pbe_fd = pkg_resources.resource_filename("autocat.data", "bulk_pbe_fd.json")
+raw_bulk_pbe_fd = pkg_resources.resource_filename(
+    "autocat.data.lattice_parameters", "bulk_pbe_fd.json"
+)
 
 with open(raw_bulk_pbe_fd) as fr:
     BULK_PBE_FD = json.load(fr)
 
 
 raw_bulk_beefvdw_fd = pkg_resources.resource_filename(
-    "autocat.data", "bulk_beefvdw_fd.json"
+    "autocat.data.lattice_parameters", "bulk_beefvdw_fd.json"
 )
 
 with open(raw_bulk_beefvdw_fd) as fr:
     BULK_BEEFVDW_FD = json.load(fr)
 
 
-raw_bulk_pbe_pw = pkg_resources.resource_filename("autocat.data", "bulk_pbe_pw.json")
+raw_bulk_pbe_pw = pkg_resources.resource_filename(
+    "autocat.data.lattice_parameters", "bulk_pbe_pw.json"
+)
 
 with open(raw_bulk_pbe_pw) as fr:
     BULK_PBE_PW = json.load(fr)
 
 
 raw_bulk_beefvdw_pw = pkg_resources.resource_filename(
-    "autocat.data", "bulk_beefvdw_pw.json"
+    "autocat.data.lattice_parameters", "bulk_beefvdw_pw.json"
 )
 
 with open(raw_bulk_beefvdw_pw) as fr:

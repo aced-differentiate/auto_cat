@@ -7,10 +7,10 @@ from ase.build import bulk
 from ase.data import atomic_numbers
 from ase.data import reference_states
 from ase.data import ground_state_magnetic_moments
-from autocat.data import BULK_PBE_FD
-from autocat.data import BULK_PBE_PW
-from autocat.data import BULK_BEEFVDW_FD
-from autocat.data import BULK_BEEFVDW_PW
+from autocat.data.lattice_parameters import BULK_PBE_FD
+from autocat.data.lattice_parameters import BULK_PBE_PW
+from autocat.data.lattice_parameters import BULK_BEEFVDW_FD
+from autocat.data.lattice_parameters import BULK_BEEFVDW_PW
 
 
 def generate_bulk_structures(
