@@ -1,12 +1,11 @@
 import json
 import pkg_resources
 
-__all__ = ["pbe_fd", "beefvdw_fd", "pbe_pw", "beefvdw_pw"]
-
+__all__ = ["BULK_PBE_FD", "BULK_BEEFVDW_FD", "BULK_PBE_PW", "BULK_BEEFVDW_PW"]
 """
 Calculator Settings:
 
-    pbe_fd, beefvdw_fd:
+    BULK_PBE_FD, BULK_BEEFVDW_FD:
 
         Obtained via fits to an equation of state
         (https://wiki.fysik.dtu.dk/ase/ase/eos.html)
@@ -17,10 +16,9 @@ Calculator Settings:
 
         HCP
         h=0.16, kpts = (12,12,6)
-        fit to a Birch-Murnaghan EOS
+        fit to a Birch-Murnaghan EO
 
-
-    pbe_pw, beefvdw_pw:
+    BULK_PBE_PW, BULK_BEEFVDW_PW:
 
         Obtained using the Exponential Cell Filter to minimize the stress tensor and atomic forces
         (https://wiki.fysik.dtu.dk/ase/ase/constraints.html#the-expcellfilter-class)
@@ -30,28 +28,32 @@ Calculator Settings:
 
         HCP
         mode=PW(550), kpts = (12,12,6), fmax = 0.05 eV/A
- 
+
 """
 
-raw_pbe_fd = pkg_resources.resource_filename("autocat.data", "pbe_fd.json")
+raw_bulk_pbe_fd = pkg_resources.resource_filename("autocat.data", "bulk_pbe_fd.json")
 
-with open(raw_pbe_fd) as fr:
-    pbe_fd = json.load(fr)
-
-
-raw_beefvdw_fd = pkg_resources.resource_filename("autocat.data", "beefvdw_fd.json")
-
-with open(raw_beefvdw_fd) as fr:
-    beefvdw_fd = json.load(fr)
+with open(raw_bulk_pbe_fd) as fr:
+    BULK_PBE_FD = json.load(fr)
 
 
-raw_pbe_pw = pkg_resources.resource_filename("autocat.data", "pbe_pw.json")
+raw_bulk_beefvdw_fd = pkg_resources.resource_filename(
+    "autocat.data", "bulk_beefvdw_fd.json"
+)
 
-with open(raw_pbe_pw) as fr:
-    pbe_pw = json.load(fr)
+with open(raw_bulk_beefvdw_fd) as fr:
+    BULK_BEEFVDW_FD = json.load(fr)
 
 
-raw_beefvdw_pw = pkg_resources.resource_filename("autocat.data", "beefvdw_pw.json")
+raw_bulk_pbe_pw = pkg_resources.resource_filename("autocat.data", "bulk_pbe_pw.json")
 
-with open(raw_beefvdw_pw) as fr:
-    beefvdw_pw = json.load(fr)
+with open(raw_bulk_pbe_pw) as fr:
+    BULK_PBE_PW = json.load(fr)
+
+
+raw_bulk_beefvdw_pw = pkg_resources.resource_filename(
+    "autocat.data", "bulk_beefvdw_pw.json"
+)
+
+with open(raw_bulk_beefvdw_pw) as fr:
+    BULK_BEEFVDW_PW = json.load(fr)

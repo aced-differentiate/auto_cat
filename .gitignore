@@ -17,3 +17,5 @@ coverage.xml
 
 .DS_Store
 docs/_build
+.vscode
+*.ipynb_checkpoints

@@ -3,7 +3,6 @@
 import os
 import shutil
 
-import pytest
 from pytest import approx
 from pytest import raises
 
@@ -82,6 +81,9 @@ def test_generate_bulk_structures_magnetic_moments():
 
 def test_generate_bulk_structures_write_location():
     # Test user-specified write location
+    # TODO(@hegdevinayi): Use temporary file/directory from `tempfile` instead
+    # of writing to disk. Example here:
+    # https://github.com/CitrineInformatics/dft-input-gen/blob/master/tests/qe/test_pwx.py#L320
     bs = generate_bulk_structures(
         ["Li", "Ti"], write_to_disk=True, write_location="test_dir"
     )
