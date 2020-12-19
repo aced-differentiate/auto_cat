@@ -1,7 +1,6 @@
 """Unit tests for the `autocat.bulk` module."""
 
 import os
-import shutil
 import tempfile
 
 from pytest import approx
@@ -82,30 +81,26 @@ def test_generate_bulk_structures_magnetic_moments():
 
 def test_generate_bulk_structures_write_location():
     # Test user-specified write location
-    _tmp_dir = tempfile.TemporaryDirectory()
+    _tmp_dir = tempfile.TemporaryDirectory().name
     bs = generate_bulk_structures(
-        ["Li", "Ti"], write_to_disk=True, write_location=_tmp_dir.name
+        ["Li", "Ti"], write_to_disk=True, write_location=_tmp_dir
     )
     assert os.path.samefile(
-        bs["Li"]["traj_file_path"],
-        os.path.join(_tmp_dir.name, "Li_bulk_bcc", "input.traj"),
+        bs["Li"]["traj_file_path"], os.path.join(_tmp_dir, "Li_bulk_bcc", "input.traj"),
     )
 
 
 def test_generate_bulk_structures_dirs_exist_ok():
-    _tmp_dir = tempfile.TemporaryDirectory()
-    bs = generate_bulk_structures(
-        ["Li"], write_to_disk=True, write_location=_tmp_dir.name
-    )
+    _tmp_dir = tempfile.TemporaryDirectory().name
+    bs = generate_bulk_structures(["Li"], write_to_disk=True, write_location=_tmp_dir)
     with raises(FileExistsError):
         bs = generate_bulk_structures(
-            ["Li"], write_to_disk=True, write_location=_tmp_dir.name
+            ["Li"], write_to_disk=True, write_location=_tmp_dir
         )
     # Test no error on dirs_exist_ok = True, and check default file path
     bs = generate_bulk_structures(
-        ["Li"], write_to_disk=True, write_location=_tmp_dir.name, dirs_exist_ok=True
+        ["Li"], write_to_disk=True, write_location=_tmp_dir, dirs_exist_ok=True
     )
     assert os.path.samefile(
-        bs["Li"]["traj_file_path"],
-        os.path.join(_tmp_dir.name, "Li_bulk_bcc", "input.traj"),
+        bs["Li"]["traj_file_path"], os.path.join(_tmp_dir, "Li_bulk_bcc", "input.traj"),
     )
