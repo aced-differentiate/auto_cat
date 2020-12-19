@@ -16,7 +16,7 @@ from autocat.data.lattice_parameters import BULK_BEEFVDW_PW
 def generate_bulk_structures(
     species_list: List[str],
     crystal_structures: Dict[str, str] = None,
-    default_lattice_library: str = "ase",
+    default_lat_param_lib: str = None,
     a_dict: Optional[Dict[str, float]] = None,
     c_dict: Optional[Dict[str, float]] = None,
     set_magnetic_moments: List[str] = None,
@@ -32,7 +32,7 @@ def generate_bulk_structures(
     Parameters
     ----------
 
-    species_list:
+    species_list (REQUIRED):
         List of chemical symbols of the bulk structures to be constructed.
 
     cystal_structures:
@@ -43,21 +43,19 @@ def generate_bulk_structures(
         If not specified, the default reference crystal structure for each
         species from `ase.data` will be used.
 
-
-    default_lattice_library:
+    default_lat_param_lib:
         String indicating which library the lattice constants should be pulled
-        from if not specified in either a_dict or c_dict. Defaults to ase.
+        from if not specified in either a_dict or c_dict.
+        Defaults to lattice constants defined in `ase.data`.
 
-        Options are:
-        ase: defaults given in `ase.data`
+        Options:
         pbe_fd: parameters calculated using xc=pbe and finite-difference
         beefvdw_fd: parameters calculated using xc=BEEF-vdW and finite-difference
         pbe_pw: parameters calculated using xc=pbe and a plane-wave basis set
         beefvdw_fd: parameters calculated using xc=BEEF-vdW and a plane-wave basis set
 
         N.B. if there is a species present in species_list that is NOT in the
-        reference library specified, it will be pulled from `ase.data`
-
+        reference library specified, it will be pulled from `ase.data`.
 
     a_dict:
         Dictionary with lattice parameters <a> to be used for each species.
@@ -94,6 +92,7 @@ def generate_bulk_structures(
         ...
         [species_2]_bulk_[crystal_structure_2]/input.traj
         ...
+        Defaults to the current working directory.
 
     dirs_exist_ok:
         Boolean specifying whether existing directories/files should be
@@ -109,7 +108,7 @@ def generate_bulk_structures(
 
     """
 
-    latt_const_libraries = {
+    lpl = {
         "pbe_fd": BULK_PBE_FD,
         "beefvdw_fd": BULK_BEEFVDW_FD,
         "pbe_pw": BULK_PBE_PW,
@@ -120,23 +119,8 @@ def generate_bulk_structures(
         crystal_structures = {}
     if a_dict is None:
         a_dict = {}
-    if default_lattice_library != "ase":
-        lib = latt_const_libraries[default_lattice_library]
-        a_dict.update(
-            {species: lib[species]["a"] for species in lib if species not in a_dict}
-        )
     if c_dict is None:
         c_dict = {}
-    if default_lattice_library != "ase":
-        lib = latt_const_libraries[default_lattice_library]
-        c_dict.update(
-            {
-                species: lib[species]["c"]
-                for species in lib
-                if species not in c_dict and "c" in lib[species]
-            }
-        )
-
     if set_magnetic_moments is None:
         set_magnetic_moments = ["Fe", "Co", "Ni"]
     if magnetic_moments is None:
@@ -149,6 +133,25 @@ def generate_bulk_structures(
     }
     cs_library.update(crystal_structures)
 
+    # load lattice params <a>, <c> from reference library, override with user input
+    a_library = {}
+    c_library = {}
+    if default_lat_param_lib is not None:
+        a_library.update(
+            {
+                species: lpl[default_lat_param_lib].get(species, {}).get("a")
+                for species in species_list
+            }
+        )
+        c_library.update(
+            {
+                species: lpl[default_lat_param_lib].get(species, {}).get("c")
+                for species in species_list
+            }
+        )
+    a_library.update(a_dict)
+    c_library.update(c_dict)
+
     # load magnetic moment defaults from `ase.data`, override with user input
     mm_library = {
         species: ground_state_magnetic_moments[atomic_numbers[species]]
@@ -159,8 +162,8 @@ def generate_bulk_structures(
     bulk_structures = {}
     for species in species_list:
         cs = cs_library.get(species)
-        a = a_dict.get(species)
-        c = c_dict.get(species)
+        a = a_library.get(species)
+        c = c_library.get(species)
 
         bs = bulk(species, crystalstructure=cs, a=a, c=c)
 
