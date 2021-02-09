@@ -14,9 +14,13 @@ from autocat.adsorption import generate_molecule_object
 from autocat.adsorption import get_adsorbate_height_estimate
 from autocat.adsorption import get_adsorbate_slab_nn_list
 from autocat.adsorption import place_adsorbate
-from autocat.intermediates import *
 from autocat.saa import generate_saa_structures
 from autocat.surface import generate_surface_structures
+
+from autocat.data.intermediates import NRR_MOLS
+from autocat.data.intermediates import NRR_INTERMEDIATE_NAMES
+from autocat.data.intermediates import ORR_MOLS
+from autocat.data.intermediates import ORR_INTERMEDIATE_NAMES
 
 
 def test_generate_rxn_structures_adsorbates():
@@ -30,7 +34,7 @@ def test_generate_rxn_structures_adsorbates():
         ads["H"]
     assert "O2" in ads
     # Test that reaction presets are used
-    ads = generate_rxn_structures(surf, ads=orr_intermediate_names)
+    ads = generate_rxn_structures(surf, ads=ORR_INTERMEDIATE_NAMES)
     assert list(ads.keys()) == ["OOH", "O", "OH"]
 
 

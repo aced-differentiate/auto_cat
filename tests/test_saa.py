@@ -71,9 +71,9 @@ def test_generate_saa_structures_dirs_exist_ok():
 
 def test_generate_doped_structures_fix_layers():
     # Test layers remain fixed after doping
-    host = generate_surface_structures(["Pt"], fix=2, supcell=(3, 3, 4))["Pt"][
-        "fcc111"
-    ]["structure"]
+    host = generate_surface_structures(
+        ["Pt"], n_fixed_layers=2, supercell_dim=(3, 3, 4)
+    )["Pt"]["fcc111"]["structure"]
     dop_host = generate_doped_structures(host, "Fe")["27"]["structure"]
     assert (dop_host.constraints[0].get_indices() == np.arange(0, 18)).any()
     assert dop_host.constraints[0].todict()["name"] == "FixAtoms"

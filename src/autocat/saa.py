@@ -21,17 +21,17 @@ def generate_saa_structures(
     subs: List[str],
     dops: List[str],
     crystal_structures: Dict[str, str] = None,
-    ft_dict: Dict[str, str] = None,
-    supcell: Union[Tuple[int], List[int]] = (3, 3, 4),
-    default_lattice_library: str = "ase",
+    facets: Dict[str, str] = None,
+    supercell_dim: Union[Tuple[int], List[int]] = (3, 3, 4),
+    default_lat_param_lib: str = None,
     a_dict: Optional[Dict[str, float]] = None,
     c_dict: Optional[Dict[str, float]] = None,
     set_host_magnetic_moments: List[str] = None,
     host_magnetic_moments: Optional[Dict[str, float]] = None,
     set_sa_magnetic_moments: List[str] = None,
     sa_magnetic_moments: Optional[Dict[str, float]] = None,
-    vac: float = 10.0,
-    fix: int = 0,
+    vacuum: float = 10.0,
+    n_fixed_layers: int = 0,
     cent_sa: bool = True,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -56,7 +56,7 @@ def generate_saa_structures(
         Options are fcc, bcc, or hcp. If not specified, will use the
         default reference crystal for each species from `ase.data`.
     
-    ft_dict:
+    facets:
         Dictionary with the surface facets to be considered for each
         species. 
         If not specified for a given species, the following
@@ -64,16 +64,15 @@ def generate_saa_structures(
         fcc/bcc: 100,111,110
         hcp: 0001
         
-    supcell: 
+    supercell_dim: 
         Tuple or List specifying the size of the supercell to be
         generated in the format (nx,ny,nz).
 
-    default_lattice_library:
+    default_lat_param_lib:
         String indicating which library the lattice constants should be pulled
         from if not specified in either a_dict or c_dict. Defaults to ase.
 
         Options are:
-        ase: defaults given in `ase.data`
         pbe_fd: parameters calculated using xc=pbe and finite-difference
         beefvdw_fd: parameters calculated using xc=BEEF-vdW and finite-difference
         pbe_pw: parameters calculated using xc=pbe and a plane-wave basis set
@@ -84,11 +83,11 @@ def generate_saa_structures(
 
     a_dict:
         Dictionary with lattice parameters <a> to be used for each species.
-        If not specified, defaults from the default_lattice_library are used.
+        If not specified, defaults from the default_lat_param_lib are used.
 
     c_dict:
         Dictionary with lattice parameters <c> to be used for each species.
-        If not specified, defaults from the default_lattice_library module are used.
+        If not specified, defaults from the default_lat_param_lib module are used.
 
     set_host_magnetic_moments:
         List of host species for which magnetic moments need to be set.
@@ -112,12 +111,12 @@ def generate_saa_structures(
         If not specified, default ground state magnetic moments from
         `ase.data` are used.
 
-    vac:
+    vacuum:
         Float specifying the amount of vacuum to be added on each
         side of the slab.
 
-    fix:
-        Integer giving the number of layers of the slab to be fixed
+    n_fixed_layers:
+        Integer giving the number of layers of the slab to be fix
         starting from the bottom up. (e.g. a value of 2 will fix the
         bottom 2 layers)
 
@@ -155,15 +154,15 @@ def generate_saa_structures(
     hosts = generate_surface_structures(
         subs,
         crystal_structures=crystal_structures,
-        ft_dict=ft_dict,
-        supcell=supcell,
-        default_lattice_library=default_lattice_library,
+        facets=facets,
+        supercell_dim=supercell_dim,
+        default_lat_param_lib=default_lat_param_lib,
         a_dict=a_dict,
         c_dict=c_dict,
         set_magnetic_moments=set_host_magnetic_moments,
         magnetic_moments=host_magnetic_moments,
-        vac=vac,
-        fix=fix,
+        vacuum=vacuum,
+        n_fixed_layers=n_fixed_layers,
     )
 
     if set_sa_magnetic_moments is None:

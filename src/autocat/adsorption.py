@@ -16,7 +16,10 @@ from ase.collections import g2
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 from pymatgen.analysis.local_env import get_neighbors_of_site_with_index, VoronoiNN
-from autocat.intermediates import *
+from autocat.data.intermediates import NRR_MOLS
+from autocat.data.intermediates import NRR_INTERMEDIATE_NAMES
+from autocat.data.intermediates import ORR_MOLS
+from autocat.data.intermediates import ORR_INTERMEDIATE_NAMES
 
 
 def generate_rxn_structures(
@@ -516,15 +519,15 @@ def generate_molecule_object(
         m.cell = cell
         m.center()
 
-    elif mol in nrr_intermediate_names:
-        m = nrr_mols[mol].copy()
+    elif mol in NRR_INTERMEDIATE_NAMES:
+        m = NRR_MOLS[mol].copy()
         for r in rotations:
             m.rotate(r[0], r[1])
         m.cell = cell
         m.center()
 
-    elif mol in orr_intermediate_names:
-        m = orr_mols[mol].copy()
+    elif mol in ORR_INTERMEDIATE_NAMES:
+        m = ORR_MOLS[mol].copy()
         for r in rotations:
             m.rotate(r[0], r[1])
         m.cell = cell

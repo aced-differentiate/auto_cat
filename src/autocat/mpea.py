@@ -19,8 +19,11 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 
 from autocat.bulk import generate_bulk_structures
-from autocat.data import *
 from autocat.surface import generate_surface_structures
+from autocat.data.lattice_parameters import BULK_PBE_FD
+from autocat.data.lattice_parameters import BULK_PBE_PW
+from autocat.data.lattice_parameters import BULK_BEEFVDW_FD
+from autocat.data.lattice_parameters import BULK_BEEFVDW_PW
 
 
 def sqs_bulk(
@@ -163,10 +166,10 @@ def generate_mpea_random(
     default_lattice_library: str = "ase",
     crystal_structure: str = "fcc",
     facets: List[str] = None,
-    supcell: Union[Tuple[int], List[int]] = (3, 3, 4),
+    supercell_dim: Union[Tuple[int], List[int]] = (3, 3, 4),
     num_of_samples: int = 15,
-    vac: float = 10.0,
-    fix: int = 0,
+    vacuum: float = 10.0,
+    n_fixed_layers: int = 0,
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
@@ -291,9 +294,9 @@ def generate_mpea_random(
                 lattice_parameters=lattice_parameters,
                 crystal_structure=crystal_structure,
                 ft=ft,
-                supcell=supcell,
-                vac=vac,
-                fix=fix,
+                supercell_dim=supercell_dim,
+                vacuum=vacuum,
+                n_fixed_layers=n_fixed_layers,
             )
             traj_file_path = None
             if write_to_disk:
@@ -322,9 +325,9 @@ def random_population(
     default_lattice_library: str = "ase",
     crystal_structure: str = "fcc",
     ft: str = "100",
-    supcell: Union[Tuple[int], List[int]] = (3, 3, 4),
-    vac: float = 10.0,
-    fix: int = 0,
+    supercell_dim: Union[Tuple[int], List[int]] = (3, 3, 4),
+    vacuum: float = 10.0,
+    n_fixed_layers: int = 0,
 ):
     """
     Returns a randomly populated structure from a species list and composition
@@ -380,10 +383,10 @@ def random_population(
     """
 
     latt_const_libraries = {
-        "pbe_fd": pbe_fd,
-        "beefvdw_fd": beefvdw_fd,
-        "pbe_pw": pbe_pw,
-        "beefvdw_pw": beefvdw_pw,
+        "pbe_fd": BULK_PBE_FD,
+        "beefvdw_fd": BULK_BEEFVDW_FD,
+        "pbe_pw": BULK_PBE_PW,
+        "beefvdw_pw": BULK_BEEFVDW_PW,
     }
 
     if composition is None:
@@ -416,7 +419,7 @@ def random_population(
     a = np.average(list(latt_library.values()), weights=p)
 
     # Generate atoms list
-    num_atoms = np.prod(supcell)
+    num_atoms = np.prod(supercell_dim)
     atoms_list = []
     i = 0
     while i < num_atoms:
@@ -427,12 +430,12 @@ def random_population(
     skel = species_list[0]
     rand_struct = generate_surface_structures(
         [skel],
-        supcell=supcell,
-        vac=vac,
-        fix=fix,
+        supercell_dim=supercell_dim,
+        vacuum=vacuum,
+        n_fixed_layers=n_fixed_layers,
         a_dict={skel: a},
         crystal_structures={skel: crystal_structure},
-        ft_dict={skel: [ft]},
+        facets={skel: [ft]},
     )[skel][crystal_structure + ft].get("structure")
 
     rand_struct.set_chemical_symbols(atoms_list)
