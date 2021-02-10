@@ -9,6 +9,10 @@ import numpy as np
 def generate_perturbed_dataset(
     base_structures: List[Atoms],
     atom_indices_to_perturb_dictionary: Dict[str, List[int]],
+    minimum_perturbation_distance: float = 0.1,
+    maximum_perturbation_distance: float = 1.0,
+    directions: List[bool] = None,
+    num_of_perturbations: int = 10,
 ):
     """
 
@@ -28,11 +32,43 @@ def generate_perturbed_dataset(
         Dictionary List of atomic indices for the atoms that should
         be perturbed. Keys are each of the provided base structures
 
+    minimum_perturbation_distance:
+        Float of minimum acceptable perturbation distance
+
+    maximum_perturbation_distance:
+        Float of maximum acceptable perturbation distance
+
+    directions:
+        List of bools indicating which cartesian directions
+        the atoms are allowed to be perturbed in
+
     Returns
     -------
 
+    perturbed_dict:
+        Dictionary containing all generated perturbed structures
+        with their corresponding perturbation matrices
+
     """
-    return None
+
+    perturbed_dict = {}
+
+    for structure in base_structures:
+        if isinstance(structure, Atoms):
+            name = structure.get_chemical_formula()
+        else:
+            name = structure
+        perturbed_dict[name] = {}
+        for i in range(num_of_perturbations):
+            perturbed_dict[name][str(i)] = perturb_structure(
+                structure,
+                atom_indices_to_perturb=atom_indices_to_perturb_dictionary[name],
+                minimum_perturbation_distance=minimum_perturbation_distance,
+                maximum_perturbation_distance=maximum_perturbation_distance,
+                directions=directions,
+            )
+
+    return perturbed_dict
 
 
 def perturb_structure(
@@ -92,7 +128,7 @@ def perturb_structure(
 
     for idx in atom_indices_to_perturb:
         # randomize +/- direction of each perturbation
-        signs = np.array([-1, -1, -1]) ** np.random.randint(low=1, high=2, size=(1, 3))
+        signs = np.array([-1, -1, -1]) ** np.random.randint(low=1, high=11, size=(1, 3))
         # generate perturbation matrix
         pert_matrix[idx, :] = (
             constr
