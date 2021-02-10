@@ -40,6 +40,7 @@ def perturb_structure(
     atom_indices_to_perturb: List[int],
     minimum_perturbation_distance: float = 0.1,
     maximum_perturbation_distance: float = 1.0,
+    directions: List[bool] = None,
 ):
     """
 
@@ -64,6 +65,10 @@ def perturb_structure(
     maximum_perturbation_distance:
         Float of maximum acceptable perturbation distance
 
+    directions:
+        List of bools indicating which cartesian directions
+        the atoms are allowed to be perturbed in
+
     Returns
     -------
 
@@ -78,16 +83,25 @@ def perturb_structure(
     else:
         raise TypeError("base_structure needs to be either a str or ase.Atoms object")
 
+    if directions is None:
+        constr = [True, True, True]
+    else:
+        constr = directions
+
     pert_matrix = np.zeros(ase_obj.positions.shape)
 
     for idx in atom_indices_to_perturb:
         # randomize +/- direction of each perturbation
         signs = np.array([-1, -1, -1]) ** np.random.randint(low=1, high=2, size=(1, 3))
         # generate perturbation matrix
-        pert_matrix[idx, :] = signs * np.random.uniform(
-            low=minimum_perturbation_distance,
-            high=maximum_perturbation_distance,
-            size=(1, 3),
+        pert_matrix[idx, :] = (
+            constr
+            * signs
+            * np.random.uniform(
+                low=minimum_perturbation_distance,
+                high=maximum_perturbation_distance,
+                size=(1, 3),
+            )
         )
 
     ase_obj.positions += pert_matrix
