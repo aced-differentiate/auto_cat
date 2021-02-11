@@ -16,6 +16,7 @@ def generate_perturbed_dataset(
     num_of_perturbations: int = 10,
     write_to_disk: bool = False,
     write_location: str = ".",
+    dirs_exist_ok: bool = False,
 ):
     """
 
@@ -45,6 +46,10 @@ def generate_perturbed_dataset(
         List of bools indicating which cartesian directions
         the atoms are allowed to be perturbed in
 
+    num_of_perturbations:
+        Int specifying number of perturbations to generate.
+        Default 10
+
     write_to_disk:
         Boolean specifying whether the perturbed structures generated should be
         written to disk.
@@ -53,6 +58,13 @@ def generate_perturbed_dataset(
     write_location:
         String with the location where the perturbed structure
         files written to disk.
+
+    dirs_exist_ok:
+        Boolean specifying whether existing directories/files should be
+        overwritten or not. This is passed on to the `os.makedirs` builtin.
+        Defaults to False (raises an error if directories corresponding the
+        species and crystal structure already exist).
+
 
     Returns
     -------
@@ -65,11 +77,16 @@ def generate_perturbed_dataset(
 
     perturbed_dict = {}
 
+    if write_to_disk:
+        os.makedirs(write_location, exist_ok=dirs_exist_ok)
+
     for structure in base_structures:
         if isinstance(structure, Atoms):
             name = structure.get_chemical_formula()
+        elif isinstance(structure, str):
+            name = ".".join(structure.split(".")[:-1])
         else:
-            name = structure
+            raise TypeError(f"Structure needs to be either a str or ase.Atoms object")
 
         perturbed_dict[name] = {}
         for i in range(num_of_perturbations):
