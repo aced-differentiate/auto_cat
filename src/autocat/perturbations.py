@@ -4,6 +4,7 @@ from typing import List
 from typing import Union
 from typing import Dict
 import numpy as np
+import os
 
 
 def generate_perturbed_dataset(
@@ -13,6 +14,8 @@ def generate_perturbed_dataset(
     maximum_perturbation_distance: float = 1.0,
     directions: List[bool] = None,
     num_of_perturbations: int = 10,
+    write_to_disk: bool = False,
+    write_location: str = ".",
 ):
     """
 
@@ -42,6 +45,15 @@ def generate_perturbed_dataset(
         List of bools indicating which cartesian directions
         the atoms are allowed to be perturbed in
 
+    write_to_disk:
+        Boolean specifying whether the perturbed structures generated should be
+        written to disk.
+        Defaults to False.
+
+    write_location:
+        String with the location where the perturbed structure
+        files written to disk.
+
     Returns
     -------
 
@@ -58,6 +70,7 @@ def generate_perturbed_dataset(
             name = structure.get_chemical_formula()
         else:
             name = structure
+
         perturbed_dict[name] = {}
         for i in range(num_of_perturbations):
             perturbed_dict[name][str(i)] = perturb_structure(
@@ -67,6 +80,12 @@ def generate_perturbed_dataset(
                 maximum_perturbation_distance=maximum_perturbation_distance,
                 directions=directions,
             )
+            traj_file_path = None
+            if write_to_disk:
+                traj_file_path = os.path.join(write_location, f"{name}_{str(i)}.traj")
+                perturbed_dict[name][str(i)]["structure"].write(traj_file_path)
+                print(f"{name}_{str(i)}.traj written to {traj_file_path}")
+            perturbed_dict[name][str(i)].update({"traj_file_path": traj_file_path})
 
     return perturbed_dict
 
