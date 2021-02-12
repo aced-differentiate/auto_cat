@@ -27,3 +27,4 @@ jobs:
         python -m pip install -r test_requirements.txt
     - name: Run tests
       run: pytest --cov=autocat --cov-report term-missing -svv
+      run: flake8 src

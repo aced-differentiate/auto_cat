@@ -13,6 +13,7 @@ from autocat.data.lattice_parameters import BULK_BEEFVDW_FD
 from autocat.data.lattice_parameters import BULK_BEEFVDW_PW
 
 
+# TODO(@hegdevinayi): standardize typing.Optional in definition
 def generate_bulk_structures(
     species_list: List[str],
     crystal_structures: Dict[str, str] = None,

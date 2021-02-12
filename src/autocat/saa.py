@@ -17,9 +17,10 @@ from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 from autocat.surface import generate_surface_structures
 
 
+# TODO(@hegdevinayi): Typing for the returned data
 def generate_saa_structures(
-    subs: List[str],
-    dops: List[str],
+    host_species: List[str],
+    dopant_species: List[str],
     crystal_structures: Dict[str, str] = None,
     facets: Dict[str, str] = None,
     supercell_dim: Union[Tuple[int], List[int]] = (3, 3, 4),
@@ -28,43 +29,43 @@ def generate_saa_structures(
     c_dict: Optional[Dict[str, float]] = None,
     set_host_magnetic_moments: List[str] = None,
     host_magnetic_moments: Optional[Dict[str, float]] = None,
-    set_sa_magnetic_moments: List[str] = None,
-    sa_magnetic_moments: Optional[Dict[str, float]] = None,
+    set_dopant_magnetic_moments: List[str] = None,
+    dopant_magnetic_moments: Optional[Dict[str, float]] = None,
     vacuum: float = 10.0,
     n_fixed_layers: int = 0,
-    cent_sa: bool = True,
+    place_dopant_at_center: bool = True,
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
 ):
     """
-    Builds single-atom alloys for all combinations of host species and
-    single-atom species given. Will write the structures to separate
-    directories if specified.
+    Builds single-atom alloys for all combinations of host species and dopant
+    species given. Will write the structures to separate directories if
+    specified.
 
     Parameters
     ----------
 
-    subs: 
-        List of chemical species of desired host species
+    host_species:
+        List of chemical species of desired host species.
 
-    dops: 
-        List of chemical symbols of desired dopant species of the single atoms
+    dopant_species:
+        List of chemical symbols of desired single-atom dopant species.
 
     crystal_structures:
         Dictionary with crystal structure to be used for each species.
         Options are fcc, bcc, or hcp. If not specified, will use the
         default reference crystal for each species from `ase.data`.
-    
+
     facets:
         Dictionary with the surface facets to be considered for each
-        species. 
+        species.
         If not specified for a given species, the following
         defaults will be used based on the crystal structure:
-        fcc/bcc: 100,111,110
+        fcc/bcc: 100, 111, 110
         hcp: 0001
-        
-    supercell_dim: 
+
+    supercell_dim:
         Tuple or List specifying the size of the supercell to be
         generated in the format (nx,ny,nz).
 
@@ -100,14 +101,14 @@ def generate_saa_structures(
         If not specified, default ground state magnetic moments from
         `ase.data` are used.
 
-    set_sa_magnetic_moments:
+    set_dopant_magnetic_moments:
         List of single-atom species for which magnetic moments need to be set.
-        If not specified, magnetic moments will guessed for all dopants from
+        If not specified, magnetic moments will guessed for all dopant_species from
         `ase.data`.
 
-    sa_magnetic_moments:
-        Dictionary with the magnetic moments to be set for the single-atom 
-        chemical species listed previously.
+    dopant_magnetic_moments:
+        Dictionary with the magnetic moments to be set for the single-atom
+        dopant species listed previously.
         If not specified, default ground state magnetic moments from
         `ase.data` are used.
 
@@ -120,7 +121,7 @@ def generate_saa_structures(
         starting from the bottom up. (e.g. a value of 2 will fix the
         bottom 2 layers)
 
-    cent_sa:
+    place_dopant_at_center:
         Boolean specifying that the single-atom should be placed
         at the center of the unit cell if True. If False will leave
         the single-atom at the origin
@@ -135,7 +136,7 @@ def generate_saa_structures(
         directories must be constructed and structure files written to disk.
         In the specified write_location, the following directory structure
         will be created:
-        [host]/[dopant]/[facet]/[substrate]/input.traj
+        [host]/[dopant]/[facet]/substrate/input.traj
 
     dirs_exist_ok:
         Boolean specifying whether existing directories/files should be
@@ -146,13 +147,12 @@ def generate_saa_structures(
     Returns
     -------
 
-    saa_dict:
-        Dictionary containing the generated single-atom alloy structures.
-        Organized by host -> sa -> facet
+    Dictionary containing the generated single-atom alloy structures.
+    Organized by host -> sa -> facet.
     """
 
     hosts = generate_surface_structures(
-        subs,
+        host_species,
         crystal_structures=crystal_structures,
         facets=facets,
         supercell_dim=supercell_dim,
@@ -165,51 +165,52 @@ def generate_saa_structures(
         n_fixed_layers=n_fixed_layers,
     )
 
-    if set_sa_magnetic_moments is None:
-        set_sa_magnetic_moments = dops
-    if sa_magnetic_moments is None:
-        sa_magnetic_moments = {}
+    if set_dopant_magnetic_moments is None:
+        set_dopant_magnetic_moments = dopant_species
+    if dopant_magnetic_moments is None:
+        dopant_magnetic_moments = {}
 
     dop_mm_library = {
-        dop: ground_state_magnetic_moments[atomic_numbers[dop]] for dop in dops
+        dop: ground_state_magnetic_moments[atomic_numbers[dop]]
+        for dop in dopant_species
     }
-    dop_mm_library.update(sa_magnetic_moments)
+    dop_mm_library.update(dopant_magnetic_moments)
 
     saa_dict = {}
     # iterate over hosts
     for host in hosts:
         saa_dict[host] = {}
         # iterate over single-atoms
-        for dop in dops:
+        for dopant in dopant_species:
             # ensure host != single-atom
-            if dop != host:
-                saa_dict[host][dop] = {}
+            if dopant != host:
+                saa_dict[host][dopant] = {}
                 # iterate over surface facets
-                for ft in hosts[host]:
-                    struct = hosts[host][ft].get("structure")
-                    dop_gen = generate_doped_structures(
-                        sub_ase=struct,
-                        dop=dop,
-                        cent_sa=cent_sa,
-                        dopant_magnetic_moment=dop_mm_library.get(dop),
+                for facet in hosts[host]:
+                    host_structure = hosts[host][facet].get("structure")
+                    doped_structures = generate_doped_structures(
+                        host_structure=host_structure,
+                        dopant=dopant,
+                        place_dopant_at_center=place_dopant_at_center,
+                        dopant_magnetic_moment=dop_mm_library.get(dopant),
                     )
                     # pull the structure
-                    dop_struct = list(dop_gen.values())[0]["structure"]
+                    doped_structure = list(doped_structures.values())[0]["structure"]
 
                     traj_file_path = None
                     if write_to_disk:
                         dir_path = os.path.join(
-                            write_location, f"{host}/{dop}/{ft}/substrate"
+                            write_location, host, dopant, facet, "substrate"
                         )
                         os.makedirs(dir_path, exist_ok=dirs_exist_ok)
                         traj_file_path = os.path.join(dir_path, "input.traj")
-                        dop_struct.write(traj_file_path)
+                        doped_structure.write(traj_file_path)
                         print(
-                            f"{dop}1/{host}({ft}) structure written to {traj_file_path}"
+                            f"{dopant}1/{host}({facet}) structure written to {traj_file_path}"
                         )
 
-                    saa_dict[host][dop][ft] = {
-                        "structure": dop_struct,
+                    saa_dict[host][dopant][facet] = {
+                        "structure": doped_structure,
                         "traj_file_path": traj_file_path,
                     }
     return saa_dict
@@ -218,7 +219,7 @@ def generate_saa_structures(
 def generate_doped_structures(
     sub_ase: Atoms,
     dop: str,
-    cent_sa: bool = True,
+    place_dopant_at_center: bool = True,
     dopant_magnetic_moment: float = 0.0,
     all_possible_configs: bool = True,
     sub_both_sides: bool = False,
@@ -232,22 +233,22 @@ def generate_doped_structures(
 ):
     """
     Generates doped structures given host material and a dopant by either specifying
-    all atom indices to be substituted, or for all substitions to be enumerated via 
+    all atom indices to be substituted, or for all substitions to be enumerated via
     `pymatgen.analysis.adsorption.AdsorbateSiteFinder.generate_substitution_structures`
 
     If specified will write to separate directories for each generated doped system
-    organized by target indices
+    organized by target indices.
 
     Parameters
     ----------
 
-    sub_ase: 
+    sub_ase:
         ase.Atoms object of the host slab to be doped
 
-    dop: 
+    dop:
         String of the dopant species to be introduced into the system
 
-    cent_sa:
+    place_dopant_at_center:
         Boolean specifying that the single-atom dopant should be placed
         at the center of the unit cell if True.
 
@@ -308,7 +309,7 @@ def generate_doped_structures(
 
     Returns
     -------
-    
+
     all_ase_structs:
         Dictionary with doped structures (as `ase.Atoms` objects) and write
         location (if-any) for each generated doped structure.
@@ -366,7 +367,7 @@ def generate_doped_structures(
         )  # propagate host magnetization
         sa_ind = _find_sa_ind(ase_struct, dop)
         ase_struct[sa_ind].magmom = dopant_magnetic_moment  # set initial magmom
-        if cent_sa:  # centers the sa
+        if place_dopant_at_center:  # centers the sa
             cent_x = ase_struct.cell[0][0] / 2 + ase_struct.cell[1][0] / 2
             cent_y = ase_struct.cell[0][1] / 2 + ase_struct.cell[1][1] / 2
             cent = (cent_x, cent_y, 0)
