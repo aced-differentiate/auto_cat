@@ -77,9 +77,6 @@ def generate_perturbed_dataset(
 
     perturbed_dict = {}
 
-    if write_to_disk:
-        os.makedirs(write_location, exist_ok=dirs_exist_ok)
-
     for structure in base_structures:
         if isinstance(structure, Atoms):
             name = structure.get_chemical_formula()
@@ -99,7 +96,9 @@ def generate_perturbed_dataset(
             )
             traj_file_path = None
             if write_to_disk:
-                traj_file_path = os.path.join(write_location, f"{name}_{str(i)}.traj")
+                dir_path = os.path.join(write_location, f"{name}/{str(i)}")
+                os.makedirs(dir_path, exist_ok=dirs_exist_ok)
+                traj_file_path = os.path.join(dir_path, f"{name}{str(i)}.traj")
                 perturbed_dict[name][str(i)]["structure"].write(traj_file_path)
                 print(f"{name}_{str(i)}.traj written to {traj_file_path}")
             perturbed_dict[name][str(i)].update({"traj_file_path": traj_file_path})
