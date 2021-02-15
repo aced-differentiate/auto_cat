@@ -10,10 +10,10 @@ import json
 
 def generate_perturbed_dataset(
     base_structures: List[Atoms],
-    atom_indices_to_perturb_dictionary: Dict[str, List[int]],
+    atom_indices_to_perturb_dictionary: Dict[Union[str, Atoms], List[int]],
     minimum_perturbation_distance: float = 0.1,
     maximum_perturbation_distance: float = 1.0,
-    directions: List[bool] = None,
+    directions_dictionary: Dict[Union[str, Atoms], List[bool]] = None,
     num_of_perturbations: int = 10,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -34,18 +34,21 @@ def generate_perturbed_dataset(
         perturbed
 
     atom_indices_to_perturb_dictionary:
-        Dictionary List of atomic indices for the atoms that should
+        Dictionary of list of atomic indices for the atoms that should
         be perturbed. Keys are each of the provided base structures
 
     minimum_perturbation_distance:
         Float of minimum acceptable perturbation distance
+        Default: 0.1 Angstrom
 
     maximum_perturbation_distance:
         Float of maximum acceptable perturbation distance
+        Default: 1.0 Angstrom
 
-    directions:
+    directions_dictionary:
         List of bools indicating which cartesian directions
         the atoms are allowed to be perturbed in
+        Default: free to perturb in all cartesian directions
 
     num_of_perturbations:
         Int specifying number of perturbations to generate.
@@ -78,6 +81,9 @@ def generate_perturbed_dataset(
 
     perturbed_dict = {}
 
+    if directions_dictionary is None:
+        directions_dictionary = {}
+
     for structure in base_structures:
         if isinstance(structure, Atoms):
             name = structure.get_chemical_formula()
@@ -86,6 +92,9 @@ def generate_perturbed_dataset(
         else:
             raise TypeError(f"Structure needs to be either a str or ase.Atoms object")
 
+        if name not in directions_dictionary:
+            directions_dictionary[name] = None
+
         perturbed_dict[name] = {}
         for i in range(num_of_perturbations):
             perturbed_dict[name][str(i)] = perturb_structure(
@@ -93,7 +102,7 @@ def generate_perturbed_dataset(
                 atom_indices_to_perturb=atom_indices_to_perturb_dictionary[name],
                 minimum_perturbation_distance=minimum_perturbation_distance,
                 maximum_perturbation_distance=maximum_perturbation_distance,
-                directions=directions,
+                directions=directions_dictionary[name],
             )
             traj_file_path = None
             pert_mat_file_path = None
@@ -152,13 +161,16 @@ def perturb_structure(
 
     minimum_perturbation_distance:
         Float of minimum acceptable perturbation distance
+        Default: 0.1 Angstrom
 
     maximum_perturbation_distance:
         Float of maximum acceptable perturbation distance
+        Default: 1.0 Angstrom
 
     directions:
         List of bools indicating which cartesian directions
         the atoms are allowed to be perturbed in
+        Default: free to perturb in all cartesian directions
 
     Returns
     -------
