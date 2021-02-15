@@ -5,6 +5,7 @@ from typing import Union
 from typing import Dict
 import numpy as np
 import os
+import json
 
 
 def generate_perturbed_dataset(
@@ -95,13 +96,32 @@ def generate_perturbed_dataset(
                 directions=directions,
             )
             traj_file_path = None
+            pert_mat_file_path = None
             if write_to_disk:
                 dir_path = os.path.join(write_location, f"{name}/{str(i)}")
                 os.makedirs(dir_path, exist_ok=dirs_exist_ok)
-                traj_file_path = os.path.join(dir_path, f"{name}{str(i)}.traj")
+                traj_file_path = os.path.join(dir_path, f"perturbed_structure.traj")
+                # write perturbed structure
                 perturbed_dict[name][str(i)]["structure"].write(traj_file_path)
-                print(f"{name}_{str(i)}.traj written to {traj_file_path}")
+                print(
+                    f"{name} perturbed structure {str(i)} written to {traj_file_path}"
+                )
+                pert_mat_file_path = os.path.join(dir_path, "perturbation_matrix.json")
+                with open(pert_mat_file_path, "w") as f:
+                    # convert to np.array to list for json
+                    pert_mat_list = perturbed_dict[name][str(i)][
+                        "perturbation_matrix"
+                    ].tolist()
+                    # write perturbation matrix to json
+                    json.dump(pert_mat_list, f)
+                print(
+                    f"{name} perturbed structure and matrix {str(i)} written to {traj_file_path}"
+                )
+            # update output dictionary with write paths
             perturbed_dict[name][str(i)].update({"traj_file_path": traj_file_path})
+            perturbed_dict[name][str(i)].update(
+                {"pert_mat_file_path": pert_mat_file_path}
+            )
 
     return perturbed_dict
 
