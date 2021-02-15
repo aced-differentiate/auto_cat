@@ -115,7 +115,7 @@ def generate_perturbed_dataset(
                     # write perturbation matrix to json
                     json.dump(pert_mat_list, f)
                 print(
-                    f"{name} perturbed structure and matrix {str(i)} written to {traj_file_path}"
+                    f"{name} perturbed matrix {str(i)} written to {pert_mat_file_path}"
                 )
             # update output dictionary with write paths
             perturbed_dict[name][str(i)].update({"traj_file_path": traj_file_path})
