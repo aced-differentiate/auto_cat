@@ -136,7 +136,17 @@ def generate_perturbed_dataset(
             perturbed_dict[name][str(i)].update(
                 {"pert_mat_file_path": pert_mat_file_path}
             )
-            perturbed_dict["collected_matrices"] = np.array(collected_matrices)
+        perturbed_dict["collected_matrices"] = np.array(collected_matrices)
+        collected_matrices_path = None
+        if write_to_disk:
+            collected_matrices_path = os.path.join(
+                write_location, "collected_matrices.json"
+            )
+            coll = perturbed_dict["collected_matrices"].tolist()
+            with open(collected_matrices_path, "w") as f:
+                json.dump(coll, f)
+            print(f"Collected matrices written to {collected_matrices_path}")
+        perturbed_dict.update({"collected_matrices_path": collected_matrices_path})
 
     return perturbed_dict
 
