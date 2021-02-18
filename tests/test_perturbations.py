@@ -87,7 +87,7 @@ def test_generate_perturbed_dataset_multiple_base_structures():
         },
     )
     # Check all base structures perturbed
-    assert len(p_set.keys()) == 2
+    assert len(p_set.keys()) - 1 == 2
     assert "HCu36N" in p_set
     assert "HOPt36" in p_set
     # Check correct atom indices perturbed for each base_structure
@@ -122,3 +122,51 @@ def test_generate_perturbed_dataset_write_location():
         p_set["HOPt36"]["0"]["pert_mat_file_path"],
         os.path.join(_tmp_dir, "HOPt36/0/perturbation_matrix.json"),
     )
+
+
+def test_generate_perturbed_dataset_collected_matrices():
+    # Check that matrices properly collected for 1 base_structure
+    sub = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
+        "structure"
+    ]
+    base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
+    p_set = generate_perturbed_dataset(
+        [base_struct],
+        atom_indices_to_perturb_dictionary={
+            base_struct.get_chemical_formula(): [-1, -2]
+        },
+        num_of_perturbations=5,
+    )
+    manual_collect = []
+    for struct in p_set["HOPt36"]:
+        manual_collect.append(p_set["HOPt36"][struct]["perturbation_matrix"].flatten())
+    manual_collect = np.array(manual_collect)
+    assert np.allclose(p_set["collected_matrices"], manual_collect)
+    assert p_set["collected_matrices"].shape == (5, 114)
+
+
+def test_generate_perturbed_dataset_collected_matrices_multiple():
+    # check that matrices properly collected for 2 base structures
+    sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
+        "structure"
+    ]
+    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
+    base_struct2 = place_adsorbate(sub2, "OH")["custom"]["structure"]
+    p_set = generate_perturbed_dataset(
+        [base_struct1, base_struct2],
+        atom_indices_to_perturb_dictionary={
+            base_struct1.get_chemical_formula(): [-1],
+            base_struct2.get_chemical_formula(): [-2],
+        },
+        num_of_perturbations=5,
+    )
+    manual_collect = []
+    for base in ["HOPt36", "HCu36O"]:
+        for struct in p_set[base]:
+            manual_collect.append(p_set[base][struct]["perturbation_matrix"].flatten())
+    manual_collect = np.array(manual_collect)
+    assert np.allclose(p_set["collected_matrices"], manual_collect)
+    assert p_set["collected_matrices"].shape == (10, 114)
