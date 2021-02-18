@@ -84,6 +84,8 @@ def generate_perturbed_dataset(
     if directions_dictionary is None:
         directions_dictionary = {}
 
+    collected_matrices = []
+
     for structure in base_structures:
         if isinstance(structure, Atoms):
             name = structure.get_chemical_formula()
@@ -103,6 +105,9 @@ def generate_perturbed_dataset(
                 minimum_perturbation_distance=minimum_perturbation_distance,
                 maximum_perturbation_distance=maximum_perturbation_distance,
                 directions=directions_dictionary[name],
+            )
+            collected_matrices.append(
+                perturbed_dict[name][str(i)]["perturbation_matrix"].flatten()
             )
             traj_file_path = None
             pert_mat_file_path = None
@@ -131,6 +136,7 @@ def generate_perturbed_dataset(
             perturbed_dict[name][str(i)].update(
                 {"pert_mat_file_path": pert_mat_file_path}
             )
+            perturbed_dict["collected_matrices"] = np.array(collected_matrices)
 
     return perturbed_dict
 
