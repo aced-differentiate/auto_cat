@@ -87,7 +87,6 @@ def test_generate_perturbed_dataset_multiple_base_structures():
         },
     )
     # Check all base structures perturbed
-    assert len(p_set.keys()) - 1 == 2
     assert "HCu36N" in p_set
     assert "HOPt36" in p_set
     # Check correct atom indices perturbed for each base_structure
@@ -121,6 +120,10 @@ def test_generate_perturbed_dataset_write_location():
     assert os.path.samefile(
         p_set["HOPt36"]["0"]["pert_mat_file_path"],
         os.path.join(_tmp_dir, "HOPt36/0/perturbation_matrix.json"),
+    )
+    assert os.path.samefile(
+        p_set["collected_matrices_path"],
+        os.path.join(_tmp_dir, "collected_matrices.json"),
     )
 
 
