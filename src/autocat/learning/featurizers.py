@@ -3,13 +3,20 @@ import qml
 import tempfile
 import os
 import numpy as np
+import json
 
 from typing import List
 
 from ase import Atoms
 
 
-def get_X(structures: List[Atoms], size: int = None, **kwargs):
+def get_X(
+    structures: List[Atoms],
+    size: int = None,
+    write_to_disk: bool = False,
+    write_location: str = ".",
+    **kwargs,
+):
     """
     Generate representation matrix X from list of ase.Atoms objects
 
@@ -22,6 +29,13 @@ def get_X(structures: List[Atoms], size: int = None, **kwargs):
     size:
         Size of the largest structure to be supported by the representation.
         Default: number of atoms in largest structure within `structures`
+
+    write_to_disk:
+        Boolean specifying whether X should be written to disk as a json.
+        Defaults to False.
+
+    write_location:
+        String with the location where X should be written to disk.
 
     Returns
     -------
@@ -37,7 +51,16 @@ def get_X(structures: List[Atoms], size: int = None, **kwargs):
     for mol in qml_mols:
         mol.generate_coulomb_matrix(size=size, **kwargs)
 
-    return np.array([mol.representation for mol in qml_mols])
+    X = np.array([mol.representation for mol in qml_mols])
+
+    if write_to_disk:
+        write_path = os.path.join(write_location, "X.json")
+        X_list = X.tolist()
+        with open(write_path, "w") as f:
+            json.dump(X_list, f)
+        print(f"X written to {write_path}")
+
+    return X
 
 
 def ase_atoms_to_qml_compound(ase_atoms: Atoms):
