@@ -136,17 +136,25 @@ def generate_perturbed_dataset(
             perturbed_dict[name][str(i)].update(
                 {"pert_mat_file_path": pert_mat_file_path}
             )
-        perturbed_dict["collected_matrices"] = np.array(collected_matrices)
-        collected_matrices_path = None
-        if write_to_disk:
-            collected_matrices_path = os.path.join(
-                write_location, "collected_matrices.json"
-            )
-            coll = perturbed_dict["collected_matrices"].tolist()
-            with open(collected_matrices_path, "w") as f:
-                json.dump(coll, f)
-            print(f"Collected matrices written to {collected_matrices_path}")
-        perturbed_dict.update({"collected_matrices_path": collected_matrices_path})
+    # find length of largest structure
+    largest_size = max([len(i) for i in collected_matrices])
+    # ensures correct sized padding
+    collected_matrices_array = np.zeros((len(collected_matrices), largest_size))
+    # substitute in collected matrices
+    for idx, row in enumerate(collected_matrices):
+        collected_matrices_array[idx, : len(row)] = row
+
+    perturbed_dict["collected_matrices"] = collected_matrices_array
+    collected_matrices_path = None
+    if write_to_disk:
+        collected_matrices_path = os.path.join(
+            write_location, "collected_matrices.json"
+        )
+        coll = perturbed_dict["collected_matrices"].tolist()
+        with open(collected_matrices_path, "w") as f:
+            json.dump(coll, f)
+        print(f"Collected matrices written to {collected_matrices_path}")
+    perturbed_dict.update({"collected_matrices_path": collected_matrices_path})
 
     return perturbed_dict
 
