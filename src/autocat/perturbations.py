@@ -14,6 +14,7 @@ def generate_perturbed_dataset(
     minimum_perturbation_distance: float = 0.1,
     maximum_perturbation_distance: float = 1.0,
     directions_dictionary: Dict[Union[str, Atoms], List[bool]] = None,
+    maximum_structure_size: int = None,
     num_of_perturbations: int = 10,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -49,6 +50,12 @@ def generate_perturbed_dataset(
         List of bools indicating which cartesian directions
         the atoms are allowed to be perturbed in
         Default: free to perturb in all cartesian directions
+
+    maximum_structure_size:
+        Integer giving the largest number of atoms in a structure
+        that should be able to be considered. Used to obtain shape
+        of collected matrices
+        Default: number of atoms in largest base structure
 
     num_of_perturbations:
         Int specifying number of perturbations to generate.
@@ -136,8 +143,12 @@ def generate_perturbed_dataset(
             perturbed_dict[name][str(i)].update(
                 {"pert_mat_file_path": pert_mat_file_path}
             )
-    # find length of largest structure
-    largest_size = max([len(i) for i in collected_matrices])
+    if maximum_structure_size is None:
+        # find flattened length of largest structure
+        largest_size = max([len(i) for i in collected_matrices])
+    else:
+        # factor of 3 from flattening (ie. x,y,z)
+        largest_size = 3 * maximum_structure_size
     # ensures correct sized padding
     collected_matrices_array = np.zeros((len(collected_matrices), largest_size))
     # substitute in collected matrices

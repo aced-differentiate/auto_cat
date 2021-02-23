@@ -146,6 +146,16 @@ def test_generate_perturbed_dataset_collected_matrices():
     manual_collect = np.array(manual_collect)
     assert np.allclose(p_set["collected_matrices"], manual_collect)
     assert p_set["collected_matrices"].shape == (5, 114)
+    # Check when given specific maximum_structure_size
+    p_set = generate_perturbed_dataset(
+        [base_struct],
+        atom_indices_to_perturb_dictionary={
+            base_struct.get_chemical_formula(): [-1, -2]
+        },
+        num_of_perturbations=5,
+        maximum_structure_size=45,
+    )
+    assert p_set["collected_matrices"].shape == (5, 135)
 
 
 def test_generate_perturbed_dataset_collected_matrices_multiple():
