@@ -54,8 +54,9 @@ def rmgmol_to_ase_atoms(rmgmol: Molecule):
     """
     rd = to_rdkit_mol(rmgmol, remove_h=False, sanitize=False)
     with tempfile.TemporaryDirectory() as _tmp_dir:
-        writer = SDWriter(os.path.join(_tmp_dir, "tmp.sdf"))
+        file_path = os.path.join(_tmp_dir, "tmp.sdf")
+        writer = SDWriter(file_path)
         writer.write(rd)
         writer.close()
-        ase_mol = read("test.sdf")
+        ase_mol = read(file_path)
         return ase_mol
