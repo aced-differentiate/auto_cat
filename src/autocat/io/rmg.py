@@ -28,5 +28,5 @@ def rmgmol_to_ase_atoms(rmgmol):
         writer = SDWriter(os.path.join(_tmp_dir, "tmp.sdf"))
         writer.write(rd)
         writer.close()
-        ase_mol = ase_read("test.sdf")
+        ase_mol = read("test.sdf")
         return ase_mol
