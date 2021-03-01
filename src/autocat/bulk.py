@@ -180,7 +180,7 @@ def generate_bulk_structures(
             print(f"{species}_bulk_{cs} structure written to {traj_file_path}")
 
         bulk_structures[species] = {
-            "crystal_structure": bs,
+            "structure": bs,
             "traj_file_path": traj_file_path,
         }
 
