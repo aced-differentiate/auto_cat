@@ -475,15 +475,9 @@ def generate_molecule(
         Defaults to False.
 
     write_location:
-        String with the location where the per-species/per-crystal structure
-        directories must be constructed and structure files written to disk.
-        In the specified write_location, the following directory structure
-        will be created:
-        [species_1]_bulk_[crystal_structure_1]/input.traj
-        [species_1]_bulk_[crystal_structure_2]/input.traj
-        ...
-        [species_2]_bulk_[crystal_structure_2]/input.traj
-        ...
+        String with the location where the molecule structure must be written.
+        The molecule is written to disk at
+        [write_location]/references/[molecule_name]/input.traj
 
     dirs_exist_ok:
         Boolean specifying whether existing directories/files should be
@@ -502,40 +496,27 @@ def generate_molecule(
         rotations = [[0.0, "x"]]
 
     m = None
-
-    # atom in a box
-    if molecule_name in chemical_symbols:
+    if molecule_name in chemical_symbols:  # atom-in-a-box
         m = Atoms(molecule_name)
-        m.cell = cell
-        m.center()
-
     elif molecule_name in g2.names and molecule_name not in ["OH", "NH2", "NH"]:
         m = build_molecule(molecule_name)
-        for r in rotations:
-            m.rotate(r[0], r[1])
-        lowest_z = np.min(m.positions[:, 2])
-        for atom in m:
-            atom.position[2] -= lowest_z
-        m.cell = cell
-        m.center()
-
     elif molecule_name in NRR_INTERMEDIATE_NAMES:
         m = NRR_MOLS[molecule_name].copy()
-        for r in rotations:
-            m.rotate(r[0], r[1])
-        m.cell = cell
-        m.center()
-
     elif molecule_name in ORR_INTERMEDIATE_NAMES:
         m = ORR_MOLS[molecule_name].copy()
-        for r in rotations:
-            m.rotate(r[0], r[1])
-        m.cell = cell
-        m.center()
+
+    if m is None:
+        msg = f"Unable to construct molecule {molecule_name}"
+        raise NotImplementedError(msg)
+
+    for r in rotations:
+        m.rotate(r[0], r[1])
+    m.cell = cell
+    m.center()
 
     traj_file_path = None
     if write_to_disk:
-        dir_path = os.path.join(write_location, f"references/{molecule_name}")
+        dir_path = os.path.join(write_location, "references", f"{molecule_name}")
         os.makedirs(dir_path, exist_ok=dirs_exist_ok)
         traj_file_path = os.path.join(dir_path, "input.traj")
         m.write(traj_file_path)
