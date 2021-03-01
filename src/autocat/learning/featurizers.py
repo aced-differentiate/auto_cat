@@ -2,6 +2,10 @@ import qml
 from matminer.featurizers.site import GaussianSymmFunc
 from matminer.featurizers.site import SOAP
 
+from dscribe.descriptors import SineMatrix
+from dscribe.descriptors import EwaldSumMatrix
+from dscribe.descriptors import CoulombMatrix
+
 import tempfile
 import os
 import numpy as np
@@ -123,11 +127,16 @@ def adsorbate_featurization(
 
 
 def full_structure_featurization(
-    structure: Atoms, size: int = None, featurizer: str = "coulomb_matrix", **kwargs,
+    structure: Atoms,
+    size: int = None,
+    featurizer: str = "sine_matrix",
+    permutation: str = "none",
+    n_jobs: int = 1,
+    **kwargs,
 ):
     """
     Featurizes the entire structure (including the adsorbate) using
-    the representations available in `qml.representations`
+    representations available in `dscribe` and `qml`
 
     Parameters
     ----------
@@ -137,15 +146,25 @@ def full_structure_featurization(
 
     size:
         Size of the largest structure to be supported by the representation.
-        Default: number of atoms in largest structure within `structures`
+        Default: number of atoms in `structures`
 
     featurizer:
         String indicating featurizer to be used.
 
         Options:
-        coulomb_matrix (default): flattened coulomb matrix
-        coulomb_matrix_eigenvalues: eigenvalues of coulomb matrix
-        bob: bag of bonds
+        - sine_matrix (default)
+        - coulomb_matrix (N.B.: does not support periodicity)
+        - bag_of_bonds
+
+    permutation:
+        String specifying how ordering is handled. This is fed into
+        `dscribe` featurizers (ie. sine_matrix, ewald_sum_matrix, coulomb_matrix)
+        Default: "none", maintains same ordering as input Atoms structure
+        (N.B. this differs from the `dscribe` default)
+
+    n_jobs:
+        Int specifiying number of parallel jobs to run which is fed into `dscribe`
+        featurizers (ie. sine_matrix, coulomb_matrix)
 
     Returns
     -------
@@ -156,17 +175,20 @@ def full_structure_featurization(
     if size is None:
         size = len(structure)
 
-    qml_struct = ase_atoms_to_qml_compound(structure)
+    if featurizer == "sine_matrix":
+        sm = SineMatrix(n_atoms_max=size, permutation=permutation, **kwargs)
+        rep = sm.create(structure, n_jobs=n_jobs).reshape(-1,)
 
-    if featurizer == "coulomb_matrix":
-        qml_struct.generate_coulomb_matrix(size=size, **kwargs)
-
-    elif featurizer == "coulomb_matrix_eigenvalues":
-        qml_struct.generate_eigenvalue_coulomb_matrix(size=size, **kwargs)
+    elif featurizer == "coulomb_matrix":
+        cm = CoulombMatrix(n_atoms_max=size, permutation=permutation, **kwargs)
+        rep = cm.create(structure, n_jobs=n_jobs).reshape(-1,)
 
     elif featurizer == "bob":
+        qml_struct = ase_atoms_to_qml_compound(structure)
         qml_struct.generate_bob(size=size, **kwargs)
+        return qml_struct.representation
+
     else:
         raise NotImplementedError("selected featurizer not implemented")
 
-    return qml_struct.representation
+    return rep
