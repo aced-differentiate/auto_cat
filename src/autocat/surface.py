@@ -90,8 +90,8 @@ def generate_surface_structures(
         `ase.data` are used.
 
     vacuum:
-        Float specifying the amount of vacuum (in Angstrom) to be added on
-        each side of the slab.
+        Float specifying the amount of vacuum (in Angstrom) to be added to
+        the slab (the slab is placed at the center of the supercell).
 
     n_fixed_layers:
         Integer giving the number of layers of the slab to be fixed
