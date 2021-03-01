@@ -3,19 +3,22 @@ import numpy as np
 from typing import List
 from typing import Tuple
 from typing import Dict
-from typing import Optional
 from typing import Union
+from collections.abc import Sequence
 
-from ase.io import read, write
 from ase import Atom, Atoms
+from ase.io import read
 from ase.build import add_adsorbate
-from ase.build import molecule
+from ase.build import molecule as build_molecule
 from ase.visualize import view
-from ase.data import chemical_symbols, atomic_numbers, covalent_radii
+from ase.data import chemical_symbols
+from ase.data import atomic_numbers
+from ase.data import covalent_radii
 from ase.collections import g2
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 from pymatgen.analysis.local_env import get_neighbors_of_site_with_index, VoronoiNN
+
 from autocat.data.intermediates import NRR_MOLS
 from autocat.data.intermediates import NRR_INTERMEDIATE_NAMES
 from autocat.data.intermediates import ORR_MOLS
@@ -38,7 +41,7 @@ def generate_rxn_structures(
     dirs_exist_ok: bool = False,
 ):
     """
-    
+
     Builds structures for reaction intermediates given a surface and list of adatoms
 
     Parameters
@@ -108,11 +111,7 @@ def generate_rxn_structures(
         directories must be constructed and structure files written to disk.
         In the specified write_location, the following directory structure
         will be created:
-        adsorbates/[adsorbate1]/[site_type]/[xy_site_coord1]/input.traj
-        adsorbates/[adsorbate1]/[site_type]/[xy_site_coord2]/input.traj
-        ...
-        adsorbates/[adsorbate2]/[site_type]/[xy_site_coord1]/input.traj
-        ...
+        TODO: update according to taxonomy
 
     dirs_exist_ok:
         Boolean specifying whether existing directories/files should be
@@ -201,7 +200,7 @@ def generate_rxn_structures(
         rxn_structs["references"] = {}
 
     for ref in refs:
-        r = generate_molecule_object(
+        r = generate_molecule(
             ref,
             write_to_disk=write_to_disk,
             write_location=write_location,
@@ -294,7 +293,7 @@ def place_adsorbate(
     """
 
     # Identify if surface specified as filename or atoms object
-    if type(surface) is str:
+    if isinstance(surface, str):
         surf = read(surface)
 
     elif type(surface) is Atoms:
@@ -310,7 +309,7 @@ def place_adsorbate(
 
     # Identify if molecule is specified by name or atoms object
     if type(mol) is str:
-        adsorbate = generate_molecule_object(mol, rotations=rotations).get("structure")
+        adsorbate = generate_molecule(mol, rotations=rotations).get("structure")
         name = mol
     elif type(mol) is Atoms:
         adsorbate = mol.copy()
@@ -442,32 +441,33 @@ def get_adsorbate_slab_nn_list(
     return nn_list
 
 
-def generate_molecule_object(
-    mol: str,
-    rotations: List[List[Union[float, str]]] = None,
-    cell: Union[List[int], Tuple[int]] = (15, 15, 15),
+def generate_molecule(
+    molecule_name: str,
+    rotations: Sequence[Sequence[float, str]] = None,
+    cell: Sequence[int] = (15, 15, 15),
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
 ):
     """
-    Generates an `ase.Atoms` object of an isolated molecule specified via a string
-    If specified, can write out a traj containing the isolated molecule in a box
+    Generates an `ase.Atoms` object of an isolated molecule.
+    If specified, can write out a .traj file containing the isolated molecule
+    in a box.
 
     Parameters
     ----------
 
-    mol:
-        String of the name of the molecule to be generated. Will search in the `ase` g2
-        database first, then in `autocat.intermediates`
+    molecule_name:
+        String of the name of the molecule to be generated. Will search in
+        the `ase` g2 database first, then in `autocat.intermediates`.
 
     rotations:
         List of rotation operations to be carried out which will be fed into
-        the `ase.Atoms.rotate` method
+        the `ase.Atoms.rotate` method.
 
-        e.g. Rotating 90degrees around the z axis followed by 45 degrees
+        e.g. Rotating 90 degrees around the z axis followed by 45 degrees
         around the y-axis can be specified as
-            [[90.0,'z'],[45.0,'y']]
+            [(90.0, 'z'), (45.0, 'y')]
 
     write_to_disk:
         Boolean specifying whether the bulk structures generated should be
@@ -494,9 +494,8 @@ def generate_molecule_object(
     Returns
     -------
 
-    m:
-        Dictionary containing Atoms object of the generated molecule object and
-        path to traj file if written to disk
+    Dictionary containing Atoms object of the generated molecule and path to
+    .traj file if written to disk.
     """
 
     if rotations is None:
@@ -504,30 +503,31 @@ def generate_molecule_object(
 
     m = None
 
-    if mol in chemical_symbols:
-        m = Atoms(mol)
+    # atom in a box
+    if molecule_name in chemical_symbols:
+        m = Atoms(molecule_name)
         m.cell = cell
         m.center()
 
-    elif mol in g2.names and mol not in ["OH", "NH2", "NH"]:
-        m = molecule(mol)
+    elif molecule_name in g2.names and molecule_name not in ["OH", "NH2", "NH"]:
+        m = build_molecule(molecule_name)
         for r in rotations:
             m.rotate(r[0], r[1])
-        lowest_mol = np.min(m.positions[:, 2])
+        lowest_z = np.min(m.positions[:, 2])
         for atom in m:
-            atom.position[2] -= lowest_mol
+            atom.position[2] -= lowest_z
         m.cell = cell
         m.center()
 
-    elif mol in NRR_INTERMEDIATE_NAMES:
-        m = NRR_MOLS[mol].copy()
+    elif molecule_name in NRR_INTERMEDIATE_NAMES:
+        m = NRR_MOLS[molecule_name].copy()
         for r in rotations:
             m.rotate(r[0], r[1])
         m.cell = cell
         m.center()
 
-    elif mol in ORR_INTERMEDIATE_NAMES:
-        m = ORR_MOLS[mol].copy()
+    elif molecule_name in ORR_INTERMEDIATE_NAMES:
+        m = ORR_MOLS[molecule_name].copy()
         for r in rotations:
             m.rotate(r[0], r[1])
         m.cell = cell
@@ -535,16 +535,18 @@ def generate_molecule_object(
 
     traj_file_path = None
     if write_to_disk:
-        dir_path = os.path.join(write_location, f"references/{mol}")
+        dir_path = os.path.join(write_location, f"references/{molecule_name}")
         os.makedirs(dir_path, exist_ok=dirs_exist_ok)
         traj_file_path = os.path.join(dir_path, "input.traj")
         m.write(traj_file_path)
-        print(f"{mol} molecule structure written to {traj_file_path}")
+        print(f"{molecule_name} molecule structure written to {traj_file_path}")
 
     return {"structure": m, "traj_file_path": traj_file_path}
 
 
-def find_adsorption_sites(surface: Union[Atoms, str], ads_site_type: List[str] = None):
+def find_adsorption_sites(
+    surface: Union[Atoms, str], ads_site_type: List[str] = None, **kwargs
+):
     """
     Wrapper for `pymatgen.analysis.adsorption.AdsorbateSiteFinder.find_adsorption_sites`
     which takes in an ase object and returns all of the identified sites in a dictionary
@@ -592,6 +594,7 @@ def find_adsorption_sites(surface: Union[Atoms, str], ads_site_type: List[str] =
 
     finder = AdsorbateSiteFinder(struct)  # define site finder
 
+    # TODO: pass kwargs
     sites = finder.find_adsorption_sites(positions=ads_site_type, symm_reduce=0.05)
 
     return sites
@@ -690,6 +693,7 @@ def get_adsorption_sites(
 
     name = ase_obj.get_chemical_formula()
 
+    # constraints mess with ase-gui (test)
     ase_obj.set_constraint()  # Ensures that any constraints are removed for visualization purposes
 
     for ads_type in ads_site_type:  # Iterates over site type
