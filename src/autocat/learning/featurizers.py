@@ -11,7 +11,7 @@ import os
 import numpy as np
 import json
 
-from typing import List
+from typing import List, Dict
 
 from ase import Atoms
 from pymatgen.io.ase import AseAtomsAdaptor
@@ -72,6 +72,67 @@ def get_X(
     return X
 
 
+def catalyst_featurization(
+    structure: Atoms,
+    adsorbate_indices: List[int],
+    structure_featurizer: str = "sine_matrix",
+    adsorbate_featurizer: str = "acsf",
+    structure_featurization_kwargs: Dict[str, float] = None,
+    adsorbate_featurization_kwargs: Dict[str, float] = None,
+):
+    """
+    Featurizes a system containing an adsorbate + substrate
+    in terms of both a full structure and adsorbate
+    featurization via concatenation.
+
+    In other words,
+    catalyst_featurization = full_structure_featurization + adsorbate_featurization
+
+    Parameters
+    ----------
+
+    structure:
+        Atoms object of full structure (adsorbate + slab) to be featurized
+
+    adsorbate_indices:
+        List of atomic indices specifying the adsorbate to be
+        featurized
+
+    structure_featurizer:
+        String giving featurizer to be used for full structure which will be
+        fed into `full_structure_featurization`
+
+    adsorbate_featurizer:
+        String giving featurizer to be used for full structure which will be
+        fed into `adsorbate_structure_featurization`
+
+    structure_featurization_kwargs:
+        kwargs to be fed into `full_structure_featurization`
+
+    adsorbate_featurization_kwargs:
+        kwargs to be fed into `adsorbate_featurization`
+
+    Returns
+    -------
+
+    cat_feat:
+        Np.ndarray of featurized structure
+
+    """
+
+    struct_feat = full_structure_featurization(
+        structure, **structure_featurization_kwargs, featurizer=structure_featurizer
+    )
+    ads_feat = adsorbate_featurization(
+        structure,
+        featurizer=adsorbate_featurizer,
+        adsorbate_indices=adsorbate_indices,
+        **adsorbate_featurization_kwargs,
+    )
+    cat_feat = np.concatenate((struct_feat, ads_feat))
+    return cat_feat
+
+
 def adsorbate_featurization(
     structure: Atoms,
     adsorbate_indices: List[int],
@@ -125,11 +186,15 @@ def adsorbate_featurization(
 
     if featurizer == "acsf":
         acsf = ACSF(rcut=rcut, species=species_list, **kwargs)
-        representation = acsf.create(structure, positions=adsorbate_indices)
+        representation = acsf.create(structure, positions=adsorbate_indices).reshape(
+            -1,
+        )
 
     elif featurizer == "soap":
         soap = SOAP(rcut=rcut, species=species_list, **kwargs)
-        representation = soap.create(structure, positions=adsorbate_indices)
+        representation = soap.create(structure, positions=adsorbate_indices).reshape(
+            -1,
+        )
 
     else:
         raise NotImplementedError("selected featurizer not implemented")
