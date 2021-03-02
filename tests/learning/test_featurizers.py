@@ -17,6 +17,7 @@ from autocat.adsorption import generate_rxn_structures
 from autocat.surface import generate_surface_structures
 from autocat.learning.featurizers import full_structure_featurization
 from autocat.learning.featurizers import adsorbate_featurization
+from autocat.learning.featurizers import catalyst_featurization
 
 
 def test_full_structure_featurization_sine():
@@ -74,3 +75,25 @@ def test_adsorbate_featurization_soap():
     species = np.unique(ads_struct.get_chemical_symbols()).tolist()
     soap = SOAP(rcut=6.0, species=species, nmax=8, lmax=6)
     assert np.allclose(soap_feat, soap.create(ads_struct, [36]))
+
+
+def test_catalyst_featurization_concatentation():
+    # Tests that the representations are properly concatenated
+    # with kwargs input appropriately
+    surf = generate_surface_structures(["Pt"])["Pt"]["fcc111"]["structure"]
+    ads_struct = generate_rxn_structures(surf, ads=["H"])["H"]["ontop"]["0.0_0.0"][
+        "structure"
+    ]
+    cat = catalyst_featurization(
+        ads_struct,
+        [36],
+        adsorbate_featurization_kwargs={"rcut": 5.0},
+        structure_featurization_kwargs={"size": 40},
+    )
+    sm = SineMatrix(n_atoms_max=40, permutation="none")
+    struct = sm.create(ads_struct).reshape(-1,)
+    species = np.unique(ads_struct.get_chemical_symbols()).tolist()
+    acsf = ACSF(rcut=5.0, species=species)
+    ads = acsf.create(ads_struct, [36]).reshape(-1,)
+    cat_ref = np.concatenate((struct, ads))
+    assert np.allclose(cat, cat_ref)
