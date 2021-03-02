@@ -1,10 +1,10 @@
 import qml
-from matminer.featurizers.site import GaussianSymmFunc
-from matminer.featurizers.site import SOAP
 
 from dscribe.descriptors import SineMatrix
 from dscribe.descriptors import EwaldSumMatrix
 from dscribe.descriptors import CoulombMatrix
+from dscribe.descriptors import ACSF
+from dscribe.descriptors import SOAP
 
 import tempfile
 import os
@@ -75,7 +75,9 @@ def get_X(
 def adsorbate_featurization(
     structure: Atoms,
     adsorbate_indices: List[int],
-    featurizer: str = "behler-parinello",
+    species_list: List[str] = None,
+    featurizer: str = "acsf",
+    rcut: float = 6.0,
     **kwargs,
 ):
     """
@@ -92,12 +94,23 @@ def adsorbate_featurization(
         List of atomic indices specifying the adsorbate to be
         featurized
 
+    species_list:
+        List of chemical species that should be covered by representation
+        which is fed into `dscribe.descriptors.{ACSF,SOAP}`
+        (ie. any species expected to be encountered)
+        Default: species present in `structure`
+
     featurizer:
         String indicating featurizer to be used.
 
         Options:
-        behler-parinello (default): gaussian symmetry functions
+        acsf (default): atom centered symmetry functions
         soap: smooth overlap of atomic positions
+
+    rcut:
+        Float giving cutoff radius to be used when generating
+        representation.
+        Default: 6 angstroms
 
     Returns
     -------
@@ -106,22 +119,20 @@ def adsorbate_featurization(
         Np.ndarray of adsorbate representation
 
     """
-    conv = AseAtomsAdaptor()
-    pymat_struct = conv.get_structure(structure)
+    if species_list is None:
+        species_array = np.unique(structure.get_chemical_symbols())
+        species_list = species_array.tolist()
 
-    representation = np.zeros(len(adsorbate_indices))
-
-    if featurizer == "behler-parinello":
-        feat = GaussianSymmFunc(**kwargs)
+    if featurizer == "acsf":
+        acsf = ACSF(rcut=rcut, species=species_list, **kwargs)
+        representation = acsf.create(structure, positions=adsorbate_indices)
 
     elif featurizer == "soap":
-        feat = SOAP(**kwargs)
+        soap = SOAP(rcut=rcut, species=species_list, **kwargs)
+        representation = soap.create(structure, positions=adsorbate_indices)
 
     else:
         raise NotImplementedError("selected featurizer not implemented")
-
-    for i, idx in enumerate(adsorbate_indices):
-        representation[i] = feat.featurize(pymat_struct, idx)
 
     return representation
 
@@ -154,7 +165,7 @@ def full_structure_featurization(
         Options:
         - sine_matrix (default)
         - coulomb_matrix (N.B.: does not support periodicity)
-        - bag_of_bonds
+        - bob (bag of bonds)
 
     permutation:
         String specifying how ordering is handled. This is fed into
