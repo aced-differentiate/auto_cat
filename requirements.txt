@@ -1,5 +1,5 @@
-ase==3.20.1
-numpy==1.19.1
-pymatgen==2020.8.13
-fire==0.3.1
+ase==3.21.1
+numpy==1.20.1
+pymatgen==2021.2.16
+fire==0.4.0
 icet==1.3
