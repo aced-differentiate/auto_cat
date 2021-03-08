@@ -1,5 +1,3 @@
-import qml
-
 from dscribe.descriptors import SineMatrix
 from dscribe.descriptors import EwaldSumMatrix
 from dscribe.descriptors import CoulombMatrix
@@ -149,9 +147,11 @@ def get_X(
         X[idx] = cat_feat
 
     if write_to_disk:
+        if not os.path.isdir(write_location):
+            os.makedirs(write_location)
         write_path = os.path.join(write_location, "X.json")
         with open(write_path, "w") as f:
-            json.dump(X, f)
+            json.dump(X.tolist(), f)
         print(f"X written to {write_path}")
 
     return X
@@ -348,7 +348,6 @@ def full_structure_featurization(
         Options:
         - sine_matrix (default)
         - coulomb_matrix (N.B.: does not support periodicity)
-        - bob (bag of bonds)
 
     permutation:
         String specifying how ordering is handled. This is fed into
@@ -380,11 +379,6 @@ def full_structure_featurization(
             n_atoms_max=maximum_structure_size, permutation=permutation, **kwargs
         )
         rep = cm.create(structure, n_jobs=n_jobs).reshape(-1,)
-
-    elif featurizer == "bob":
-        qml_struct = ase_atoms_to_qml_compound(structure)
-        qml_struct.generate_bob(size=maximum_structure_size, **kwargs)
-        return qml_struct.representation
 
     else:
         raise NotImplementedError("selected featurizer not implemented")

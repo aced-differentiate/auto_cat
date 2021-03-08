@@ -2,8 +2,11 @@
 
 import os
 import numpy as np
+import json
 
 import pytest
+
+import tempfile
 
 from dscribe.descriptors import SineMatrix
 from dscribe.descriptors import CoulombMatrix
@@ -42,15 +45,6 @@ def test_full_structure_featurization_coulomb():
     # Check padding
     coulomb_matrix = full_structure_featurization(surf, maximum_structure_size=45)
     assert coulomb_matrix.shape == (2025,)
-
-
-def test_full_structure_featurization_bob():
-    # Tests Bag of Bonds generation
-    surf = generate_surface_structures(["Ru"])["Ru"]["hcp0001"]["structure"]
-    bob = full_structure_featurization(surf, featurizer="bob")
-    qml_struct = ase_atoms_to_qml_compound(surf)
-    qml_struct.generate_bob()
-    assert np.allclose(bob, qml_struct.representation)
 
 
 def test_adsorbate_featurization_acsf():
@@ -167,3 +161,34 @@ def test_get_X_concatenation():
         featurizer="soap", rcut=5.0, nmax=8, lmax=6, species=species_list
     )
     assert X.shape == (len(structs), 50 ** 2 + 5 * num_of_adsorbate_features)
+
+
+def test_get_X_write_location():
+    # Tests user-specified write location for X
+    structs = []
+    surf1 = generate_surface_structures(["Pt"])["Pt"]["fcc111"]["structure"]
+    ads1 = generate_rxn_structures(
+        surf1,
+        ads=["NH3", "CO"],
+        all_sym_sites=False,
+        sites={"origin": [(0.0, 0.0)]},
+        height={"CO": 1.5},
+        rots={"NH3": [[180.0, "x"], [90.0, "z"]], "CO": [[180.0, "y"]]},
+    )
+    structs.append(ads1["NH3"]["origin"]["0.0_0.0"]["structure"])
+    structs.append(ads1["CO"]["origin"]["0.0_0.0"]["structure"])
+
+    _tmp_dir = tempfile.TemporaryDirectory().name
+    X = get_X(
+        structs,
+        adsorbate_indices_dictionary={
+            structs[0].get_chemical_formula(): [-4, -3, -2, -1],
+            structs[1].get_chemical_formula(): [-2, -1],
+        },
+        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
+        write_to_disk=True,
+        write_location=_tmp_dir,
+    )
+    with open(os.path.join(_tmp_dir, "X.json"), "r") as f:
+        X_written = json.load(f)
+        assert np.allclose(X, X_written)
