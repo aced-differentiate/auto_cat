@@ -92,6 +92,7 @@ def generate_perturbed_dataset(
         directions_dictionary = {}
 
     collected_matrices = []
+    collected_structure_paths = []
 
     for structure in base_structures:
         if isinstance(structure, Atoms):
@@ -143,6 +144,7 @@ def generate_perturbed_dataset(
             perturbed_dict[name][str(i)].update(
                 {"pert_mat_file_path": pert_mat_file_path}
             )
+            collected_structure_paths.append(traj_file_path)
     if maximum_structure_size is None:
         # find flattened length of largest structure
         largest_size = max([len(i) for i in collected_matrices])
@@ -166,6 +168,7 @@ def generate_perturbed_dataset(
             json.dump(coll, f)
         print(f"Collected matrices written to {collected_matrices_path}")
     perturbed_dict.update({"collected_matrices_path": collected_matrices_path})
+    perturbed_dict.update({"collected_structure_paths": collected_structure_paths})
 
     return perturbed_dict
 

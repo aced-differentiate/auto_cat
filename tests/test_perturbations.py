@@ -210,3 +210,26 @@ def test_generate_perturbed_dataset_collected_matrices_multiple():
         manual_collect_array[idx, : len(m)] = m
     assert np.allclose(p_set["collected_matrices"], manual_collect_array)
     assert p_set["collected_matrices"].shape == (10, 114)
+
+
+def test_generate_perturbed_dataset_collected_structure_paths():
+    # Tests that collected structure paths in correct order
+    _tmp_dir = tempfile.TemporaryDirectory().name
+    sub = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
+        "structure"
+    ]
+    base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
+    p_set = generate_perturbed_dataset(
+        [base_struct],
+        atom_indices_to_perturb_dictionary={base_struct.get_chemical_formula(): [-1]},
+        write_to_disk=True,
+        write_location=_tmp_dir,
+    )
+    assert os.path.samefile(
+        p_set["collected_structure_paths"][0],
+        os.path.join(_tmp_dir, "HOPt36/0/perturbed_structure.traj"),
+    )
+    assert os.path.samefile(
+        p_set["collected_structure_paths"][7],
+        os.path.join(_tmp_dir, "HOPt36/7/perturbed_structure.traj"),
+    )
