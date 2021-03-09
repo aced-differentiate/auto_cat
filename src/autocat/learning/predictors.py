@@ -1,77 +1,92 @@
-import qml.kernels as qml_kernels
-import qml.math as qml_math
 import numpy as np
 
+from typing import List
+from typing import Dict
+from typing import Union
 
-def get_alphas(
-    kernel: np.ndarray,
-    perturbation_matrices: np.ndarray,
-    regularization_strength: float = 1e-8,
+from ase import Atoms
+
+from sklearn.model_selection import KFold
+from sklearn.linear_model import BayesianRidge
+from sklearn.kernel_ridge import KernelRidge
+
+from autocat.learning.featurizers import get_X
+
+
+def get_trained_model_on_perturbed_systems(
+    perturbed_structures: List[Union[Atoms, str]],
+    adsorbate_indices_dictionary: Dict[str, int],
+    collected_matrices: np.ndarray,
+    model_name: str = "bayes",
+    structure_featurizer: str = "sine_matrix",
+    adsorbate_featurizer: str = "soap",
+    featurization_kwargs: Dict = None,
+    model_kwargs: Dict = None,
 ):
     """
-    Wrapper for `qml.math.cho_solve` to
-    solve for the regression coefficients using cholesky
-    decomposition (ie. training a KRR)
-
-    alphas = (K + lambda*I)^(-1)y
+    Given a list of base_structures, will generate perturbed structures
+    and train a regression model on them
 
     Parameters
     ----------
 
-    kernel:
-        Numpy array of kernel matrix (e.g. generated via `get_kernel`)
+    perturbed_structures:
+        List of perturbed structures to be trained upon
 
-    perturbation_matrices:
-        Numpy array containing perturbation matrices corresponding to the
-        input structures which form the labels when training
+    adsorbate_indices_dictionary:
+        Dictionary mapping structures to desired adsorbate_indices
+        (N.B. if structure is given as an ase.Atoms object,
+        the key for this dictionary should be
+        f"{structure.get_chemical_formula()}_{index_in_`perturbed_structures`}")
 
-    regularization_strength:
-        Float specifying regularization strength (lambda in eqtn above)
+    collected_matrices:
+        Numpy array of collected matrices of perturbations corresponding to
+        each of the perturbed structures.
+        This can be generated via `autocat.perturbations.generate_perturbed_dataset`.
+        Shape should be (# of structures, 3 * # of atoms in the largest structure)
 
-    perturbation
-
-    Returns
-    -------
-
-    alphas:
-        Numpy array of regression coefficients
-
-    """
-    K = kernel + regularization_strength * np.identity(kernel.shape)
-
-    return qml_math.cho_solve(K, perturbation_matrices)
-
-
-def get_kernel(X1: np.ndarray, X2: np.ndarray, kernel_type: str = "gaussian", **kwargs):
-    """
-    Wrapper for `qml` kernels
-
-    Parameters
-    ----------
-
-    X1,X2:
-         Numpy arrays to be used to calculate the kernel
-
-    kernel_type:
-        String giving type of kernel to be generated.
+    model_name:
+        String giving the name of the `sklearn` regression model to use.
         Options:
-            - gaussian (default)
-            - laplacian
-            - linear
-            - matern
-            - sargan
+        - bayes: Bayesian Ridge Regression
+        - krr: Kernel Ridge Regression
+
+    structure_featurizer:
+        String giving featurizer to be used for full structure which will be
+        fed into `autocat.learning.featurizers.full_structure_featurization`
+
+    adsorbate_featurizer:
+        String giving featurizer to be used for full structure which will be
+        fed into `autocat.learning.featurizers.adsorbate_structure_featurization`
 
     Returns
     -------
 
-    kernel_matrix:
-        Numpy array of generated kernel matrix
+    trained_model:
+        Trained `sklearn` model object
     """
-    kernel_funcs = {
-        "laplacian": qml_kernels.laplacian_kernel,
-        "gaussian": qml_kernels.gaussian_kernel,
-        "linear": qml_kernels.linear_kernel,
-        "matern": qml_kernels.matern_kernel,
-        "sargan": qml_kernels.sargan_kernel,
-    }
-    return kernel_funcs[kernel_type](X1, X2, **kwargs)
+    X = get_X(
+        perturbed_structures,
+        adsorbate_indices_dictionary=adsorbate_indices_dictionary,
+        structure_featurizer=structure_featurizer,
+        adsorbate_featurizer=adsorbate_featurizer,
+        **featurization_kwargs
+    )
+
+    regressor = _get_regressor(model_name, **model_kwargs)
+
+    regressor.fit(X, collected_matrices)
+
+    return regressor
+
+
+def _get_regressor(model_name: str, **kwargs):
+    """
+    Gets `sklearn` regressor object
+    """
+    if model_name == "bayes":
+        return BayesianRidge(**kwargs)
+    elif model_name == "krr":
+        return KernelRidge(**kwargs)
+    else:
+        raise NotImplementedError("model selected not implemented")
