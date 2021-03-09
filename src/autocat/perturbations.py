@@ -8,6 +8,10 @@ import os
 import json
 
 
+class AutocatPerturbationError(Exception):
+    pass
+
+
 def generate_perturbed_dataset(
     base_structures: List[Atoms],
     atom_indices_to_perturb_dictionary: Dict[Union[str, Atoms], List[int]],
@@ -36,7 +40,10 @@ def generate_perturbed_dataset(
 
     atom_indices_to_perturb_dictionary:
         Dictionary of list of atomic indices for the atoms that should
-        be perturbed. Keys are each of the provided base structures
+        be perturbed. Keys are each of the provided base structures.
+        If an ase.Atoms object is given in `base_structures`, its corresponding
+        key here should be:
+        f"{base_structure.get_chemical_formula()}_{index_in_`base_structures`}"
 
     minimum_perturbation_distance:
         Float of minimum acceptable perturbation distance
@@ -47,8 +54,11 @@ def generate_perturbed_dataset(
         Default: 1.0 Angstrom
 
     directions_dictionary:
-        List of bools indicating which cartesian directions
-        the atoms are allowed to be perturbed in
+        Dictionary of List of bools indicating which cartesian directions
+        the atoms are allowed to be perturbed in for each `base_structure`.
+        If an ase.Atoms object is given in `base_structures`, its corresponding
+        key here should be:
+        f"{base_structure.get_chemical_formula()}_{index_in_`base_structures`}"
         Default: free to perturb in all cartesian directions
 
     maximum_structure_size:
@@ -93,18 +103,28 @@ def generate_perturbed_dataset(
 
     collected_matrices = []
     collected_structure_paths = []
+    collected_structures = []
 
-    for structure in base_structures:
+    # loop over each base structure
+    for structure_index, structure in enumerate(base_structures):
+        # get name of each base structure
         if isinstance(structure, Atoms):
-            name = structure.get_chemical_formula()
+            name = structure.get_chemical_formula() + "_" + str(structure_index)
         elif isinstance(structure, str):
             name = ".".join(structure.split(".")[:-1])
         else:
             raise TypeError(f"Structure needs to be either a str or ase.Atoms object")
 
+        # make sure no base_structures with the same name
+        if name in perturbed_dict:
+            msg = f"Multiple input base structures named {name}"
+            raise AutocatPerturbationError(msg)
+
+        # assigns default of free to perturb in all directions if needed
         if name not in directions_dictionary:
             directions_dictionary[name] = None
 
+        # apply perturbations
         perturbed_dict[name] = {}
         for i in range(num_of_perturbations):
             perturbed_dict[name][str(i)] = perturb_structure(
@@ -114,16 +134,18 @@ def generate_perturbed_dataset(
                 maximum_perturbation_distance=maximum_perturbation_distance,
                 directions=directions_dictionary[name],
             )
+            # keeps flattened atomic coordinates difference vector
             collected_matrices.append(
                 perturbed_dict[name][str(i)]["perturbation_matrix"].flatten()
             )
+
             traj_file_path = None
             pert_mat_file_path = None
             if write_to_disk:
                 dir_path = os.path.join(write_location, f"{name}/{str(i)}")
                 os.makedirs(dir_path, exist_ok=dirs_exist_ok)
                 traj_file_path = os.path.join(dir_path, f"perturbed_structure.traj")
-                # write perturbed structure
+                # write perturbed structure to disk
                 perturbed_dict[name][str(i)]["structure"].write(traj_file_path)
                 print(
                     f"{name} perturbed structure {str(i)} written to {traj_file_path}"
@@ -144,7 +166,11 @@ def generate_perturbed_dataset(
             perturbed_dict[name][str(i)].update(
                 {"pert_mat_file_path": pert_mat_file_path}
             )
+            # Collects all of the structures into a single list in the same
+            # order as the collected matrix rows
+            collected_structures.append(perturbed_dict[name][str(i)]["structure"])
             collected_structure_paths.append(traj_file_path)
+
     if maximum_structure_size is None:
         # find flattened length of largest structure
         largest_size = max([len(i) for i in collected_matrices])
@@ -153,12 +179,14 @@ def generate_perturbed_dataset(
         largest_size = 3 * maximum_structure_size
     # ensures correct sized padding
     collected_matrices_array = np.zeros((len(collected_matrices), largest_size))
-    # substitute in collected matrices
+    # substitute in collected matrices for each row
     for idx, row in enumerate(collected_matrices):
         collected_matrices_array[idx, : len(row)] = row
 
+    # adds collected matrices to dict that will be returned
     perturbed_dict["collected_matrices"] = collected_matrices_array
     collected_matrices_path = None
+    # write matrix to disk as json if desired
     if write_to_disk:
         collected_matrices_path = os.path.join(
             write_location, "collected_matrices.json"
@@ -167,8 +195,14 @@ def generate_perturbed_dataset(
         with open(collected_matrices_path, "w") as f:
             json.dump(coll, f)
         print(f"Collected matrices written to {collected_matrices_path}")
-    perturbed_dict.update({"collected_matrices_path": collected_matrices_path})
-    perturbed_dict.update({"collected_structure_paths": collected_structure_paths})
+    # update output dict with collected structures and paths
+    perturbed_dict.update(
+        {
+            "collected_matrices_path": collected_matrices_path,
+            "collected_structures": collected_structures,
+            "collected_structure_paths": collected_structure_paths,
+        }
+    )
 
     return perturbed_dict
 

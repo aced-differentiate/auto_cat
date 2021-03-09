@@ -6,6 +6,8 @@ import numpy as np
 
 import tempfile
 
+from ase import Atoms
+
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 from autocat.perturbations import perturb_structure
@@ -59,11 +61,11 @@ def test_generate_perturbed_dataset_num_of_perturbations():
     p_set = generate_perturbed_dataset(
         [base_struct],
         atom_indices_to_perturb_dictionary={
-            base_struct.get_chemical_formula(): [-1, -2]
+            base_struct.get_chemical_formula() + "_0": [-1, -2]
         },
         num_of_perturbations=15,
     )
-    assert len(p_set["HOPt36"].keys()) == 15
+    assert len(p_set["HOPt36_0"].keys()) == 15
 
 
 def test_generate_perturbed_dataset_multiple_base_structures():
@@ -79,25 +81,25 @@ def test_generate_perturbed_dataset_multiple_base_structures():
     p_set = generate_perturbed_dataset(
         [base_struct1, base_struct2],
         atom_indices_to_perturb_dictionary={
-            base_struct1.get_chemical_formula(): [-1],
-            base_struct2.get_chemical_formula(): [-2],
+            base_struct1.get_chemical_formula() + "_0": [-1],
+            base_struct2.get_chemical_formula() + "_1": [-2],
         },
         directions_dictionary={
-            base_struct1.get_chemical_formula(): [False, False, True]
+            base_struct1.get_chemical_formula() + "_0": [False, False, True]
         },
     )
     # Check all base structures perturbed
-    assert "HCu36N" in p_set
-    assert "HOPt36" in p_set
+    assert "HCu36N_1" in p_set
+    assert "HOPt36_0" in p_set
     # Check correct atom indices perturbed for each base_structure
-    assert (p_set["HCu36N"]["2"]["perturbation_matrix"][-1] == np.zeros(3)).all()
-    assert (p_set["HCu36N"]["3"]["perturbation_matrix"][-2] != np.zeros(3)).all()
-    assert (p_set["HOPt36"]["6"]["perturbation_matrix"][-1] != np.zeros(3)).any()
+    assert (p_set["HCu36N_1"]["2"]["perturbation_matrix"][-1] == np.zeros(3)).all()
+    assert (p_set["HCu36N_1"]["3"]["perturbation_matrix"][-2] != np.zeros(3)).all()
+    assert (p_set["HOPt36_0"]["6"]["perturbation_matrix"][-1] != np.zeros(3)).any()
     # Check correct direction constraints applied to each base_structure
-    assert np.isclose(p_set["HOPt36"]["6"]["perturbation_matrix"][-1][0], 0.0)
-    assert np.isclose(p_set["HOPt36"]["6"]["perturbation_matrix"][-1][1], 0.0)
-    assert not np.isclose(p_set["HOPt36"]["6"]["perturbation_matrix"][-1][-1], 0.0)
-    assert not np.isclose(p_set["HCu36N"]["1"]["perturbation_matrix"][-2][0], 0.0)
+    assert np.isclose(p_set["HOPt36_0"]["6"]["perturbation_matrix"][-1][0], 0.0)
+    assert np.isclose(p_set["HOPt36_0"]["6"]["perturbation_matrix"][-1][1], 0.0)
+    assert not np.isclose(p_set["HOPt36_0"]["6"]["perturbation_matrix"][-1][-1], 0.0)
+    assert not np.isclose(p_set["HCu36N_1"]["1"]["perturbation_matrix"][-2][0], 0.0)
 
 
 def test_generate_perturbed_dataset_write_location():
@@ -109,17 +111,19 @@ def test_generate_perturbed_dataset_write_location():
     base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
     p_set = generate_perturbed_dataset(
         [base_struct],
-        atom_indices_to_perturb_dictionary={base_struct.get_chemical_formula(): [-1]},
+        atom_indices_to_perturb_dictionary={
+            base_struct.get_chemical_formula() + "_0": [-1]
+        },
         write_to_disk=True,
         write_location=_tmp_dir,
     )
     assert os.path.samefile(
-        p_set["HOPt36"]["0"]["traj_file_path"],
-        os.path.join(_tmp_dir, "HOPt36/0/perturbed_structure.traj"),
+        p_set["HOPt36_0"]["0"]["traj_file_path"],
+        os.path.join(_tmp_dir, "HOPt36_0/0/perturbed_structure.traj"),
     )
     assert os.path.samefile(
-        p_set["HOPt36"]["0"]["pert_mat_file_path"],
-        os.path.join(_tmp_dir, "HOPt36/0/perturbation_matrix.json"),
+        p_set["HOPt36_0"]["0"]["pert_mat_file_path"],
+        os.path.join(_tmp_dir, "HOPt36_0/0/perturbation_matrix.json"),
     )
     assert os.path.samefile(
         p_set["collected_matrices_path"],
@@ -136,13 +140,15 @@ def test_generate_perturbed_dataset_collected_matrices():
     p_set = generate_perturbed_dataset(
         [base_struct],
         atom_indices_to_perturb_dictionary={
-            base_struct.get_chemical_formula(): [-1, -2]
+            base_struct.get_chemical_formula() + "_0": [-1, -2]
         },
         num_of_perturbations=5,
     )
     manual_collect = []
-    for struct in p_set["HOPt36"]:
-        manual_collect.append(p_set["HOPt36"][struct]["perturbation_matrix"].flatten())
+    for struct in p_set["HOPt36_0"]:
+        manual_collect.append(
+            p_set["HOPt36_0"][struct]["perturbation_matrix"].flatten()
+        )
     manual_collect = np.array(manual_collect)
     assert np.allclose(p_set["collected_matrices"], manual_collect)
     assert p_set["collected_matrices"].shape == (5, 114)
@@ -150,7 +156,7 @@ def test_generate_perturbed_dataset_collected_matrices():
     p_set = generate_perturbed_dataset(
         [base_struct],
         atom_indices_to_perturb_dictionary={
-            base_struct.get_chemical_formula(): [-1, -2]
+            base_struct.get_chemical_formula() + "_0": [-1, -2]
         },
         num_of_perturbations=5,
         maximum_structure_size=45,
@@ -171,13 +177,13 @@ def test_generate_perturbed_dataset_collected_matrices_multiple():
     p_set = generate_perturbed_dataset(
         [base_struct1, base_struct2],
         atom_indices_to_perturb_dictionary={
-            base_struct1.get_chemical_formula(): [-1],
-            base_struct2.get_chemical_formula(): [-2],
+            base_struct1.get_chemical_formula() + "_0": [-1],
+            base_struct2.get_chemical_formula() + "_1": [-2],
         },
         num_of_perturbations=5,
     )
     manual_collect = []
-    for base in ["HOPt36", "HCu36O"]:
+    for base in ["HOPt36_0", "HCu36O_1"]:
         for struct in p_set[base]:
             manual_collect.append(p_set[base][struct]["perturbation_matrix"].flatten())
     manual_collect = np.array(manual_collect)
@@ -196,13 +202,13 @@ def test_generate_perturbed_dataset_collected_matrices_multiple():
     p_set = generate_perturbed_dataset(
         [base_struct1, base_struct2],
         atom_indices_to_perturb_dictionary={
-            base_struct1.get_chemical_formula(): [-1],
-            base_struct2.get_chemical_formula(): [-2],
+            base_struct1.get_chemical_formula() + "_0": [-1],
+            base_struct2.get_chemical_formula() + "_1": [-2],
         },
         num_of_perturbations=5,
     )
     manual_collect = []
-    for base in ["HOPt36", "HCu36"]:
+    for base in ["HOPt36_0", "HCu36_1"]:
         for struct in p_set[base]:
             manual_collect.append(p_set[base][struct]["perturbation_matrix"].flatten())
     manual_collect_array = np.zeros((10, 114))
@@ -221,15 +227,39 @@ def test_generate_perturbed_dataset_collected_structure_paths():
     base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
     p_set = generate_perturbed_dataset(
         [base_struct],
-        atom_indices_to_perturb_dictionary={base_struct.get_chemical_formula(): [-1]},
+        atom_indices_to_perturb_dictionary={
+            base_struct.get_chemical_formula() + "_0": [-1]
+        },
         write_to_disk=True,
         write_location=_tmp_dir,
     )
     assert os.path.samefile(
         p_set["collected_structure_paths"][0],
-        os.path.join(_tmp_dir, "HOPt36/0/perturbed_structure.traj"),
+        os.path.join(_tmp_dir, "HOPt36_0/0/perturbed_structure.traj"),
     )
     assert os.path.samefile(
         p_set["collected_structure_paths"][7],
-        os.path.join(_tmp_dir, "HOPt36/7/perturbed_structure.traj"),
+        os.path.join(_tmp_dir, "HOPt36_0/7/perturbed_structure.traj"),
     )
+
+
+def test_generate_perturbed_dataset_collected_structures():
+    # Test that all of the structures are collected
+    sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
+        "structure"
+    ]
+    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
+    base_struct2 = place_adsorbate(sub2, "OH")["custom"]["structure"]
+    p_set = generate_perturbed_dataset(
+        [base_struct1, base_struct2],
+        atom_indices_to_perturb_dictionary={
+            base_struct1.get_chemical_formula() + "_0": [-1],
+            base_struct2.get_chemical_formula() + "_1": [-2],
+        },
+        num_of_perturbations=5,
+    )
+    assert len(p_set["collected_structures"]) == 10
+    assert isinstance(p_set["collected_structures"][3], Atoms)
