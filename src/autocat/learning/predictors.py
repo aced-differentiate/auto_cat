@@ -11,6 +11,74 @@ from sklearn.linear_model import BayesianRidge
 from sklearn.kernel_ridge import KernelRidge
 
 from autocat.learning.featurizers import get_X
+from autocat.learning.featurizers import catalyst_featurization
+
+Regressor = Union[BayesianRidge, KernelRidge]
+
+
+def predict_initial_configuration(
+    inital_structure_guess: Atoms,
+    adsorbate_indices: List[int],
+    trained_regressor_model: Regressor,
+    featurization_kwargs: Dict[str, float] = None,
+):
+    """
+    From a trained model, will predict corrected structure
+    of a given initial structure guess
+
+    Parameters
+    ----------
+
+    initial_structure_guess:
+        Atoms object of an initial guess for an adsorbate
+        on a surface to be optimized
+
+    adsorbate_indices:
+        List of ints giving the atomic indices of the adsorbate
+        atoms that can be perturbed
+
+    trained_regressor_model:
+        Fit sklearn regression model to be used for prediction
+
+    Returns
+    -------
+
+    predicted_correction_matrix:
+        Matrix of predicted corrections that were applied
+
+    uncertainty_estimate:
+        Standard deviation of prediction from regressor
+        (only supported for `bayes` at present)
+
+    corrected_structure:
+        Atoms object with corrections applied
+
+    """
+    featurized_input = catalyst_featurization(
+        inital_structure_guess, **featurization_kwargs
+    )
+
+    if isinstance(trained_regressor_model, BayesianRidge):
+        (
+            flat_predicted_correction_matrix,
+            uncertainty_estimate,
+        ) = trained_regressor_model.predict(featurized_input, return_std=True)
+        predicted_correction_matrix = flat_predicted_correction_matrix.reshape(-1, 3)
+
+    elif isinstance(trained_regressor_model, KernelRidge):
+        uncertainty_estimate = 0.0
+        flat_predicted_correction_matrix = trained_regressor_model.predict(
+            featurized_input
+        )
+        predicted_correction_matrix = flat_predicted_correction_matrix.reshape(-1, 3)
+
+    else:
+        raise TypeError("Trained Regressor Model is not a supported type")
+
+    corrected_structure = inital_structure_guess.copy()
+    corrected_structure.positions += predicted_correction_matrix
+
+    return predicted_correction_matrix, uncertainty_estimate, corrected_structure
 
 
 def get_trained_model_on_perturbed_systems(
