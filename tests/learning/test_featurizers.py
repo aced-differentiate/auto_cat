@@ -148,9 +148,9 @@ def test_get_X_concatenation():
     X = get_X(
         structs,
         adsorbate_indices_dictionary={
-            structs[0].get_chemical_formula(): [-4, -3, -2, -1],
-            structs[1].get_chemical_formula(): [-2, -1],
-            structs[2].get_chemical_formula(): [-1],
+            structs[0].get_chemical_formula() + "_0": [-4, -3, -2, -1],
+            structs[1].get_chemical_formula() + "_1": [-2, -1],
+            structs[2].get_chemical_formula() + "_2": [-1],
         },
         maximum_structure_size=50,
         maximum_adsorbate_size=5,
@@ -182,8 +182,8 @@ def test_get_X_write_location():
     X = get_X(
         structs,
         adsorbate_indices_dictionary={
-            structs[0].get_chemical_formula(): [-4, -3, -2, -1],
-            structs[1].get_chemical_formula(): [-2, -1],
+            structs[0].get_chemical_formula() + "_0": [-4, -3, -2, -1],
+            structs[1].get_chemical_formula() + "_1": [-2, -1],
         },
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
         write_to_disk=True,

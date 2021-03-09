@@ -126,7 +126,7 @@ def get_X(
     )
     for idx, structure in enumerate(structures):
         if isinstance(structure, Atoms):
-            name = structure.get_chemical_formula()
+            name = structure.get_chemical_formula() + "_" + str(idx)
             ase_struct = structure.copy()
         elif isinstance(structure, str):
             name = structure
