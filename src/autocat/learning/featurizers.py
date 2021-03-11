@@ -31,7 +31,6 @@ def get_X(
     adsorbate_featurization_kwargs: Dict[str, float] = None,
     write_to_disk: bool = False,
     write_location: str = ".",
-    **kwargs,
 ):
     """
     Generate representation matrix X from list of ase.Atoms objects

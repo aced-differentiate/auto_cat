@@ -7,20 +7,18 @@ from typing import Union
 from ase import Atoms
 
 from sklearn.model_selection import KFold
-from sklearn.linear_model import BayesianRidge
 from sklearn.kernel_ridge import KernelRidge
 
 from autocat.learning.featurizers import get_X
 from autocat.learning.featurizers import catalyst_featurization
 
-Regressor = Union[BayesianRidge, KernelRidge]
-
 
 def predict_initial_configuration(
     inital_structure_guess: Atoms,
     adsorbate_indices: List[int],
-    trained_regressor_model: Regressor,
-    featurization_kwargs: Dict[str, float] = None,
+    trained_regressor_model: KernelRidge,
+    structure_featurization_kwargs: Dict[str, float] = None,
+    adsorbate_featurization_kwargs: Dict[str, float] = None,
 ):
     """
     From a trained model, will predict corrected structure
@@ -55,18 +53,13 @@ def predict_initial_configuration(
 
     """
     featurized_input = catalyst_featurization(
-        inital_structure_guess, **featurization_kwargs
-    )
+        inital_structure_guess,
+        adsorbate_indices=adsorbate_indices,
+        structure_featurization_kwargs=structure_featurization_kwargs,
+        adsorbate_featurization_kwargs=adsorbate_featurization_kwargs,
+    ).reshape(1, -1)
 
-    if isinstance(trained_regressor_model, BayesianRidge):
-        (
-            flat_predicted_correction_matrix,
-            uncertainty_estimate,
-        ) = trained_regressor_model.predict(featurized_input, return_std=True)
-        predicted_correction_matrix = flat_predicted_correction_matrix.reshape(-1, 3)
-
-    elif isinstance(trained_regressor_model, KernelRidge):
-        uncertainty_estimate = 0.0
+    if isinstance(trained_regressor_model, KernelRidge):
         flat_predicted_correction_matrix = trained_regressor_model.predict(
             featurized_input
         )
@@ -78,22 +71,23 @@ def predict_initial_configuration(
     corrected_structure = inital_structure_guess.copy()
     corrected_structure.positions += predicted_correction_matrix
 
-    return predicted_correction_matrix, uncertainty_estimate, corrected_structure
+    return predicted_correction_matrix, corrected_structure
 
 
 def get_trained_model_on_perturbed_systems(
     perturbed_structures: List[Union[Atoms, str]],
     adsorbate_indices_dictionary: Dict[str, int],
     collected_matrices: np.ndarray,
-    model_name: str = "bayes",
+    model_name: str = "krr",
     structure_featurizer: str = "sine_matrix",
     adsorbate_featurizer: str = "soap",
-    featurization_kwargs: Dict = None,
+    structure_featurization_kwargs: Dict = None,
+    adsorbate_featurization_kwargs: Dict = None,
     model_kwargs: Dict = None,
 ):
     """
-    Given a list of base_structures, will generate perturbed structures
-    and train a regression model on them
+    Given a list of perturbed structures
+    will featurize and train a regression model on them
 
     Parameters
     ----------
@@ -116,7 +110,6 @@ def get_trained_model_on_perturbed_systems(
     model_name:
         String giving the name of the `sklearn` regression model to use.
         Options:
-        - bayes: Bayesian Ridge Regression
         - krr: Kernel Ridge Regression
 
     structure_featurizer:
@@ -138,8 +131,12 @@ def get_trained_model_on_perturbed_systems(
         adsorbate_indices_dictionary=adsorbate_indices_dictionary,
         structure_featurizer=structure_featurizer,
         adsorbate_featurizer=adsorbate_featurizer,
-        **featurization_kwargs
+        structure_featurization_kwargs=structure_featurization_kwargs,
+        adsorbate_featurization_kwargs=adsorbate_featurization_kwargs,
     )
+
+    if model_kwargs is None:
+        model_kwargs = {}
 
     regressor = _get_regressor(model_name, **model_kwargs)
 
@@ -152,9 +149,8 @@ def _get_regressor(model_name: str, **kwargs):
     """
     Gets `sklearn` regressor object
     """
-    if model_name == "bayes":
-        return BayesianRidge(**kwargs)
-    elif model_name == "krr":
+    if model_name == "krr":
         return KernelRidge(**kwargs)
+    # other regressors to be implemented
     else:
         raise NotImplementedError("model selected not implemented")
