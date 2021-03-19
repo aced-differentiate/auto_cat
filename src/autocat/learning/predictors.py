@@ -13,144 +13,260 @@ from autocat.learning.featurizers import get_X
 from autocat.learning.featurizers import catalyst_featurization
 
 
-def predict_initial_configuration(
-    inital_structure_guess: Atoms,
-    adsorbate_indices: List[int],
-    trained_regressor_model: KernelRidge,
-    structure_featurization_kwargs: Dict[str, float] = None,
-    adsorbate_featurization_kwargs: Dict[str, float] = None,
-):
-    """
-    From a trained model, will predict corrected structure
-    of a given initial structure guess
+class AutoCatStructureCorrector(KernelRidge):
+    def __init__(
+        self,
+        structure_featurizer: str = None,
+        adsorbate_featurizer: str = None,
+        maximum_structure_size: int = None,
+        maximum_adsorbate_size: int = None,
+        species_list: List[str] = None,
+        structure_featurization_kwargs: Dict = None,
+        adsorbate_featurization_kwargs: Dict = None,
+        **model_kwargs,
+    ):
+        """
+        Constructor.
 
-    Parameters
-    ----------
+        Parameters
+        ----------
 
-    initial_structure_guess:
-        Atoms object of an initial guess for an adsorbate
-        on a surface to be optimized
+        structure_featurizer:
+            String giving featurizer to be used for full structure which will be
+            fed into `autocat.learning.featurizers.full_structure_featurization`
 
-    adsorbate_indices:
-        List of ints giving the atomic indices of the adsorbate
-        atoms that can be perturbed
+        adsorbate_featurizer:
+            String giving featurizer to be used for full structure which will be
+            fed into `autocat.learning.featurizers.adsorbate_structure_featurization
 
-    trained_regressor_model:
-        Fit sklearn regression model to be used for prediction
+        maximum_structure_size:
+            Size of the largest structure to be supported by the representation.
+            Default: number of atoms in largest structure within `structures`
 
-    Returns
-    -------
+        maximum_adsorbate_size:
+            Integer giving the maximum adsorbate size to be encountered
+            (ie. this determines if zero-padding should be applied and how much).
+            If the provided value is less than the adsorbate size given by
+            `adsorbate_indices`, representation will remain size of the adsorbate.
+            Default: size of adsorbate provided
 
-    predicted_correction_matrix:
-        Matrix of predicted corrections that were applied
+        species_list:
+            List of species that could be encountered for featurization.
+            Default: Parses over all `structures` and collects all encountered species
 
-    uncertainty_estimate:
-        Standard deviation of prediction from regressor
-        (only supported for `bayes` at present)
+        """
+        super(AutoCatStructureCorrector, self).__init__(**model_kwargs)
 
-    corrected_structure:
-        Atoms object with corrections applied
+        self.is_fit = False
 
-    """
-    featurized_input = catalyst_featurization(
-        inital_structure_guess,
-        adsorbate_indices=adsorbate_indices,
-        structure_featurization_kwargs=structure_featurization_kwargs,
-        adsorbate_featurization_kwargs=adsorbate_featurization_kwargs,
-    ).reshape(1, -1)
+        self._structure_featurizer = "sine_matrix"
+        self.structure_featurizer = structure_featurizer
 
-    if isinstance(trained_regressor_model, KernelRidge):
-        flat_predicted_correction_matrix = trained_regressor_model.predict(
-            featurized_input
+        self._adsorbate_featurizer = "soap"
+        self.adsorbate_featurizer = adsorbate_featurizer
+
+        self._structure_featurization_kwargs = None
+        self.structure_featurization_kwargs = structure_featurization_kwargs
+
+        self._adsorbate_featurization_kwargs = {"rcut": 6.0, "nmax": 8, "lmax": 6}
+        self.adsorbate_featurization_kwargs = adsorbate_featurization_kwargs
+
+        self._maximum_structure_size = None
+        self.maximum_structure_size = maximum_structure_size
+
+        self._maximum_adsorbate_size = None
+        self.maximum_adsorbate_size = maximum_adsorbate_size
+
+        self._species_list = None
+        self.species_list = species_list
+
+    @property
+    def structure_featurizer(self):
+        return self._structure_featurizer
+
+    @structure_featurizer.setter
+    def structure_featurizer(self, structure_featurizer):
+        if structure_featurizer is not None:
+            self._structure_featurizer = structure_featurizer
+            if self.is_fit:
+                self.is_fit = False
+
+    @property
+    def adsorbate_featurizer(self):
+        return self._adsorbate_featurizer
+
+    @adsorbate_featurizer.setter
+    def adsorbate_featurizer(self, adsorbate_featurizer):
+        if adsorbate_featurizer is not None:
+            self._adsorbate_featurizer = adsorbate_featurizer
+            if self.is_fit:
+                self.is_fit = False
+
+    @property
+    def structure_featurization_kwargs(self):
+        return self._structure_featurization_kwargs
+
+    @structure_featurization_kwargs.setter
+    def structure_featurization_kwargs(self, structure_featurization_kwargs):
+        if structure_featurization_kwargs is not None:
+            assert isinstance(structure_featurization_kwargs, dict)
+            if self._structure_featurization_kwargs is not None:
+                self._structure_featurization_kwargs.update(
+                    structure_featurization_kwargs
+                )
+            else:
+                self._structure_featurization_kwargs = structure_featurization_kwargs
+            if self.is_fit:
+                self.is_fit = False
+
+    @property
+    def adsorbate_featurization_kwargs(self):
+        return self._adsorbate_featurization_kwargs
+
+    @adsorbate_featurization_kwargs.setter
+    def adsorbate_featurization_kwargs(self, adsorbate_featurization_kwargs):
+        if adsorbate_featurization_kwargs is not None:
+            assert isinstance(adsorbate_featurization_kwargs, dict)
+            self._adsorbate_featurization_kwargs.update(adsorbate_featurization_kwargs)
+            if self.is_fit:
+                self.is_fit = False
+
+    @property
+    def maximum_structure_size(self):
+        return self._maximum_structure_size
+
+    @maximum_structure_size.setter
+    def maximum_structure_size(self, maximum_structure_size):
+        if maximum_structure_size is not None:
+            self._maximum_structure_size = maximum_structure_size
+            if self.is_fit:
+                self.is_fit = False
+
+    @property
+    def maximum_adsorbate_size(self):
+        return self._maximum_adsorbate_size
+
+    @maximum_adsorbate_size.setter
+    def maximum_adsorbate_size(self, maximum_adsorbate_size):
+        if maximum_adsorbate_size is not None:
+            self._maximum_adsorbate_size = maximum_adsorbate_size
+            if self.is_fit:
+                self.is_fit = False
+
+    @property
+    def species_list(self):
+        return self._species_list
+
+    @species_list.setter
+    def species_list(self, species_list):
+        if species_list is not None:
+            self._species_list = species_list
+            if self.is_fit:
+                self.is_fit = False
+
+    def fit(
+        self,
+        perturbed_structures: List[Union[Atoms, str]],
+        adsorbate_indices_dictionary: Dict[str, int],
+        collected_matrices: np.ndarray,
+    ):
+        """
+        Given a list of perturbed structures
+        will featurize and train a regression model on them
+
+        Parameters
+        ----------
+
+        perturbed_structures:
+            List of perturbed structures to be trained upon
+
+        adsorbate_indices_dictionary:
+            Dictionary mapping structures to desired adsorbate_indices
+            (N.B. if structure is given as an ase.Atoms object,
+            the key for this dictionary should be
+            f"{structure.get_chemical_formula()}_{index_in_`perturbed_structures`}")
+
+        collected_matrices:
+            Numpy array of collected matrices of perturbations corresponding to
+            each of the perturbed structures.
+            This can be generated via `autocat.perturbations.generate_perturbed_dataset`.
+            Shape should be (# of structures, 3 * # of atoms in the largest structure)
+
+        Returns
+        -------
+
+        trained_model:
+            Trained `sklearn` model object
+        """
+        X = get_X(
+            perturbed_structures,
+            adsorbate_indices_dictionary=adsorbate_indices_dictionary,
+            maximum_structure_size=self.maximum_structure_size,
+            structure_featurizer=self.structure_featurizer,
+            maximum_adsorbate_size=self.maximum_adsorbate_size,
+            adsorbate_featurizer=self.adsorbate_featurizer,
+            species_list=self.species_list,
+            structure_featurization_kwargs=self.structure_featurization_kwargs,
+            adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
         )
+
+        super(AutoCatStructureCorrector, self).fit(X, collected_matrices)
+        self.is_fit = True
+
+    def predict(
+        self, inital_structure_guess: Atoms, adsorbate_indices: List[int],
+    ):
+        """
+        From a trained model, will predict corrected structure
+        of a given initial structure guess
+
+        Parameters
+        ----------
+
+        initial_structure_guess:
+            Atoms object of an initial guess for an adsorbate
+            on a surface to be optimized
+
+        adsorbate_indices:
+            List of ints giving the atomic indices of the adsorbate
+            atoms that can be perturbed
+
+        trained_regressor_model:
+            Fit sklearn regression model to be used for prediction
+
+        Returns
+        -------
+
+        predicted_correction_matrix:
+            Matrix of predicted corrections that were applied
+
+        uncertainty_estimate:
+            Standard deviation of prediction from regressor
+            (only supported for `bayes` at present)
+
+        corrected_structure:
+            Atoms object with corrections applied
+
+        """
+        assert self.is_fit
+        featurized_input = catalyst_featurization(
+            inital_structure_guess,
+            adsorbate_indices=adsorbate_indices,
+            structure_featurizer=self.structure_featurizer,
+            adsorbate_featurizer=self.adsorbate_featurizer,
+            maximum_structure_size=self.maximum_structure_size,
+            maximum_adsorbate_size=self.maximum_adsorbate_size,
+            species_list=self.species_list,
+            structure_featurization_kwargs=self.structure_featurization_kwargs,
+            adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
+        ).reshape(1, -1)
+
+        flat_predicted_correction_matrix = super(
+            AutoCatStructureCorrector, self
+        ).predict(featurized_input)
         predicted_correction_matrix = flat_predicted_correction_matrix.reshape(-1, 3)
 
-    else:
-        raise TypeError("Trained Regressor Model is not a supported type")
+        corrected_structure = inital_structure_guess.copy()
+        corrected_structure.positions += predicted_correction_matrix
 
-    corrected_structure = inital_structure_guess.copy()
-    corrected_structure.positions += predicted_correction_matrix
-
-    return predicted_correction_matrix, corrected_structure
-
-
-def get_trained_model_on_perturbed_systems(
-    perturbed_structures: List[Union[Atoms, str]],
-    adsorbate_indices_dictionary: Dict[str, int],
-    collected_matrices: np.ndarray,
-    model_name: str = "krr",
-    structure_featurizer: str = "sine_matrix",
-    adsorbate_featurizer: str = "soap",
-    structure_featurization_kwargs: Dict = None,
-    adsorbate_featurization_kwargs: Dict = None,
-    model_kwargs: Dict = None,
-):
-    """
-    Given a list of perturbed structures
-    will featurize and train a regression model on them
-
-    Parameters
-    ----------
-
-    perturbed_structures:
-        List of perturbed structures to be trained upon
-
-    adsorbate_indices_dictionary:
-        Dictionary mapping structures to desired adsorbate_indices
-        (N.B. if structure is given as an ase.Atoms object,
-        the key for this dictionary should be
-        f"{structure.get_chemical_formula()}_{index_in_`perturbed_structures`}")
-
-    collected_matrices:
-        Numpy array of collected matrices of perturbations corresponding to
-        each of the perturbed structures.
-        This can be generated via `autocat.perturbations.generate_perturbed_dataset`.
-        Shape should be (# of structures, 3 * # of atoms in the largest structure)
-
-    model_name:
-        String giving the name of the `sklearn` regression model to use.
-        Options:
-        - krr: Kernel Ridge Regression
-
-    structure_featurizer:
-        String giving featurizer to be used for full structure which will be
-        fed into `autocat.learning.featurizers.full_structure_featurization`
-
-    adsorbate_featurizer:
-        String giving featurizer to be used for full structure which will be
-        fed into `autocat.learning.featurizers.adsorbate_structure_featurization`
-
-    Returns
-    -------
-
-    trained_model:
-        Trained `sklearn` model object
-    """
-    X = get_X(
-        perturbed_structures,
-        adsorbate_indices_dictionary=adsorbate_indices_dictionary,
-        structure_featurizer=structure_featurizer,
-        adsorbate_featurizer=adsorbate_featurizer,
-        structure_featurization_kwargs=structure_featurization_kwargs,
-        adsorbate_featurization_kwargs=adsorbate_featurization_kwargs,
-    )
-
-    if model_kwargs is None:
-        model_kwargs = {}
-
-    regressor = _get_regressor(model_name, **model_kwargs)
-
-    regressor.fit(X, collected_matrices)
-
-    return regressor
-
-
-def _get_regressor(model_name: str, **kwargs):
-    """
-    Gets `sklearn` regressor object
-    """
-    if model_name == "krr":
-        return KernelRidge(**kwargs)
-    # other regressors to be implemented
-    else:
-        raise NotImplementedError("model selected not implemented")
+        return predicted_correction_matrix, corrected_structure

@@ -13,11 +13,10 @@ from autocat.surface import generate_surface_structures
 from autocat.perturbations import generate_perturbed_dataset
 from autocat.learning.featurizers import get_X
 from autocat.learning.featurizers import catalyst_featurization
-from autocat.learning.predictors import get_trained_model_on_perturbed_systems
-from autocat.learning.predictors import predict_initial_configuration
+from autocat.learning.predictors import AutoCatStructureCorrector
 
 
-def test_get_trained_model_on_perturbed_systems():
+def test_fit_model_on_perturbed_systems():
     # Test returns a fit model
     sub = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
@@ -32,26 +31,24 @@ def test_get_trained_model_on_perturbed_systems():
     )
     p_structures = p_set["collected_structures"]
     collected_matrices = p_set["collected_matrices"]
-    trained_model = get_trained_model_on_perturbed_systems(
+    acsc = AutoCatStructureCorrector(
+        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6}
+    )
+    acsc.fit(
         p_structures,
         adsorbate_indices_dictionary={
             base_struct.get_chemical_formula() + "_" + str(i): [-1, -2]
             for i in range(15)
         },
         collected_matrices=collected_matrices,
-        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
     )
-    # check correct regressor is used
-    assert isinstance(trained_model, KernelRidge)
+    assert acsc.adsorbate_featurizer == "soap"
+    assert acsc.is_fit
 
-    # check if fit
-    t_feat = catalyst_featurization(
-        p_structures[0],
-        [-1, -2],
-        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
-    )
-    # will raise a NotFittedError if not fit
-    trained_model.predict(t_feat.reshape(1, -1))
+    # check no longer fit after changing setting
+    acsc.adsorbate_featurizer = "acsf"
+    assert acsc.adsorbate_featurizer == "acsf"
+    assert not acsc.is_fit
 
 
 def test_predict_initial_configuration_formats():
@@ -69,20 +66,19 @@ def test_predict_initial_configuration_formats():
     )
     p_structures = p_set["collected_structures"]
     collected_matrices = p_set["collected_matrices"]
-    trained_model = get_trained_model_on_perturbed_systems(
+    acsc = AutoCatStructureCorrector(
+        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6}
+    )
+    acsc.fit(
         p_structures,
         adsorbate_indices_dictionary={
             base_struct.get_chemical_formula() + "_" + str(i): [-1, -2]
             for i in range(20)
         },
         collected_matrices=collected_matrices,
-        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
     )
-    predicted_correction_matrix, corrected_structure = predict_initial_configuration(
-        p_structures[0],
-        [-1, -2],
-        trained_model,
-        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
+    predicted_correction_matrix, corrected_structure = acsc.predict(
+        p_structures[0], [-1, -2],
     )
     assert isinstance(corrected_structure, Atoms)
     assert isinstance(predicted_correction_matrix, np.ndarray)
