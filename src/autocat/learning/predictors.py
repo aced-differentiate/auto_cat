@@ -10,7 +10,6 @@ from sklearn.model_selection import KFold
 from sklearn.kernel_ridge import KernelRidge
 
 from autocat.learning.featurizers import get_X
-from autocat.learning.featurizers import catalyst_featurization
 
 
 class AutoCatStructureCorrector(KernelRidge):
@@ -214,7 +213,9 @@ class AutoCatStructureCorrector(KernelRidge):
         self.is_fit = True
 
     def predict(
-        self, inital_structure_guess: Atoms, adsorbate_indices: List[int],
+        self,
+        initial_structure_guesses: List[Atoms],
+        adsorbate_indices_dictionary: Dict[str, int],
     ):
         """
         From a trained model, will predict corrected structure
@@ -249,9 +250,9 @@ class AutoCatStructureCorrector(KernelRidge):
 
         """
         assert self.is_fit
-        featurized_input = catalyst_featurization(
-            inital_structure_guess,
-            adsorbate_indices=adsorbate_indices,
+        featurized_input = get_X(
+            structures=initial_structure_guesses,
+            adsorbate_indices_dictionary=adsorbate_indices_dictionary,
             structure_featurizer=self.structure_featurizer,
             adsorbate_featurizer=self.adsorbate_featurizer,
             maximum_structure_size=self.maximum_structure_size,
@@ -259,14 +260,21 @@ class AutoCatStructureCorrector(KernelRidge):
             species_list=self.species_list,
             structure_featurization_kwargs=self.structure_featurization_kwargs,
             adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
-        ).reshape(1, -1)
+        )
 
-        flat_predicted_correction_matrix = super(
-            AutoCatStructureCorrector, self
-        ).predict(featurized_input)
-        predicted_correction_matrix = flat_predicted_correction_matrix.reshape(-1, 3)
+        predicted_correction_matrix = super(AutoCatStructureCorrector, self).predict(
+            featurized_input
+        )
 
-        corrected_structure = inital_structure_guess.copy()
-        corrected_structure.positions += predicted_correction_matrix
+        corrected_structures = [
+            init_struct.copy() for init_struct in initial_structure_guesses
+        ]
 
-        return predicted_correction_matrix, corrected_structure
+        corrected_structures = []
+        for idx, struct in enumerate(initial_structure_guesses):
+            cs = struct.copy()
+            corr = predicted_correction_matrix[idx, :].reshape(-1, 3)
+            cs.positions += corr
+            corrected_structures.append(cs)
+
+        return predicted_correction_matrix, corrected_structures

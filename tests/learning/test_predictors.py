@@ -70,17 +70,21 @@ def test_predict_initial_configuration_formats():
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6}
     )
     acsc.fit(
-        p_structures,
+        p_structures[:15],
         adsorbate_indices_dictionary={
             base_struct.get_chemical_formula() + "_" + str(i): [-1, -2]
-            for i in range(20)
+            for i in range(15)
         },
-        collected_matrices=collected_matrices,
+        collected_matrices=collected_matrices[:15, :],
     )
-    predicted_correction_matrix, corrected_structure = acsc.predict(
-        p_structures[0], [-1, -2],
+    predicted_correction_matrix, corrected_structures = acsc.predict(
+        p_structures[15:],
+        adsorbate_indices_dictionary={
+            base_struct.get_chemical_formula() + "_" + str(i): [-1, -2]
+            for i in range(5)
+        },
     )
-    assert isinstance(corrected_structure, Atoms)
+    assert isinstance(corrected_structures[0], Atoms)
+    assert len(corrected_structures) == 5
     assert isinstance(predicted_correction_matrix, np.ndarray)
-    # check correction matrix returned in shape of coordinates matrix
-    assert predicted_correction_matrix.shape == (len(corrected_structure), 3)
+    assert predicted_correction_matrix.shape[0] == 5
