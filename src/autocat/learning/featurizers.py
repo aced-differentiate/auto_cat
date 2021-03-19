@@ -44,7 +44,8 @@ def get_X(
     adsorbate_indices_dictionary:
         Dictionary mapping structures to desired adsorbate_indices
         (N.B. if structure is given as an ase.Atoms object,
-        the key for this dictionary should be ase.Atoms.get_chemical_formula())
+        the key for this dictionary should be
+        ase.Atoms.get_chemical_formula() + "_" + str(index in list))
 
     maximum_structure_size:
         Size of the largest structure to be supported by the representation.

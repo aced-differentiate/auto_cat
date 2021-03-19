@@ -224,26 +224,21 @@ class AutoCatStructureCorrector(KernelRidge):
         Parameters
         ----------
 
-        initial_structure_guess:
-            Atoms object of an initial guess for an adsorbate
-            on a surface to be optimized
+        initial_structure_guesses:
+            List of Atoms objects of initial guesses for adsorbate
+            placement to be optimized
 
-        adsorbate_indices:
-            List of ints giving the atomic indices of the adsorbate
-            atoms that can be perturbed
-
-        trained_regressor_model:
-            Fit sklearn regression model to be used for prediction
+        adsorbate_indices_dictionary:
+            Dictionary mapping structures to desired adsorbate_indices
+            (N.B. if structures is given as ase.Atoms objects,
+            the key for this dictionary should be
+            ase.Atoms.get_chemical_formula()+ "_" + str(index in list)
 
         Returns
         -------
 
         predicted_correction_matrix:
             Matrix of predicted corrections that were applied
-
-        uncertainty_estimate:
-            Standard deviation of prediction from regressor
-            (only supported for `bayes` at present)
 
         corrected_structure:
             Atoms object with corrections applied
