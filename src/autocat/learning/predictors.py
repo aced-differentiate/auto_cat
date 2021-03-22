@@ -210,6 +210,27 @@ class AutoCatStructureCorrector(KernelRidge):
         )
 
         super(AutoCatStructureCorrector, self).fit(X, collected_matrices)
+
+        if self.maximum_structure_size is None:
+            self.maximum_structure_size = max([len(s) for s in perturbed_structures])
+
+        if self.maximum_adsorbate_size is None:
+            self.maximum_adsorbate_size = max(
+                [
+                    len(adsorbate_indices_dictionary[a])
+                    for a in adsorbate_indices_dictionary
+                ]
+            )
+
+        if self.species_list is None:
+            species_list = []
+            for s in perturbed_structures:
+                found_species = np.unique(s.get_chemical_symbols()).tolist()
+                new_species = [
+                    spec for spec in found_species if spec not in species_list
+                ]
+                species_list.extend(new_species)
+            self.species_list = species_list
         self.is_fit = True
 
     def predict(
@@ -268,7 +289,7 @@ class AutoCatStructureCorrector(KernelRidge):
         corrected_structures = []
         for idx, struct in enumerate(initial_structure_guesses):
             cs = struct.copy()
-            corr = predicted_correction_matrix[idx, :].reshape(-1, 3)
+            corr = predicted_correction_matrix[idx, : 3 * len(cs)].reshape(len(cs), 3)
             cs.positions += corr
             corrected_structures.append(cs)
 

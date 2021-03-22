@@ -16,7 +16,7 @@ from ase import Atoms
 from ase.io import read
 from pymatgen.io.ase import AseAtomsAdaptor
 
-from autocat.io.qml import ase_atoms_to_qml_compound
+# from autocat.io.qml import ase_atoms_to_qml_compound
 
 
 def get_X(

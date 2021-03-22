@@ -13,9 +13,7 @@ from dscribe.descriptors import CoulombMatrix
 from dscribe.descriptors import ACSF
 from dscribe.descriptors import SOAP
 
-import qml
-
-from autocat.io.qml import ase_atoms_to_qml_compound
+# from autocat.io.qml import ase_atoms_to_qml_compound
 from autocat.adsorption import generate_rxn_structures
 from autocat.surface import generate_surface_structures
 from autocat.learning.featurizers import full_structure_featurization
