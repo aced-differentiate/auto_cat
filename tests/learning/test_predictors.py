@@ -88,3 +88,9 @@ def test_predict_initial_configuration_formats():
     assert len(corrected_structures) == 5
     assert isinstance(predicted_correction_matrix, np.ndarray)
     assert predicted_correction_matrix.shape[0] == 5
+    # check that predicted correction matrix is applied correctly
+    manual = p_structures[15].copy()
+    manual_corr_mat = predicted_correction_matrix[0].reshape(2, 3)
+    manual.positions[-1] += manual_corr_mat[-1]
+    manual.positions[-2] += manual_corr_mat[-2]
+    assert np.allclose(manual.positions, corrected_structures[0].positions)

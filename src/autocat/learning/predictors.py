@@ -289,8 +289,14 @@ class AutoCatStructureCorrector(KernelRidge):
         corrected_structures = []
         for idx, struct in enumerate(initial_structure_guesses):
             cs = struct.copy()
-            corr = predicted_correction_matrix[idx, : 3 * len(cs)].reshape(len(cs), 3)
-            cs.positions += corr
+            name = cs.get_chemical_formula() + "_" + str(idx)
+            list_of_adsorbate_indices = adsorbate_indices_dictionary[name]
+            list_of_adsorbate_indices.sort()
+            num_of_adsorbates = len(list_of_adsorbate_indices)
+            corr = predicted_correction_matrix[idx, : 3 * num_of_adsorbates].reshape(
+                num_of_adsorbates, 3
+            )
+            cs.positions[list_of_adsorbate_indices] += corr
             corrected_structures.append(cs)
 
         return predicted_correction_matrix, corrected_structures
