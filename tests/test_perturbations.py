@@ -46,7 +46,11 @@ def test_perturb_structure_matrix():
     ]
     base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
     p_struct = perturb_structure(base_struct, atom_indices_to_perturb=[-1, -2])
+    #    print(p_struct["structure"].positions[-2])
+    #    print(base_struct.positions[-2])
+    #    print(p_struct["perturbation_matrix"][-2])
     o_pert = base_struct.positions[-2] + p_struct["perturbation_matrix"][-2]
+    #    print(o_pert)
     assert np.allclose(p_struct["structure"].positions[-2], o_pert)
     h_pert = base_struct.positions[-1] + p_struct["perturbation_matrix"][-1]
     assert np.allclose(p_struct["structure"].positions[-1], h_pert)
@@ -91,15 +95,11 @@ def test_generate_perturbed_dataset_multiple_base_structures():
     # Check all base structures perturbed
     assert "HCu36N_1" in p_set
     assert "HOPt36_0" in p_set
-    # Check correct atom indices perturbed for each base_structure
-    assert (p_set["HCu36N_1"]["2"]["perturbation_matrix"][-1] == np.zeros(3)).all()
-    assert (p_set["HCu36N_1"]["3"]["perturbation_matrix"][-2] != np.zeros(3)).all()
-    assert (p_set["HOPt36_0"]["6"]["perturbation_matrix"][-1] != np.zeros(3)).any()
     # Check correct direction constraints applied to each base_structure
     assert np.isclose(p_set["HOPt36_0"]["6"]["perturbation_matrix"][-1][0], 0.0)
     assert np.isclose(p_set["HOPt36_0"]["6"]["perturbation_matrix"][-1][1], 0.0)
     assert not np.isclose(p_set["HOPt36_0"]["6"]["perturbation_matrix"][-1][-1], 0.0)
-    assert not np.isclose(p_set["HCu36N_1"]["1"]["perturbation_matrix"][-2][0], 0.0)
+    assert not np.isclose(p_set["HCu36N_1"]["1"]["perturbation_matrix"][-1][0], 0.0)
 
 
 def test_generate_perturbed_dataset_write_location():
@@ -144,14 +144,12 @@ def test_generate_perturbed_dataset_collected_matrices():
         },
         num_of_perturbations=5,
     )
-    manual_collect = []
-    for struct in p_set["HOPt36_0"]:
-        manual_collect.append(
-            p_set["HOPt36_0"][struct]["perturbation_matrix"].flatten()
-        )
-    manual_collect = np.array(manual_collect)
+    manual_collect = np.zeros((5, 6))
+    for idx, struct in enumerate(p_set["HOPt36_0"]):
+        flat = p_set["HOPt36_0"][struct]["perturbation_matrix"].flatten()
+        manual_collect[idx, : len(flat)] = flat
     assert np.allclose(p_set["collected_matrices"], manual_collect)
-    assert p_set["collected_matrices"].shape == (5, 114)
+    assert p_set["collected_matrices"].shape == (5, 6)
     # Check when given specific maximum_structure_size
     p_set = generate_perturbed_dataset(
         [base_struct],
@@ -159,9 +157,9 @@ def test_generate_perturbed_dataset_collected_matrices():
             base_struct.get_chemical_formula() + "_0": [-1, -2]
         },
         num_of_perturbations=5,
-        maximum_structure_size=45,
+        maximum_adsorbate_size=15,
     )
-    assert p_set["collected_matrices"].shape == (5, 135)
+    assert p_set["collected_matrices"].shape == (5, 45)
 
 
 def test_generate_perturbed_dataset_collected_matrices_multiple():
@@ -177,18 +175,20 @@ def test_generate_perturbed_dataset_collected_matrices_multiple():
     p_set = generate_perturbed_dataset(
         [base_struct1, base_struct2],
         atom_indices_to_perturb_dictionary={
-            base_struct1.get_chemical_formula() + "_0": [-1],
+            base_struct1.get_chemical_formula() + "_0": [-2, -1],
             base_struct2.get_chemical_formula() + "_1": [-2],
         },
         num_of_perturbations=5,
     )
-    manual_collect = []
+    manual_collect = np.zeros((10, 6))
+    counter = 0
     for base in ["HOPt36_0", "HCu36O_1"]:
         for struct in p_set[base]:
-            manual_collect.append(p_set[base][struct]["perturbation_matrix"].flatten())
-    manual_collect = np.array(manual_collect)
+            flat = p_set[base][struct]["perturbation_matrix"].flatten()
+            manual_collect[counter, : len(flat)] = flat
+            counter += 1
     assert np.allclose(p_set["collected_matrices"], manual_collect)
-    assert p_set["collected_matrices"].shape == (10, 114)
+    assert p_set["collected_matrices"].shape == (10, 6)
 
     # check that matrices properly collected for 2 base structures of != size
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
@@ -211,11 +211,11 @@ def test_generate_perturbed_dataset_collected_matrices_multiple():
     for base in ["HOPt36_0", "HCu36_1"]:
         for struct in p_set[base]:
             manual_collect.append(p_set[base][struct]["perturbation_matrix"].flatten())
-    manual_collect_array = np.zeros((10, 114))
+    manual_collect_array = np.zeros((10, 3))
     for idx, m in enumerate(manual_collect):
         manual_collect_array[idx, : len(m)] = m
     assert np.allclose(p_set["collected_matrices"], manual_collect_array)
-    assert p_set["collected_matrices"].shape == (10, 114)
+    assert p_set["collected_matrices"].shape == (10, 3)
 
 
 def test_generate_perturbed_dataset_collected_structure_paths():

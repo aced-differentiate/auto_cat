@@ -18,7 +18,7 @@ def generate_perturbed_dataset(
     minimum_perturbation_distance: float = 0.1,
     maximum_perturbation_distance: float = 1.0,
     directions_dictionary: Dict[Union[str, Atoms], List[bool]] = None,
-    maximum_structure_size: int = None,
+    maximum_adsorbate_size: int = None,
     num_of_perturbations: int = 10,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -61,8 +61,8 @@ def generate_perturbed_dataset(
         f"{base_structure.get_chemical_formula()}_{index_in_`base_structures`}"
         Default: free to perturb in all cartesian directions
 
-    maximum_structure_size:
-        Integer giving the largest number of atoms in a structure
+    maximum_adsorbate_size:
+        Integer giving the largest number of atoms in an adsorbate
         that should be able to be considered. Used to obtain shape
         of collected matrices
         Default: number of atoms in largest base structure
@@ -171,12 +171,17 @@ def generate_perturbed_dataset(
             collected_structures.append(perturbed_dict[name][str(i)]["structure"])
             collected_structure_paths.append(traj_file_path)
 
-    if maximum_structure_size is None:
+    if maximum_adsorbate_size is None:
         # find flattened length of largest structure
-        largest_size = max([len(i) for i in collected_matrices])
+        largest_size = 3 * max(
+            [
+                len(atom_indices_to_perturb_dictionary[i])
+                for i in atom_indices_to_perturb_dictionary
+            ]
+        )
     else:
         # factor of 3 from flattening (ie. x,y,z)
-        largest_size = 3 * maximum_structure_size
+        largest_size = 3 * maximum_adsorbate_size
     # ensures correct sized padding
     collected_matrices_array = np.zeros((len(collected_matrices), largest_size))
     # substitute in collected matrices for each row
@@ -265,6 +270,8 @@ def perturb_structure(
 
     pert_matrix = np.zeros(ase_obj.positions.shape)
 
+    atom_indices_to_perturb.sort()
+
     for idx in atom_indices_to_perturb:
         # randomize +/- direction of each perturbation
         signs = np.array([-1, -1, -1]) ** np.random.randint(low=1, high=11, size=(1, 3))
@@ -281,4 +288,7 @@ def perturb_structure(
 
     ase_obj.positions += pert_matrix
 
-    return {"structure": ase_obj, "perturbation_matrix": pert_matrix}
+    return {
+        "structure": ase_obj,
+        "perturbation_matrix": pert_matrix[atom_indices_to_perturb],
+    }
