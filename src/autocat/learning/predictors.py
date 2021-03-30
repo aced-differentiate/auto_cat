@@ -10,6 +10,7 @@ from sklearn.model_selection import KFold
 from sklearn.kernel_ridge import KernelRidge
 
 from autocat.learning.featurizers import get_X
+from autocat.learning.featurizers import _get_number_of_features
 
 
 class AutoCatStructureCorrector(KernelRidge):
@@ -162,6 +163,23 @@ class AutoCatStructureCorrector(KernelRidge):
             self._species_list = species_list
             if self.is_fit:
                 self.is_fit = False
+
+    def get_total_number_of_features(self):
+        str_kwargs = self.structure_featurization_kwargs
+        ads_kwargs = self.adsorbate_featurization_kwargs
+        if str_kwargs is None:
+            str_kwargs = {}
+        if self.structure_featurizer in ["sine_matrix", "coulomb_matrix"]:
+            str_kwargs.update({"n_atoms_max": self.maximum_structure_size})
+        if ads_kwargs is None:
+            ads_kwargs = {}
+        if self.adsorbate_featurizer == "soap":
+            ads_kwargs.update({"species": self.species_list})
+        num_struct_feat = _get_number_of_features(
+            self.structure_featurizer, **str_kwargs
+        )
+        num_ads_feat = _get_number_of_features(self.adsorbate_featurizer, **ads_kwargs)
+        return num_struct_feat, num_ads_feat
 
     def fit(
         self,
