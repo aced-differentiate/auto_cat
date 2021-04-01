@@ -5,6 +5,7 @@ import pytest
 import numpy as np
 
 from sklearn.kernel_ridge import KernelRidge
+from sklearn.gaussian_process import GaussianProcessRegressor
 
 from ase import Atoms
 
@@ -98,3 +99,11 @@ def test_predict_initial_configuration_formats():
     manual.positions[-1] += manual_corr_mat[-1]
     manual.positions[-2] += manual_corr_mat[-2]
     assert np.allclose(manual.positions, corrected_structures[0].positions)
+
+
+def test_model_class():
+    # Tests providing regression model class
+    acsc = AutoCatStructureCorrector(KernelRidge, model_kwargs={"gamma": 0.5})
+    assert isinstance(acsc._regressor, KernelRidge)
+    acsc.model_class = GaussianProcessRegressor
+    assert acsc.model_kwargs is None

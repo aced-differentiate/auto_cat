@@ -13,9 +13,10 @@ from autocat.learning.featurizers import get_X
 from autocat.learning.featurizers import _get_number_of_features
 
 
-class AutoCatStructureCorrector(GaussianProcessRegressor):
+class AutoCatStructureCorrector:
     def __init__(
         self,
+        model_class=None,
         structure_featurizer: str = None,
         adsorbate_featurizer: str = None,
         maximum_structure_size: int = None,
@@ -23,13 +24,19 @@ class AutoCatStructureCorrector(GaussianProcessRegressor):
         species_list: List[str] = None,
         structure_featurization_kwargs: Dict = None,
         adsorbate_featurization_kwargs: Dict = None,
-        **model_kwargs,
+        model_kwargs: Dict = None,
     ):
         """
         Constructor.
 
         Parameters
         ----------
+
+        model_class:
+            Class of regression model to be used for training and prediction.
+            If this is changed after initialization, all previously set
+            model_kwargs will be removed.
+            N.B. must have fit and predict methods
 
         structure_featurizer:
             String giving featurizer to be used for full structure which will be
@@ -55,9 +62,15 @@ class AutoCatStructureCorrector(GaussianProcessRegressor):
             Default: Parses over all `structures` and collects all encountered species
 
         """
-        super(AutoCatStructureCorrector, self).__init__(**model_kwargs)
-
         self.is_fit = False
+
+        self._model_class = GaussianProcessRegressor
+        self.model_class = model_class
+
+        self._model_kwargs = None
+        self.model_kwargs = model_kwargs
+
+        self._regressor = self.model_class(self.model_kwargs)
 
         self._structure_featurizer = None
         self.structure_featurizer = structure_featurizer
@@ -79,6 +92,32 @@ class AutoCatStructureCorrector(GaussianProcessRegressor):
 
         self._species_list = None
         self.species_list = species_list
+
+    @property
+    def model_class(self):
+        return self._model_class
+
+    @model_class.setter
+    def model_class(self, model_class):
+        if model_class is not None:
+            self._model_class = model_class
+            # removes any model kwargs from previous model
+            self._model_kwargs = None
+            if self.is_fit:
+                self.is_fit = False
+
+    @property
+    def model_kwargs(self):
+        return self._model_kwargs
+
+    @model_kwargs.setter
+    def model_kwargs(self, model_kwargs):
+        if model_kwargs is not None:
+            assert isinstance(model_kwargs, dict)
+            if self._model_kwargs is not None:
+                self._model_kwargs = model_kwargs
+            if self.is_fit:
+                self.is_fit = False
 
     @property
     def structure_featurizer(self):
@@ -111,10 +150,6 @@ class AutoCatStructureCorrector(GaussianProcessRegressor):
         if structure_featurization_kwargs is not None:
             assert isinstance(structure_featurization_kwargs, dict)
             if self._structure_featurization_kwargs is not None:
-                self._structure_featurization_kwargs.update(
-                    structure_featurization_kwargs
-                )
-            else:
                 self._structure_featurization_kwargs = structure_featurization_kwargs
             if self.is_fit:
                 self.is_fit = False
@@ -127,7 +162,7 @@ class AutoCatStructureCorrector(GaussianProcessRegressor):
     def adsorbate_featurization_kwargs(self, adsorbate_featurization_kwargs):
         if adsorbate_featurization_kwargs is not None:
             assert isinstance(adsorbate_featurization_kwargs, dict)
-            self._adsorbate_featurization_kwargs.update(adsorbate_featurization_kwargs)
+            self._adsorbate_featurization_kwargs = adsorbate_featurization_kwargs
             if self.is_fit:
                 self.is_fit = False
 
@@ -240,7 +275,7 @@ class AutoCatStructureCorrector(GaussianProcessRegressor):
             adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
         )
 
-        super(AutoCatStructureCorrector, self).fit(X, collected_matrices)
+        self._regressor.fit(X, collected_matrices)
 
         if self.maximum_structure_size is None:
             self.maximum_structure_size = max([len(s) for s in perturbed_structures])
@@ -309,9 +344,7 @@ class AutoCatStructureCorrector(GaussianProcessRegressor):
             adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
         )
 
-        predicted_correction_matrix = super(AutoCatStructureCorrector, self).predict(
-            featurized_input
-        )
+        predicted_correction_matrix = self._regressor.predict(featurized_input)
 
         corrected_structures = [
             init_struct.copy() for init_struct in initial_structure_guesses
