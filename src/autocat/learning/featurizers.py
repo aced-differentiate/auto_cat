@@ -4,6 +4,8 @@ from dscribe.descriptors import CoulombMatrix
 from dscribe.descriptors import ACSF
 from dscribe.descriptors import SOAP
 
+from matminer.featurizers.composition import ElementProperty
+
 import tempfile
 import os
 import numpy as np
@@ -345,6 +347,7 @@ def full_structure_featurization(
     maximum_structure_size: int = None,
     featurizer: str = "sine_matrix",
     permutation: str = "none",
+    elementalproperty_preset: str = "magpie",
     n_jobs: int = 1,
     **kwargs,
 ):
@@ -364,16 +367,26 @@ def full_structure_featurization(
 
     featurizer:
         String indicating featurizer to be used.
-
         Options:
         - sine_matrix (default)
         - coulomb_matrix (N.B.: does not support periodicity)
+        - element property
 
     permutation:
         String specifying how ordering is handled. This is fed into
         `dscribe` featurizers (ie. sine_matrix, ewald_sum_matrix, coulomb_matrix)
         Default: "none", maintains same ordering as input Atoms structure
         (N.B. this differs from the `dscribe` default)
+
+    elementalproperty_preset:
+        String giving the preset to be pulled from.
+        Options:
+        - magpie (default)
+        - pymatgen
+        - deml
+        - matscholar_el
+        - megnet_el
+        See `matminer` documentation for more details
 
     n_jobs:
         Int specifiying number of parallel jobs to run which is fed into `dscribe`
@@ -400,28 +413,52 @@ def full_structure_featurization(
         )
         rep = cm.create(structure, n_jobs=n_jobs).reshape(-1,)
 
+    elif featurizer == "elemental_property":
+        ep = ElementProperty.from_preset(elementalproperty_preset)
+        conv = AseAtomsAdaptor()
+        pymat = conv.get_structure(structure)
+        rep = np.array(ep.featurize(pymat.composition))
+
     else:
         raise NotImplementedError("selected featurizer not implemented")
 
     return rep
 
 
-def _get_number_of_features(featurizer, **kwargs):
+def _get_number_of_features(
+    featurizer, elementalproperty_preset: str = "magpie", **kwargs
+):
     """
+    Helper function to get number of features.
+
     Wrapper of `get_number_of_features` method for `dscribe`
     featurizers
+
+    If `matminer`'s elemental property, calculated based off of
+    number of features X number of stats
     """
-    supported_featurizers = {
+    supported_dscribe_featurizers = {
         "sine_matrix": SineMatrix,
         "coulomb_matrix": CoulombMatrix,
         "soap": SOAP,
         "acsf": ACSF,
     }
 
-    if featurizer not in supported_featurizers:
+    supported_matminer_featurizers = {
+        "elemental_property": ElementProperty.from_preset(elementalproperty_preset)
+    }
+
+    if featurizer in supported_dscribe_featurizers:
+        feat = supported_dscribe_featurizers[featurizer](**kwargs)
+        return feat.get_number_of_features()
+
+    elif featurizer in supported_matminer_featurizers:
+        # included for if other matminer featurizers implemented
+        if featurizer == "elemental_property":
+            ep = supported_matminer_featurizers[featurizer]
+            return len(ep.features) * len(ep.stats)
+
+    else:
         raise NotImplementedError(
             "selected featurizer does not currently support this feature"
         )
-
-    feat = supported_featurizers[featurizer](**kwargs)
-    return feat.get_number_of_features()

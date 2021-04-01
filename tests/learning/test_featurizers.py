@@ -13,6 +13,8 @@ from dscribe.descriptors import CoulombMatrix
 from dscribe.descriptors import ACSF
 from dscribe.descriptors import SOAP
 
+from matminer.featurizers.composition import ElementProperty
+
 # from autocat.io.qml import ase_atoms_to_qml_compound
 from autocat.adsorption import generate_rxn_structures
 from autocat.surface import generate_surface_structures
@@ -21,6 +23,8 @@ from autocat.learning.featurizers import adsorbate_featurization
 from autocat.learning.featurizers import catalyst_featurization
 from autocat.learning.featurizers import _get_number_of_features
 from autocat.learning.featurizers import get_X
+
+from pymatgen.io.ase import AseAtomsAdaptor
 
 
 def test_full_structure_featurization_sine():
@@ -43,6 +47,25 @@ def test_full_structure_featurization_coulomb():
     # Check padding
     coulomb_matrix = full_structure_featurization(surf, maximum_structure_size=45)
     assert coulomb_matrix.shape == (2025,)
+
+
+def test_full_structure_featurization_elemental_property():
+    # Tests the Elemental Property featurization
+    surf = generate_surface_structures(["Cu"])["Cu"]["fcc111"]["structure"]
+    elem_prop = full_structure_featurization(surf, featurizer="elemental_property")
+    ep = ElementProperty.from_preset("magpie")
+    conv = AseAtomsAdaptor()
+    pymat = conv.get_structure(surf)
+    manual_elem_prop = ep.featurize(pymat.composition)
+    assert np.allclose(elem_prop, manual_elem_prop)
+    assert elem_prop.shape == (132,)
+    elem_prop = full_structure_featurization(
+        surf, featurizer="elemental_property", elementalproperty_preset="deml"
+    )
+    ep = ElementProperty.from_preset("deml")
+    manual_elem_prop = ep.featurize(pymat.composition)
+    assert np.allclose(elem_prop, manual_elem_prop)
+    assert len(elem_prop) == _get_number_of_features("elemental_property", "deml")
 
 
 def test_adsorbate_featurization_acsf():
