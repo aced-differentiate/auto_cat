@@ -111,19 +111,32 @@ def get_X(
             new_species = [spec for spec in found_species if spec not in species_list]
             species_list.extend(new_species)
 
-    num_of_adsorbate_features = _get_number_of_features(
-        featurizer=adsorbate_featurizer,
-        species=species_list,
-        **adsorbate_featurization_kwargs,
-    )
-
-    X = np.zeros(
-        (
-            len(structures),
-            maximum_structure_size ** 2
-            + maximum_adsorbate_size * num_of_adsorbate_features,
+    if adsorbate_featurizer is not None:
+        num_of_adsorbate_features = _get_number_of_features(
+            featurizer=adsorbate_featurizer,
+            species=species_list,
+            **adsorbate_featurization_kwargs,
         )
-    )
+
+    if (structure_featurizer is not None) and (adsorbate_featurizer is not None):
+        X = np.zeros(
+            (
+                len(structures),
+                maximum_structure_size ** 2
+                + maximum_adsorbate_size * num_of_adsorbate_features,
+            )
+        )
+    elif (structure_featurizer is None) and (adsorbate_featurizer is not None):
+        X = np.zeros(
+            (len(structures), maximum_adsorbate_size * num_of_adsorbate_features)
+        )
+
+    elif (structure_featurizer is not None) and (adsorbate_featurizer is None):
+        X = np.zeros((len(structures), maximum_structure_size ** 2))
+    else:
+        msg = "Need to specify either a structure or adsorbate featurizer"
+        raise ValueError(msg)
+
     for idx, structure in enumerate(structures):
         if isinstance(structure, Atoms):
             name = structure.get_chemical_formula() + "_" + str(idx)
@@ -213,20 +226,27 @@ def catalyst_featurization(
     if adsorbate_featurization_kwargs is None:
         adsorbate_featurization_kwargs = {}
 
-    struct_feat = full_structure_featurization(
-        structure,
-        featurizer=structure_featurizer,
-        maximum_structure_size=maximum_structure_size,
-        **structure_featurization_kwargs,
-    )
-    ads_feat = adsorbate_featurization(
-        structure,
-        featurizer=adsorbate_featurizer,
-        adsorbate_indices=adsorbate_indices,
-        species_list=species_list,
-        maximum_adsorbate_size=maximum_adsorbate_size,
-        **adsorbate_featurization_kwargs,
-    )
+    if structure_featurizer is not None:
+        struct_feat = full_structure_featurization(
+            structure,
+            featurizer=structure_featurizer,
+            maximum_structure_size=maximum_structure_size,
+            **structure_featurization_kwargs,
+        )
+    else:
+        struct_feat = np.array([])
+
+    if adsorbate_featurizer is not None:
+        ads_feat = adsorbate_featurization(
+            structure,
+            featurizer=adsorbate_featurizer,
+            adsorbate_indices=adsorbate_indices,
+            species_list=species_list,
+            maximum_adsorbate_size=maximum_adsorbate_size,
+            **adsorbate_featurization_kwargs,
+        )
+    else:
+        ads_feat = np.array([])
     cat_feat = np.concatenate((struct_feat, ads_feat))
     return cat_feat
 

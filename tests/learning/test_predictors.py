@@ -32,7 +32,9 @@ def test_fit_model_on_perturbed_systems():
     p_structures = p_set["collected_structures"]
     collected_matrices = p_set["collected_matrices"]
     acsc = AutoCatStructureCorrector(
-        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6}
+        structure_featurizer="sine_matrix",
+        adsorbate_featurizer="soap",
+        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
     )
     acsc.fit(
         p_structures,
@@ -67,7 +69,9 @@ def test_predict_initial_configuration_formats():
     p_structures = p_set["collected_structures"]
     collected_matrices = p_set["collected_matrices"]
     acsc = AutoCatStructureCorrector(
-        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6}
+        structure_featurizer="sine_matrix",
+        adsorbate_featurizer="soap",
+        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
     )
     acsc.fit(
         p_structures[:15],
