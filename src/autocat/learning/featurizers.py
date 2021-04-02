@@ -21,11 +21,16 @@ from pymatgen.io.ase import AseAtomsAdaptor
 # from autocat.io.qml import ase_atoms_to_qml_compound
 
 
+class AutoCatFeaturizationError(Exception):
+    pass
+
+
 def get_X(
     structures: List[Union[Atoms, str]],
-    adsorbate_indices_dictionary: Dict[str, int],
+    adsorbate_indices_dictionary: Dict[str, int] = None,
     maximum_structure_size: int = None,
     structure_featurizer: str = "sine_matrix",
+    elementalproperty_preset: str = "magpie",
     maximum_adsorbate_size: int = None,
     adsorbate_featurizer: str = "soap",
     species_list: List[str] = None,
@@ -44,7 +49,8 @@ def get_X(
         List of ase.Atoms objects or structure filename strings to be used to construct X matrix
 
     adsorbate_indices_dictionary:
-        Dictionary mapping structures to desired adsorbate_indices
+        Dictionary mapping structures to desired adsorbate_indices.
+        Only necessary if adsorbate featurization is specified
         (N.B. if structure is given as an ase.Atoms object,
         the key for this dictionary should be
         ase.Atoms.get_chemical_formula() + "_" + str(index in list))
@@ -114,17 +120,33 @@ def get_X(
             species_list.extend(new_species)
 
     if adsorbate_featurizer is not None:
+        # check that adsorbate indices specified
+        if adsorbate_indices_dictionary is None:
+            msg = "For adsorbate featurization, adsorbate indices must be specified"
+            raise AutoCatFeaturizationError(msg)
+        # find number of adsorbate features
         num_of_adsorbate_features = _get_number_of_features(
             featurizer=adsorbate_featurizer,
             species=species_list,
             **adsorbate_featurization_kwargs,
         )
 
+    if structure_featurizer is not None:
+        if structure_featurizer in ["sine_matrix", "coulomb_matrix"]:
+            num_structure_features = maximum_structure_size ** 2
+        else:
+            # elemental property featurizer
+            num_structure_features = _get_number_of_features(
+                structure_featurizer,
+                elementalproperty_preset=elementalproperty_preset,
+                **structure_featurization_kwargs,
+            )
+
     if (structure_featurizer is not None) and (adsorbate_featurizer is not None):
         X = np.zeros(
             (
                 len(structures),
-                maximum_structure_size ** 2
+                num_structure_features
                 + maximum_adsorbate_size * num_of_adsorbate_features,
             )
         )
@@ -134,10 +156,10 @@ def get_X(
         )
 
     elif (structure_featurizer is not None) and (adsorbate_featurizer is None):
-        X = np.zeros((len(structures), maximum_structure_size ** 2))
+        X = np.zeros((len(structures), num_structure_features))
     else:
         msg = "Need to specify either a structure or adsorbate featurizer"
-        raise ValueError(msg)
+        raise AutoCatFeaturizationError(msg)
 
     for idx, structure in enumerate(structures):
         if isinstance(structure, Atoms):
@@ -147,7 +169,11 @@ def get_X(
             name = structure
             ase_struct = read(structure)
         else:
-            raise TypeError(f"Each structure needs to be either a str or ase.Atoms")
+            msg = f"Each structure needs to be either a str or ase.Atoms. Got {type(structure)}"
+            raise AutoCatFeaturizationError(msg)
+        # if no adsorbate featurizer, makes placeholder dict for each loop
+        if adsorbate_featurizer is None:
+            adsorbate_indices_dictionary = {name: None}
         cat_feat = catalyst_featurization(
             ase_struct,
             adsorbate_indices=adsorbate_indices_dictionary[name],
@@ -174,8 +200,9 @@ def get_X(
 
 def catalyst_featurization(
     structure: Atoms,
-    adsorbate_indices: List[int],
+    adsorbate_indices: List[int] = None,
     structure_featurizer: str = "sine_matrix",
+    elementalproperty_preset: str = "magpie",
     adsorbate_featurizer: str = "soap",
     maximum_structure_size: int = None,
     maximum_adsorbate_size: int = None,
@@ -199,7 +226,8 @@ def catalyst_featurization(
 
     adsorbate_indices:
         List of atomic indices specifying the adsorbate to be
-        featurized
+        featurized.
+        Only necessary if adsorbate featurization is specified
 
     structure_featurizer:
         String giving featurizer to be used for full structure which will be
@@ -233,12 +261,16 @@ def catalyst_featurization(
             structure,
             featurizer=structure_featurizer,
             maximum_structure_size=maximum_structure_size,
+            elementalproperty_preset=elementalproperty_preset,
             **structure_featurization_kwargs,
         )
     else:
         struct_feat = np.array([])
 
     if adsorbate_featurizer is not None:
+        if adsorbate_indices is None:
+            msg = "For adsorbate featurization, adsorbate indices must be specified"
+            raise AutoCatFeaturizationError(msg)
         ads_feat = adsorbate_featurization(
             structure,
             featurizer=adsorbate_featurizer,

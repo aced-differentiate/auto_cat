@@ -182,6 +182,33 @@ def test_get_X_concatenation():
         featurizer="soap", rcut=5.0, nmax=8, lmax=6, species=species_list
     )
     assert X.shape == (len(structs), 50 ** 2 + 5 * num_of_adsorbate_features)
+    # Check for full structure featurization only
+    X = get_X(
+        structs,
+        structure_featurizer="elemental_property",
+        adsorbate_featurizer=None,
+        maximum_structure_size=50,
+        maximum_adsorbate_size=5,
+    )
+    assert X.shape == (len(structs), 132)
+    # Check for adsorbate featurization only
+    X = get_X(
+        structs,
+        structure_featurizer=None,
+        adsorbate_indices_dictionary={
+            structs[0].get_chemical_formula() + "_0": [-4, -3, -2, -1],
+            structs[1].get_chemical_formula() + "_1": [-2, -1],
+            structs[2].get_chemical_formula() + "_2": [-1],
+        },
+        maximum_structure_size=50,
+        maximum_adsorbate_size=5,
+        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
+    )
+    species_list = ["Pt", "Ru", "N", "C", "O", "H"]
+    num_of_adsorbate_features = _get_number_of_features(
+        featurizer="soap", rcut=5.0, nmax=8, lmax=6, species=species_list
+    )
+    assert X.shape == (len(structs), 5 * num_of_adsorbate_features)
 
 
 def test_get_X_write_location():

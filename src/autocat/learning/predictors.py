@@ -232,8 +232,8 @@ class AutoCatStructureCorrector:
     def fit(
         self,
         perturbed_structures: List[Union[Atoms, str]],
-        adsorbate_indices_dictionary: Dict[str, int],
         collected_matrices: np.ndarray,
+        adsorbate_indices_dictionary: Dict[str, int] = None,
     ):
         """
         Given a list of perturbed structures
@@ -302,7 +302,7 @@ class AutoCatStructureCorrector:
     def predict(
         self,
         initial_structure_guesses: List[Atoms],
-        adsorbate_indices_dictionary: Dict[str, int],
+        adsorbate_indices_dictionary: Dict[str, int] = None,
     ):
         """
         From a trained model, will predict corrected structure
