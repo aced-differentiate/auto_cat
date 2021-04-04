@@ -14,6 +14,7 @@ from dscribe.descriptors import ACSF
 from dscribe.descriptors import SOAP
 
 from matminer.featurizers.composition import ElementProperty
+from matminer.featurizers.site import ChemicalSRO
 
 # from autocat.io.qml import ase_atoms_to_qml_compound
 from autocat.adsorption import generate_rxn_structures
@@ -25,6 +26,7 @@ from autocat.learning.featurizers import _get_number_of_features
 from autocat.learning.featurizers import get_X
 
 from pymatgen.io.ase import AseAtomsAdaptor
+from pymatgen.analysis.local_env import VoronoiNN
 
 
 def test_full_structure_featurization_sine():
@@ -95,6 +97,32 @@ def test_adsorbate_featurization_soap():
     assert soap_feat.shape == (soap.get_number_of_features(),)
 
 
+def test_adsorbate_featurization_chemical_sro():
+    # Tests Chemical Short Range Ordering Featurization
+    surf = generate_surface_structures(["Li"])["Li"]["bcc100"]["structure"]
+    ads_struct = generate_rxn_structures(surf, ads=["OH"])["OH"]["ontop"]["0.0_0.0"][
+        "structure"
+    ]
+    csro_feat = adsorbate_featurization(
+        ads_struct,
+        [-2, -1],
+        featurizer="chemical_sro",
+        rcut=10.0,
+        species_list=["Li", "O", "H"],
+    )
+    assert csro_feat.shape == (6,)
+    species = ["Li", "O", "H"]
+    vnn = VoronoiNN(cutoff=10.0, allow_pathological=True)
+    csro = ChemicalSRO(vnn, includes=species)
+    conv = AseAtomsAdaptor()
+    pym_struct = conv.get_structure(ads_struct)
+    csro.fit([[pym_struct, -2], [pym_struct, -1]])
+    manual_feat = csro.featurize(pym_struct, -2)
+    print(csro.feature_labels())
+    manual_feat = np.concatenate((manual_feat, csro.featurize(pym_struct, -1)))
+    assert np.allclose(csro_feat, manual_feat)
+
+
 def test_adsorbate_featurization_padding():
     # Tests that padding is properly applied
     surf = generate_surface_structures(["Fe"])["Fe"]["bcc100"]["structure"]
@@ -120,6 +148,18 @@ def test_adsorbate_featurization_padding():
         maximum_adsorbate_size=10,
     )
     assert (soap_feat[-num_of_features * 8 :] == np.zeros(num_of_features * 8)).all()
+    csro_feat = adsorbate_featurization(
+        ads_struct,
+        [35, 36],
+        featurizer="chemical_sro",
+        rcut=10.0,
+        maximum_adsorbate_size=4,
+        species_list=["Fe", "H", "Li"],
+    )
+    assert csro_feat.shape == (12,)
+    assert (csro_feat[6:] == np.zeros(6)).all()
+    assert csro_feat[5] == 0.0
+    assert csro_feat[2] == 0.0
 
 
 def test_catalyst_featurization_concatentation():
@@ -139,7 +179,7 @@ def test_catalyst_featurization_concatentation():
     struct = sm.create(ads_struct).reshape(-1,)
     species = np.unique(ads_struct.get_chemical_symbols()).tolist()
     soap = SOAP(rcut=5.0, nmax=8, lmax=6, species=species)
-    ads = soap.create(ads_struct, [-1, -2]).reshape(-1,)
+    ads = soap.create(ads_struct, [-2, -1]).reshape(-1,)
     cat_ref = np.concatenate((struct, ads))
     assert np.allclose(cat, cat_ref)
     num_of_adsorbate_features = soap.get_number_of_features()
@@ -207,6 +247,22 @@ def test_get_X_concatenation():
     species_list = ["Pt", "Ru", "N", "C", "O", "H"]
     num_of_adsorbate_features = _get_number_of_features(
         featurizer="soap", rcut=5.0, nmax=8, lmax=6, species=species_list
+    )
+    assert X.shape == (len(structs), 5 * num_of_adsorbate_features)
+    X = get_X(
+        structs,
+        structure_featurizer=None,
+        adsorbate_featurizer="chemical_sro",
+        adsorbate_indices_dictionary={
+            structs[0].get_chemical_formula() + "_0": [-4, -3, -2, -1],
+            structs[1].get_chemical_formula() + "_1": [-2, -1],
+            structs[2].get_chemical_formula() + "_2": [-1],
+        },
+        maximum_adsorbate_size=5,
+        species_list=species_list,
+    )
+    num_of_adsorbate_features = _get_number_of_features(
+        featurizer="chemical_sro", rcut=5.0, species=species_list
     )
     assert X.shape == (len(structs), 5 * num_of_adsorbate_features)
 

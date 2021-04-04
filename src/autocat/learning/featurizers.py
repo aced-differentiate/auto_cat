@@ -5,6 +5,7 @@ from dscribe.descriptors import ACSF
 from dscribe.descriptors import SOAP
 
 from matminer.featurizers.composition import ElementProperty
+from matminer.featurizers.site import ChemicalSRO
 
 import tempfile
 import os
@@ -17,6 +18,7 @@ from typing import Union
 from ase import Atoms
 from ase.io import read
 from pymatgen.io.ase import AseAtomsAdaptor
+from pymatgen.analysis.local_env import VoronoiNN
 
 # from autocat.io.qml import ase_atoms_to_qml_compound
 
@@ -125,11 +127,19 @@ def get_X(
             msg = "For adsorbate featurization, adsorbate indices must be specified"
             raise AutoCatFeaturizationError(msg)
         # find number of adsorbate features
-        num_of_adsorbate_features = _get_number_of_features(
-            featurizer=adsorbate_featurizer,
-            species=species_list,
-            **adsorbate_featurization_kwargs,
-        )
+        if adsorbate_featurizer in ["soap", "acsf"]:
+            num_of_adsorbate_features = _get_number_of_features(
+                featurizer=adsorbate_featurizer,
+                species=species_list,
+                **adsorbate_featurization_kwargs,
+            )
+        else:
+            # chemical_sro
+            num_of_adsorbate_features = _get_number_of_features(
+                featurizer=adsorbate_featurizer,
+                species=species_list,
+                **adsorbate_featurization_kwargs,
+            )
 
     if structure_featurizer is not None:
         if structure_featurizer in ["sine_matrix", "coulomb_matrix"]:
@@ -310,7 +320,8 @@ def adsorbate_featurization(
 
     species_list:
         List of chemical species that should be covered by representation
-        which is fed into `dscribe.descriptors.{ACSF,SOAP}`
+        which is fed into `dscribe.descriptors.{ACSF,SOAP}` or
+        `ChemicalSRO.includes`
         (ie. any species expected to be encountered)
         Default: species present in `structure`
 
@@ -318,12 +329,14 @@ def adsorbate_featurization(
         String indicating featurizer to be used.
 
         Options:
-        acsf (default): atom centered symmetry functions
-        soap: smooth overlap of atomic positions
+        acsf: atom centered symmetry functions
+        soap (default): smooth overlap of atomic positions
+        chemical_sro: chemical short range ordering
 
     rcut:
         Float giving cutoff radius to be used when generating
-        representation.
+        representation. For chemical_sro, this is the cutoff used
+        for determining the nearest neighbors
         Default: 6 angstroms
 
     maximum_adsorbate_size:
@@ -340,6 +353,9 @@ def adsorbate_featurization(
         Np.ndarray of adsorbate representation
 
     """
+    # Ensures that adsorbate indices specified are sorted
+    adsorbate_indices.sort()
+
     # Checks if species list given
     if species_list is None:
         species_list = np.unique(structure.get_chemical_symbols()).tolist()
@@ -362,6 +378,34 @@ def adsorbate_featurization(
             -1,
         )
         num_of_features = acsf.get_number_of_features()
+
+    elif featurizer == "chemical_sro":
+        # generate nn calculator
+        vnn = VoronoiNN(cutoff=rcut, allow_pathological=True)
+        csro = ChemicalSRO(vnn, includes=species_list)
+        # convert ase structure to pymatgen
+        conv = AseAtomsAdaptor()
+        pym_struct = conv.get_structure(structure)
+        # format list for csro fitting (to get species)
+        formatted_list = [[pym_struct, idx] for idx in adsorbate_indices]
+        csro.fit(formatted_list)
+        # concatenate representation for each adsorbate atom
+        representation = np.array([])
+        for idx in adsorbate_indices:
+            raw_feat = csro.featurize(pym_struct, idx)
+            # csro only generates for species observed in fit
+            # as well as includes, so to be generalizable
+            # we use full species list and place values
+            # in the appropriate species location
+            labels = csro.feature_labels()
+            feat = np.zeros(len(species_list))
+            for i, label in enumerate(labels):
+                # finds where corresponding species is in full species list
+                lbl_idx = np.where(np.array(species_list) == label.split("_")[1])
+                feat[lbl_idx] = raw_feat[i]
+            representation = np.concatenate((representation, feat))
+        # number of features is number of species specified
+        num_of_features = len(species_list)
 
     else:
         raise NotImplementedError("selected featurizer not implemented")
@@ -458,7 +502,10 @@ def full_structure_featurization(
 
 
 def _get_number_of_features(
-    featurizer, elementalproperty_preset: str = "magpie", **kwargs
+    featurizer,
+    elementalproperty_preset: str = "magpie",
+    species: List[str] = None,
+    **kwargs,
 ):
     """
     Helper function to get number of features.
@@ -477,18 +524,20 @@ def _get_number_of_features(
     }
 
     supported_matminer_featurizers = {
-        "elemental_property": ElementProperty.from_preset(elementalproperty_preset)
+        "elemental_property": ElementProperty.from_preset(elementalproperty_preset),
+        "chemical_sro": None,
     }
 
     if featurizer in supported_dscribe_featurizers:
-        feat = supported_dscribe_featurizers[featurizer](**kwargs)
+        feat = supported_dscribe_featurizers[featurizer](species=species, **kwargs)
         return feat.get_number_of_features()
 
     elif featurizer in supported_matminer_featurizers:
-        # included for if other matminer featurizers implemented
         if featurizer == "elemental_property":
             ep = supported_matminer_featurizers[featurizer]
             return len(ep.features) * len(ep.stats)
+        elif featurizer == "chemical_sro":
+            return len(species)
 
     else:
         raise NotImplementedError(
