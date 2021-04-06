@@ -15,6 +15,7 @@ from dscribe.descriptors import SOAP
 
 from matminer.featurizers.composition import ElementProperty
 from matminer.featurizers.site import ChemicalSRO
+from matminer.featurizers.site import OPSiteFingerprint
 
 # from autocat.io.qml import ase_atoms_to_qml_compound
 from autocat.adsorption import generate_rxn_structures
@@ -118,9 +119,28 @@ def test_adsorbate_featurization_chemical_sro():
     pym_struct = conv.get_structure(ads_struct)
     csro.fit([[pym_struct, -2], [pym_struct, -1]])
     manual_feat = csro.featurize(pym_struct, -2)
-    print(csro.feature_labels())
     manual_feat = np.concatenate((manual_feat, csro.featurize(pym_struct, -1)))
     assert np.allclose(csro_feat, manual_feat)
+
+
+def test_adsorbate_featurization_op_sitefingerprint():
+    # Test Order Parameter Site Fingerprints
+    surf = generate_surface_structures(["Au"])["Au"]["fcc100"]["structure"]
+    ads_struct = generate_rxn_structures(surf, ads=["NH"])["NH"]["ontop"]["0.0_0.0"][
+        "structure"
+    ]
+    opsf_feat = adsorbate_featurization(
+        ads_struct, [-1, -2], featurizer="op_sitefingerprint", maximum_adsorbate_size=4
+    )
+    opsf = OPSiteFingerprint()
+    conv = AseAtomsAdaptor()
+    pym_struct = conv.get_structure(ads_struct)
+    manual_feat = opsf.featurize(pym_struct, -2)
+    manual_feat = np.concatenate((manual_feat, opsf.featurize(pym_struct, -1)))
+    manual_feat = np.concatenate(
+        (manual_feat, np.zeros(2 * len(opsf.feature_labels())))
+    )
+    assert np.allclose(opsf_feat, manual_feat)
 
 
 def test_adsorbate_featurization_padding():
@@ -264,6 +284,20 @@ def test_get_X_concatenation():
     num_of_adsorbate_features = _get_number_of_features(
         featurizer="chemical_sro", rcut=5.0, species=species_list
     )
+    assert X.shape == (len(structs), 5 * num_of_adsorbate_features)
+    X = get_X(
+        structs,
+        structure_featurizer=None,
+        adsorbate_featurizer="op_sitefingerprint",
+        adsorbate_indices_dictionary={
+            structs[0].get_chemical_formula() + "_0": [-4, -3, -2, -1],
+            structs[1].get_chemical_formula() + "_1": [-2, -1],
+            structs[2].get_chemical_formula() + "_2": [-1],
+        },
+        maximum_adsorbate_size=5,
+        species_list=species_list,
+    )
+    num_of_adsorbate_features = _get_number_of_features(featurizer="op_sitefingerprint")
     assert X.shape == (len(structs), 5 * num_of_adsorbate_features)
 
 

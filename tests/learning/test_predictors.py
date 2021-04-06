@@ -82,7 +82,7 @@ def test_predict_initial_configuration_formats():
         },
         collected_matrices=collected_matrices[:15, :],
     )
-    predicted_correction_matrix, corrected_structures = acsc.predict(
+    predicted_correction_matrix, corrected_structures, _ = acsc.predict(
         p_structures[15:],
         adsorbate_indices_dictionary={
             base_struct.get_chemical_formula() + "_" + str(i): [-1, -2]
@@ -104,6 +104,6 @@ def test_predict_initial_configuration_formats():
 def test_model_class():
     # Tests providing regression model class
     acsc = AutoCatStructureCorrector(KernelRidge, model_kwargs={"gamma": 0.5})
-    assert isinstance(acsc._regressor, KernelRidge)
+    assert isinstance(acsc.regressor, KernelRidge)
     acsc.model_class = GaussianProcessRegressor
     assert acsc.model_kwargs is None

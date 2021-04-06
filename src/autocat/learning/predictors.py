@@ -70,7 +70,7 @@ class AutoCatStructureCorrector:
         self._model_kwargs = None
         self.model_kwargs = model_kwargs
 
-        self._regressor = self.model_class(self.model_kwargs)
+        self.regressor = self.model_class(self.model_kwargs)
 
         self._structure_featurizer = None
         self.structure_featurizer = structure_featurizer
@@ -275,7 +275,7 @@ class AutoCatStructureCorrector:
             adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
         )
 
-        self._regressor.fit(X, collected_matrices)
+        self.regressor.fit(X, collected_matrices)
 
         if self.maximum_structure_size is None:
             self.maximum_structure_size = max([len(s) for s in perturbed_structures])
@@ -344,7 +344,9 @@ class AutoCatStructureCorrector:
             adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
         )
 
-        predicted_correction_matrix = self._regressor.predict(featurized_input)
+        predicted_correction_matrix, unc = self.regressor.predict(
+            featurized_input, return_std=True
+        )
 
         corrected_structures = [
             init_struct.copy() for init_struct in initial_structure_guesses
@@ -363,4 +365,4 @@ class AutoCatStructureCorrector:
             cs.positions[list_of_adsorbate_indices] += corr
             corrected_structures.append(cs)
 
-        return predicted_correction_matrix, corrected_structures
+        return predicted_correction_matrix, corrected_structures, unc

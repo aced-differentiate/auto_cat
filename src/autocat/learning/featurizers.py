@@ -6,6 +6,7 @@ from dscribe.descriptors import SOAP
 
 from matminer.featurizers.composition import ElementProperty
 from matminer.featurizers.site import ChemicalSRO
+from matminer.featurizers.site import OPSiteFingerprint
 
 import tempfile
 import os
@@ -332,6 +333,7 @@ def adsorbate_featurization(
         acsf: atom centered symmetry functions
         soap (default): smooth overlap of atomic positions
         chemical_sro: chemical short range ordering
+        op_sitefingerprint: order parameter site fingerprint
 
     rcut:
         Float giving cutoff radius to be used when generating
@@ -406,6 +408,16 @@ def adsorbate_featurization(
             representation = np.concatenate((representation, feat))
         # number of features is number of species specified
         num_of_features = len(species_list)
+
+    elif featurizer == "op_sitefingerprint":
+        opsf = OPSiteFingerprint(**kwargs)
+        conv = AseAtomsAdaptor()
+        pym_struct = conv.get_structure(structure)
+        representation = np.array([])
+        for idx in adsorbate_indices:
+            feat = opsf.featurize(pym_struct, idx)
+            representation = np.concatenate((representation, feat))
+        num_of_features = len(opsf.feature_labels())
 
     else:
         raise NotImplementedError("selected featurizer not implemented")
@@ -526,6 +538,7 @@ def _get_number_of_features(
     supported_matminer_featurizers = {
         "elemental_property": ElementProperty.from_preset(elementalproperty_preset),
         "chemical_sro": None,
+        "op_sitefingerprint": OPSiteFingerprint,
     }
 
     if featurizer in supported_dscribe_featurizers:
@@ -538,6 +551,9 @@ def _get_number_of_features(
             return len(ep.features) * len(ep.stats)
         elif featurizer == "chemical_sro":
             return len(species)
+        elif featurizer == "op_sitefingerprint":
+            opsf = supported_matminer_featurizers[featurizer](**kwargs)
+            return len(opsf.feature_labels())
 
     else:
         raise NotImplementedError(
