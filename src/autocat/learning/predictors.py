@@ -81,7 +81,7 @@ class AutoCatStructureCorrector:
         self._structure_featurization_kwargs = None
         self.structure_featurization_kwargs = structure_featurization_kwargs
 
-        self._adsorbate_featurization_kwargs = {"rcut": 3.0, "nmax": 4, "lmax": 4}
+        self._adsorbate_featurization_kwargs = None
         self.adsorbate_featurization_kwargs = adsorbate_featurization_kwargs
 
         self._maximum_structure_size = None
