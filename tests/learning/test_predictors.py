@@ -101,9 +101,17 @@ def test_predict_initial_configuration_formats():
     assert np.allclose(manual.positions, corrected_structures[0].positions)
 
 
-def test_model_class():
-    # Tests providing regression model class
+def test_model_class_and_kwargs():
+    # Tests providing regression model class and kwargs
     acsc = AutoCatStructureCorrector(KernelRidge, model_kwargs={"gamma": 0.5})
     assert isinstance(acsc.regressor, KernelRidge)
+    # check that regressor created with correct kwarg
+    assert acsc.regressor.gamma == 0.5
+    assert acsc.model_kwargs == {"gamma": 0.5}
     acsc.model_class = GaussianProcessRegressor
+    # check that kwargs are removed when class is changed
     assert acsc.model_kwargs is None
+    acsc = AutoCatStructureCorrector()
+    acsc.model_kwargs = {"alpha": 2.5}
+    assert acsc.model_kwargs == {"alpha": 2.5}
+    assert acsc.regressor.alpha == 2.5

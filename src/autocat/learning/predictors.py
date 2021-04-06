@@ -70,7 +70,7 @@ class AutoCatStructureCorrector:
         self._model_kwargs = None
         self.model_kwargs = model_kwargs
 
-        self.regressor = self.model_class(self.model_kwargs)
+        self.regressor = self.model_class(**self.model_kwargs or {})
 
         self._structure_featurizer = None
         self.structure_featurizer = structure_featurizer
@@ -102,9 +102,12 @@ class AutoCatStructureCorrector:
         if model_class is not None:
             self._model_class = model_class
             # removes any model kwargs from previous model
+            # if changed
             self._model_kwargs = None
             if self.is_fit:
                 self.is_fit = False
+            # generates new regressor with default settings
+            self.regressor = self._model_class()
 
     @property
     def model_kwargs(self):
@@ -113,11 +116,10 @@ class AutoCatStructureCorrector:
     @model_kwargs.setter
     def model_kwargs(self, model_kwargs):
         if model_kwargs is not None:
-            assert isinstance(model_kwargs, dict)
-            if self._model_kwargs is not None:
-                self._model_kwargs = model_kwargs
+            self._model_kwargs = model_kwargs
             if self.is_fit:
                 self.is_fit = False
+            self.regressor = self.model_class(**model_kwargs)
 
     @property
     def structure_featurizer(self):
