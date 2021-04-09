@@ -22,6 +22,7 @@ class AutoCatStructureCorrector:
         maximum_structure_size: int = None,
         maximum_adsorbate_size: int = None,
         species_list: List[str] = None,
+        refine_structures: bool = None,
         structure_featurization_kwargs: Dict = None,
         adsorbate_featurization_kwargs: Dict = None,
         model_kwargs: Dict = None,
@@ -61,6 +62,11 @@ class AutoCatStructureCorrector:
             List of species that could be encountered for featurization.
             Default: Parses over all `structures` and collects all encountered species
 
+        refine_structures:
+            Bool indicating whether the structures should be refined to include
+            only the adsorbate and surface layer. Requires tags for all structures
+            to have adsorbate atoms and surface atoms as 0 and 1, respectively
+
         """
         self.is_fit = False
 
@@ -71,6 +77,9 @@ class AutoCatStructureCorrector:
         self.model_kwargs = model_kwargs
 
         self.regressor = self.model_class(**self.model_kwargs or {})
+
+        self._refine_structures = True
+        self.refine_structures = refine_structures
 
         self._structure_featurizer = None
         self.structure_featurizer = structure_featurizer
@@ -120,6 +129,17 @@ class AutoCatStructureCorrector:
             if self.is_fit:
                 self.is_fit = False
             self.regressor = self.model_class(**model_kwargs)
+
+    @property
+    def refine_structures(self):
+        return self._refine_structures
+
+    @refine_structures.setter
+    def refine_structures(self, refine_structures):
+        if refine_structures is not None:
+            self._refine_structures = refine_structures
+            if self.is_fit:
+                self.is_fit = False
 
     @property
     def structure_featurizer(self):
@@ -273,6 +293,7 @@ class AutoCatStructureCorrector:
             maximum_adsorbate_size=self.maximum_adsorbate_size,
             adsorbate_featurizer=self.adsorbate_featurizer,
             species_list=self.species_list,
+            refine_structures=self.refine_structures,
             structure_featurization_kwargs=self.structure_featurization_kwargs,
             adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
         )
@@ -280,7 +301,16 @@ class AutoCatStructureCorrector:
         self.regressor.fit(X, collected_matrices)
 
         if self.maximum_structure_size is None:
-            self.maximum_structure_size = max([len(s) for s in perturbed_structures])
+            if self.refine_structures:
+                ref_structures = [
+                    structure[np.where(structure.get_tags() < 2)[0].tolist()]
+                    for structure in perturbed_structures
+                ]
+                self.maximum_structure_size = max([len(ref) for ref in ref_structures])
+            else:
+                self.maximum_structure_size = max(
+                    [len(s) for s in perturbed_structures]
+                )
 
         if self.maximum_adsorbate_size is None:
             self.maximum_adsorbate_size = max(

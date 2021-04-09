@@ -82,7 +82,7 @@ def test_predict_initial_configuration_formats():
         },
         collected_matrices=collected_matrices[:15, :],
     )
-    predicted_correction_matrix, corrected_structures, _ = acsc.predict(
+    predicted_correction_matrix, corrected_structures, uncs = acsc.predict(
         p_structures[15:],
         adsorbate_indices_dictionary={
             base_struct.get_chemical_formula() + "_" + str(i): [-1, -2]
@@ -91,6 +91,9 @@ def test_predict_initial_configuration_formats():
     )
     assert isinstance(corrected_structures[0], Atoms)
     assert len(corrected_structures) == 5
+    # check that even with refining, corrected structure is
+    # returned to full size
+    assert len(corrected_structures[2]) == len(p_structures[17])
     assert isinstance(predicted_correction_matrix, np.ndarray)
     assert predicted_correction_matrix.shape[0] == 5
     # check that predicted correction matrix is applied correctly
@@ -99,6 +102,8 @@ def test_predict_initial_configuration_formats():
     manual.positions[-1] += manual_corr_mat[-1]
     manual.positions[-2] += manual_corr_mat[-2]
     assert np.allclose(manual.positions, corrected_structures[0].positions)
+    # check dimension of uncertainty estimates
+    assert len(uncs) == 5
 
 
 def test_model_class_and_kwargs():

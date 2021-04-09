@@ -33,18 +33,26 @@ from pymatgen.analysis.local_env import VoronoiNN
 def test_full_structure_featurization_sine():
     # Tests Sine Matrix Generation
     surf = generate_surface_structures(["Fe"])["Fe"]["bcc100"]["structure"]
-    sine_matrix = full_structure_featurization(surf)
+    sine_matrix = full_structure_featurization(surf, refine_structure=False)
     sm = SineMatrix(n_atoms_max=len(surf), permutation="none")
     assert np.allclose(sine_matrix, sm.create(surf))
     # Check padding
     sine_matrix = full_structure_featurization(surf, maximum_structure_size=40)
     assert sine_matrix.shape == (1600,)
+    # Check refined structure
+    sine_matrix = full_structure_featurization(surf, refine_structure=True)
+    surf = surf[np.where(surf.get_tags() < 2)[0].tolist()]
+    sm = SineMatrix(n_atoms_max=len(surf), permutation="none")
+    assert np.allclose(sine_matrix, sm.create(surf))
+    assert sine_matrix.shape == (len(surf) ** 2,)
 
 
 def test_full_structure_featurization_coulomb():
     # Tests Coulomb Matrix Generation
     surf = generate_surface_structures(["Pt"])["Pt"]["fcc100"]["structure"]
-    coulomb_matrix = full_structure_featurization(surf, featurizer="coulomb_matrix")
+    coulomb_matrix = full_structure_featurization(
+        surf, featurizer="coulomb_matrix", refine_structure=False
+    )
     cm = CoulombMatrix(n_atoms_max=len(surf), permutation="none")
     assert np.allclose(coulomb_matrix, cm.create(surf))
     # Check padding
@@ -77,7 +85,9 @@ def test_adsorbate_featurization_acsf():
     ads_struct = generate_rxn_structures(surf, ads=["H"])["H"]["ontop"]["0.0_0.0"][
         "structure"
     ]
-    acsf_feat = adsorbate_featurization(ads_struct, [36], featurizer="acsf")
+    acsf_feat = adsorbate_featurization(
+        ads_struct, [36], featurizer="acsf", refine_structure=False
+    )
     species = np.unique(ads_struct.get_chemical_symbols()).tolist()
     acsf = ACSF(rcut=6.0, species=species)
     assert np.allclose(acsf_feat, acsf.create(ads_struct, [36]))
@@ -92,6 +102,7 @@ def test_adsorbate_featurization_soap():
     soap_feat = adsorbate_featurization(
         ads_struct, [-1], featurizer="soap", nmax=8, lmax=6
     )
+    ads_struct = ads_struct[np.where(ads_struct.get_tags() < 2)[0].tolist()]
     species = np.unique(ads_struct.get_chemical_symbols()).tolist()
     soap = SOAP(rcut=6.0, species=species, nmax=8, lmax=6)
     assert np.allclose(soap_feat, soap.create(ads_struct, [-1]))
@@ -110,6 +121,7 @@ def test_adsorbate_featurization_chemical_sro():
         featurizer="chemical_sro",
         rcut=10.0,
         species_list=["Li", "O", "H"],
+        refine_structure=False,
     )
     assert csro_feat.shape == (6,)
     species = ["Li", "O", "H"]
@@ -130,7 +142,11 @@ def test_adsorbate_featurization_op_sitefingerprint():
         "structure"
     ]
     opsf_feat = adsorbate_featurization(
-        ads_struct, [-1, -2], featurizer="op_sitefingerprint", maximum_adsorbate_size=4
+        ads_struct,
+        [-1, -2],
+        featurizer="op_sitefingerprint",
+        maximum_adsorbate_size=4,
+        refine_structure=False,
     )
     opsf = OPSiteFingerprint()
     conv = AseAtomsAdaptor()
@@ -194,6 +210,7 @@ def test_catalyst_featurization_concatentation():
         [-1, -2],
         maximum_structure_size=40,
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
+        refine_structure=False,
     )
     sm = SineMatrix(n_atoms_max=40, permutation="none")
     struct = sm.create(ads_struct).reshape(-1,)
@@ -204,6 +221,16 @@ def test_catalyst_featurization_concatentation():
     assert np.allclose(cat, cat_ref)
     num_of_adsorbate_features = soap.get_number_of_features()
     assert len(cat) == 40 ** 2 + num_of_adsorbate_features * 2
+    # Check with structure refining
+    cat = catalyst_featurization(
+        ads_struct,
+        [-1, -2],
+        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
+    )
+    ref_ads_struct = ads_struct[np.where(ads_struct.get_tags() < 2)[0].tolist()]
+    sm = SineMatrix(n_atoms_max=len(ref_ads_struct), permutation="none")
+    num_of_adsorbate_features = soap.get_number_of_features()
+    assert len(cat) == len(ref_ads_struct) ** 2 + num_of_adsorbate_features * 2
 
 
 def test_get_X_concatenation():

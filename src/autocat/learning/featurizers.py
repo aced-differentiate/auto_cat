@@ -37,6 +37,7 @@ def get_X(
     maximum_adsorbate_size: int = None,
     adsorbate_featurizer: str = "soap",
     species_list: List[str] = None,
+    refine_structures: bool = True,
     structure_featurization_kwargs: Dict[str, float] = None,
     adsorbate_featurization_kwargs: Dict[str, float] = None,
     write_to_disk: bool = False,
@@ -81,6 +82,11 @@ def get_X(
         List of species that could be encountered for featurization.
         Default: Parses over all `structures` and collects all encountered species
 
+    refine_structures:
+        Bool indicating whether the structures should be refined to include
+        only the adsorbate and surface layer. Requires tags for all structures
+        to have adsorbate atoms and surface atoms as 0 and 1, respectively
+
     structure_featurization_kwargs:
         kwargs to be fed into `full_structure_featurization`
 
@@ -102,7 +108,14 @@ def get_X(
         Shape is (# of structures, maximum_structure_size + maximum_adsorbate_size * # of adsorbates)
     """
     if maximum_structure_size is None:
-        maximum_structure_size = max([len(s) for s in structures])
+        if refine_structures:
+            ref_structures = [
+                structure[np.where(structure.get_tags() < 2)[0].tolist()]
+                for structure in structures
+            ]
+            maximum_structure_size = max([len(ref) for ref in ref_structures])
+        else:
+            maximum_structure_size = max([len(s) for s in structures])
 
     if maximum_adsorbate_size is None:
         maximum_adsorbate_size = max(
@@ -193,6 +206,7 @@ def get_X(
             maximum_structure_size=maximum_structure_size,
             maximum_adsorbate_size=maximum_adsorbate_size,
             species_list=species_list,
+            refine_structure=refine_structures,
             structure_featurization_kwargs=structure_featurization_kwargs,
             adsorbate_featurization_kwargs=adsorbate_featurization_kwargs,
         )
@@ -220,6 +234,7 @@ def catalyst_featurization(
     species_list: List[str] = None,
     structure_featurization_kwargs: Dict[str, float] = None,
     adsorbate_featurization_kwargs: Dict[str, float] = None,
+    refine_structure: bool = True,
 ):
     """
     Featurizes a system containing an adsorbate + substrate
@@ -254,6 +269,11 @@ def catalyst_featurization(
     adsorbate_featurization_kwargs:
         kwargs to be fed into `adsorbate_featurization`
 
+    refine_structure:
+        Bool indicating whether the structure should be refined to include
+        only the adsorbate and surface layer. Requires tags for the structure
+        to have adsorbate atoms and surface atoms as 0 and 1, respectivel
+
     Returns
     -------
 
@@ -273,6 +293,7 @@ def catalyst_featurization(
             featurizer=structure_featurizer,
             maximum_structure_size=maximum_structure_size,
             elementalproperty_preset=elementalproperty_preset,
+            refine_structure=refine_structure,
             **structure_featurization_kwargs,
         )
     else:
@@ -288,6 +309,7 @@ def catalyst_featurization(
             adsorbate_indices=adsorbate_indices,
             species_list=species_list,
             maximum_adsorbate_size=maximum_adsorbate_size,
+            refine_structure=refine_structure,
             **adsorbate_featurization_kwargs,
         )
     else:
@@ -303,6 +325,7 @@ def adsorbate_featurization(
     featurizer: str = "soap",
     rcut: float = 6.0,
     maximum_adsorbate_size: int = None,
+    refine_structure: bool = True,
     **kwargs,
 ):
     """
@@ -348,6 +371,11 @@ def adsorbate_featurization(
         `adsorbate_indices`, representation will remain size of the adsorbate.
         Default: size of adsorbate provided
 
+    refine_structure:
+        Bool indicating whether the structure should be refined to include
+        only the adsorbate and surface layer. Requires tags for the structure
+        to have adsorbate atoms and surface atoms as 0 and 1, respectivel
+
     Returns
     -------
 
@@ -357,6 +385,19 @@ def adsorbate_featurization(
     """
     # Ensures that adsorbate indices specified are sorted
     adsorbate_indices.sort()
+
+    if refine_structure:
+        new_indices = np.where(structure.get_tags() < 2)[0].tolist()
+        # update the adsorbate indices for refined structure
+        new_adsorbate_indices = []
+        for ads_idx in adsorbate_indices:
+            # wraps index
+            if ads_idx < 0:
+                ads_idx = len(structure) + ads_idx
+            new_adsorbate_indices.append(new_indices.index(ads_idx))
+        adsorbate_indices = new_adsorbate_indices
+        # refine the structure
+        structure = structure[new_indices]
 
     # Checks if species list given
     if species_list is None:
@@ -437,6 +478,7 @@ def full_structure_featurization(
     permutation: str = "none",
     elementalproperty_preset: str = "magpie",
     n_jobs: int = 1,
+    refine_structure: bool = True,
     **kwargs,
 ):
     """
@@ -480,12 +522,21 @@ def full_structure_featurization(
         Int specifiying number of parallel jobs to run which is fed into `dscribe`
         featurizers (ie. sine_matrix, coulomb_matrix)
 
+    refine_structure:
+        Bool indicating whether the structure should be refined to include
+        only the adsorbate and surface layer. Requires tags for the structure
+        to have adsorbate atoms and surface atoms as 0 and 1, respectively
+
     Returns
     -------
 
     representation:
         Np.ndarray of structure representation
     """
+
+    if refine_structure:
+        structure = structure[np.where(structure.get_tags() < 2)[0].tolist()]
+
     if maximum_structure_size is None:
         maximum_structure_size = len(structure)
 
