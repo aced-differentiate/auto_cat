@@ -23,13 +23,7 @@ def test_fit_model_on_perturbed_systems():
         "structure"
     ]
     base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
-    p_set = generate_perturbed_dataset(
-        [base_struct],
-        atom_indices_to_perturb_dictionary={
-            base_struct.get_chemical_formula() + "_0": [-1, -2]
-        },
-        num_of_perturbations=15,
-    )
+    p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=15,)
     p_structures = p_set["collected_structures"]
     collected_matrices = p_set["collected_matrices"]
     acsc = AutoCatStructureCorrector(
@@ -60,13 +54,7 @@ def test_predict_initial_configuration_formats():
         "structure"
     ]
     base_struct = place_adsorbate(sub, "CO")["custom"]["structure"]
-    p_set = generate_perturbed_dataset(
-        [base_struct],
-        atom_indices_to_perturb_dictionary={
-            base_struct.get_chemical_formula() + "_0": [-1, -2]
-        },
-        num_of_perturbations=20,
-    )
+    p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
     p_structures = p_set["collected_structures"]
     collected_matrices = p_set["collected_matrices"]
     acsc = AutoCatStructureCorrector(

@@ -14,10 +14,8 @@ class AutocatPerturbationError(Exception):
 
 def generate_perturbed_dataset(
     base_structures: List[Atoms],
-    atom_indices_to_perturb_dictionary: Dict[Union[str, Atoms], List[int]],
     minimum_perturbation_distance: float = 0.1,
     maximum_perturbation_distance: float = 1.0,
-    directions_dictionary: Dict[Union[str, Atoms], List[bool]] = None,
     maximum_adsorbate_size: int = None,
     num_of_perturbations: int = 10,
     write_to_disk: bool = False,
@@ -30,6 +28,15 @@ def generate_perturbed_dataset(
     a base list of structures and keeps track of displacement
     vectors
 
+    Atoms to be perturbed are specified by their `tag`.
+    The options for constraints are also set using
+    `tag`s with the options as follows:
+     0: free in all directions
+    -1: free in z only
+    -2: free in xy only
+    -3: free in x only
+    -4: free in y only
+
     Parameters
     ----------
 
@@ -38,13 +45,6 @@ def generate_perturbed_dataset(
         as a strings specifying the base structures to be
         perturbed
 
-    atom_indices_to_perturb_dictionary:
-        Dictionary of list of atomic indices for the atoms that should
-        be perturbed. Keys are each of the provided base structures.
-        If an ase.Atoms object is given in `base_structures`, its corresponding
-        key here should be:
-        f"{base_structure.get_chemical_formula()}_{index_in_`base_structures`}"
-
     minimum_perturbation_distance:
         Float of minimum acceptable perturbation distance
         Default: 0.1 Angstrom
@@ -52,14 +52,6 @@ def generate_perturbed_dataset(
     maximum_perturbation_distance:
         Float of maximum acceptable perturbation distance
         Default: 1.0 Angstrom
-
-    directions_dictionary:
-        Dictionary of List of bools indicating which cartesian directions
-        the atoms are allowed to be perturbed in for each `base_structure`.
-        If an ase.Atoms object is given in `base_structures`, its corresponding
-        key here should be:
-        f"{base_structure.get_chemical_formula()}_{index_in_`base_structures`}"
-        Default: free to perturb in all cartesian directions
 
     maximum_adsorbate_size:
         Integer giving the largest number of atoms in an adsorbate
@@ -98,9 +90,6 @@ def generate_perturbed_dataset(
 
     perturbed_dict = {}
 
-    if directions_dictionary is None:
-        directions_dictionary = {}
-
     collected_matrices = []
     collected_structure_paths = []
     collected_structures = []
@@ -120,19 +109,13 @@ def generate_perturbed_dataset(
             msg = f"Multiple input base structures named {name}"
             raise AutocatPerturbationError(msg)
 
-        # assigns default of free to perturb in all directions if needed
-        if name not in directions_dictionary:
-            directions_dictionary[name] = None
-
         # apply perturbations
         perturbed_dict[name] = {}
         for i in range(num_of_perturbations):
             perturbed_dict[name][str(i)] = perturb_structure(
                 structure,
-                atom_indices_to_perturb=atom_indices_to_perturb_dictionary[name],
                 minimum_perturbation_distance=minimum_perturbation_distance,
                 maximum_perturbation_distance=maximum_perturbation_distance,
-                directions=directions_dictionary[name],
             )
             # keeps flattened atomic coordinates difference vector
             collected_matrices.append(
@@ -173,12 +156,10 @@ def generate_perturbed_dataset(
 
     if maximum_adsorbate_size is None:
         # find flattened length of largest structure
-        largest_size = 3 * max(
-            [
-                len(atom_indices_to_perturb_dictionary[i])
-                for i in atom_indices_to_perturb_dictionary
-            ]
-        )
+        adsorbate_sizes = []
+        for struct in base_structures:
+            adsorbate_sizes.append(len(np.where(struct.get_tags() <= 0)[0]))
+        largest_size = 3 * max(adsorbate_sizes)
     else:
         # factor of 3 from flattening (ie. x,y,z)
         largest_size = 3 * maximum_adsorbate_size
@@ -214,15 +195,22 @@ def generate_perturbed_dataset(
 
 def perturb_structure(
     base_structure: Union[str, Atoms],
-    atom_indices_to_perturb: List[int],
     minimum_perturbation_distance: float = 0.1,
     maximum_perturbation_distance: float = 1.0,
-    directions: List[bool] = None,
 ):
     """
 
     Perturbs specific atoms in a given structure and keeps
     track of the displacement vectors of each displaced atom
+
+    Atoms to be perturbed are specified by their `tag`.
+    The options for constraints are also set using
+    `tag`s with the options as follows:
+     0: free in all directions
+    -1: free in z only
+    -2: free in xy only
+    -3: free in x only
+    -4: free in y only
 
     Parameters
     ----------
@@ -232,10 +220,6 @@ def perturb_structure(
         as a string specifying the base structure to be
         perturbed
 
-    atom_indices_to_perturb:
-        List of atomic indices for the atoms that should
-        be perturbed
-
     minimum_perturbation_distance:
         Float of minimum acceptable perturbation distance
         Default: 0.1 Angstrom
@@ -243,11 +227,6 @@ def perturb_structure(
     maximum_perturbation_distance:
         Float of maximum acceptable perturbation distance
         Default: 1.0 Angstrom
-
-    directions:
-        List of bools indicating which cartesian directions
-        the atoms are allowed to be perturbed in
-        Default: free to perturb in all cartesian directions
 
     Returns
     -------
@@ -263,21 +242,24 @@ def perturb_structure(
     else:
         raise TypeError("base_structure needs to be either a str or ase.Atoms object")
 
-    if directions is None:
-        constr = [True, True, True]
-    else:
-        constr = directions
-
     pert_matrix = np.zeros(ase_obj.positions.shape)
 
-    atom_indices_to_perturb.sort()
+    atom_indices_to_perturb = np.where(ase_obj.get_tags() <= 0)[0].tolist()
+
+    constr = [
+        [True, True, True],  # free
+        [False, True, False],  # y only
+        [True, False, False],  # x only
+        [True, True, False],  # xy only
+        [False, False, True],  # z only
+    ]
 
     for idx in atom_indices_to_perturb:
         # randomize +/- direction of each perturbation
         signs = np.array([-1, -1, -1]) ** np.random.randint(low=1, high=11, size=(1, 3))
         # generate perturbation matrix
         pert_matrix[idx, :] = (
-            constr
+            constr[ase_obj[idx].tag]
             * signs
             * np.random.uniform(
                 low=minimum_perturbation_distance,
