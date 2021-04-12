@@ -86,7 +86,7 @@ def test_adsorbate_featurization_acsf():
         "structure"
     ]
     acsf_feat = adsorbate_featurization(
-        ads_struct, [36], featurizer="acsf", refine_structure=False
+        ads_struct, featurizer="acsf", refine_structure=False
     )
     species = np.unique(ads_struct.get_chemical_symbols()).tolist()
     acsf = ACSF(rcut=6.0, species=species)
@@ -99,13 +99,11 @@ def test_adsorbate_featurization_soap():
     ads_struct = generate_rxn_structures(surf, ads=["H"])["H"]["ontop"]["0.0_0.0"][
         "structure"
     ]
-    soap_feat = adsorbate_featurization(
-        ads_struct, [-1], featurizer="soap", nmax=8, lmax=6
-    )
+    soap_feat = adsorbate_featurization(ads_struct, featurizer="soap", nmax=8, lmax=6)
     ads_struct = ads_struct[np.where(ads_struct.get_tags() < 2)[0].tolist()]
     species = np.unique(ads_struct.get_chemical_symbols()).tolist()
     soap = SOAP(rcut=6.0, species=species, nmax=8, lmax=6)
-    assert np.allclose(soap_feat, soap.create(ads_struct, [-1]))
+    assert np.allclose(soap_feat, soap.create(ads_struct, positions=[-1]))
     assert soap_feat.shape == (soap.get_number_of_features(),)
 
 
@@ -117,7 +115,6 @@ def test_adsorbate_featurization_chemical_sro():
     ]
     csro_feat = adsorbate_featurization(
         ads_struct,
-        [-2, -1],
         featurizer="chemical_sro",
         rcut=10.0,
         species_list=["Li", "O", "H"],
@@ -143,7 +140,6 @@ def test_adsorbate_featurization_op_sitefingerprint():
     ]
     opsf_feat = adsorbate_featurization(
         ads_struct,
-        [-1, -2],
         featurizer="op_sitefingerprint",
         maximum_adsorbate_size=4,
         refine_structure=False,
@@ -166,7 +162,7 @@ def test_adsorbate_featurization_padding():
         "structure"
     ]
     soap_feat = adsorbate_featurization(
-        ads_struct, [36], featurizer="soap", nmax=8, lmax=6, maximum_adsorbate_size=10
+        ads_struct, featurizer="soap", nmax=8, lmax=6, maximum_adsorbate_size=10
     )
 
     species = np.unique(ads_struct.get_chemical_symbols()).tolist()
@@ -175,18 +171,13 @@ def test_adsorbate_featurization_padding():
     )
 
     assert (soap_feat[-num_of_features * 9 :] == np.zeros(num_of_features * 9)).all()
+    ads_struct[35].tag = 0
     soap_feat = adsorbate_featurization(
-        ads_struct,
-        [35, 36],
-        featurizer="soap",
-        nmax=8,
-        lmax=6,
-        maximum_adsorbate_size=10,
+        ads_struct, featurizer="soap", nmax=8, lmax=6, maximum_adsorbate_size=10,
     )
     assert (soap_feat[-num_of_features * 8 :] == np.zeros(num_of_features * 8)).all()
     csro_feat = adsorbate_featurization(
         ads_struct,
-        [35, 36],
         featurizer="chemical_sro",
         rcut=10.0,
         maximum_adsorbate_size=4,
@@ -207,7 +198,6 @@ def test_catalyst_featurization_concatentation():
     ]
     cat = catalyst_featurization(
         ads_struct,
-        [-1, -2],
         maximum_structure_size=40,
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
         refine_structure=False,
@@ -223,9 +213,7 @@ def test_catalyst_featurization_concatentation():
     assert len(cat) == 40 ** 2 + num_of_adsorbate_features * 2
     # Check with structure refining
     cat = catalyst_featurization(
-        ads_struct,
-        [-1, -2],
-        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
+        ads_struct, adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
     )
     ref_ads_struct = ads_struct[np.where(ads_struct.get_tags() < 2)[0].tolist()]
     sm = SineMatrix(n_atoms_max=len(ref_ads_struct), permutation="none")
@@ -255,11 +243,6 @@ def test_get_X_concatenation():
 
     X = get_X(
         structs,
-        adsorbate_indices_dictionary={
-            structs[0].get_chemical_formula() + "_0": [-4, -3, -2, -1],
-            structs[1].get_chemical_formula() + "_1": [-2, -1],
-            structs[2].get_chemical_formula() + "_2": [-1],
-        },
         maximum_structure_size=50,
         maximum_adsorbate_size=5,
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
@@ -282,11 +265,6 @@ def test_get_X_concatenation():
     X = get_X(
         structs,
         structure_featurizer=None,
-        adsorbate_indices_dictionary={
-            structs[0].get_chemical_formula() + "_0": [-4, -3, -2, -1],
-            structs[1].get_chemical_formula() + "_1": [-2, -1],
-            structs[2].get_chemical_formula() + "_2": [-1],
-        },
         maximum_structure_size=50,
         maximum_adsorbate_size=5,
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
@@ -300,11 +278,6 @@ def test_get_X_concatenation():
         structs,
         structure_featurizer=None,
         adsorbate_featurizer="chemical_sro",
-        adsorbate_indices_dictionary={
-            structs[0].get_chemical_formula() + "_0": [-4, -3, -2, -1],
-            structs[1].get_chemical_formula() + "_1": [-2, -1],
-            structs[2].get_chemical_formula() + "_2": [-1],
-        },
         maximum_adsorbate_size=5,
         species_list=species_list,
     )
@@ -316,11 +289,6 @@ def test_get_X_concatenation():
         structs,
         structure_featurizer=None,
         adsorbate_featurizer="op_sitefingerprint",
-        adsorbate_indices_dictionary={
-            structs[0].get_chemical_formula() + "_0": [-4, -3, -2, -1],
-            structs[1].get_chemical_formula() + "_1": [-2, -1],
-            structs[2].get_chemical_formula() + "_2": [-1],
-        },
         maximum_adsorbate_size=5,
         species_list=species_list,
     )
@@ -346,10 +314,6 @@ def test_get_X_write_location():
     _tmp_dir = tempfile.TemporaryDirectory().name
     X = get_X(
         structs,
-        adsorbate_indices_dictionary={
-            structs[0].get_chemical_formula() + "_0": [-4, -3, -2, -1],
-            structs[1].get_chemical_formula() + "_1": [-2, -1],
-        },
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
         write_to_disk=True,
         write_location=_tmp_dir,

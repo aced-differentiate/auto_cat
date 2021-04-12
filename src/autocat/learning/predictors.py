@@ -255,7 +255,6 @@ class AutoCatStructureCorrector:
         self,
         perturbed_structures: List[Union[Atoms, str]],
         collected_matrices: np.ndarray,
-        adsorbate_indices_dictionary: Dict[str, int] = None,
     ):
         """
         Given a list of perturbed structures
@@ -266,12 +265,6 @@ class AutoCatStructureCorrector:
 
         perturbed_structures:
             List of perturbed structures to be trained upon
-
-        adsorbate_indices_dictionary:
-            Dictionary mapping structures to desired adsorbate_indices
-            (N.B. if structure is given as an ase.Atoms object,
-            the key for this dictionary should be
-            f"{structure.get_chemical_formula()}_{index_in_`perturbed_structures`}")
 
         collected_matrices:
             Numpy array of collected matrices of perturbations corresponding to
@@ -287,7 +280,6 @@ class AutoCatStructureCorrector:
         """
         X = get_X(
             perturbed_structures,
-            adsorbate_indices_dictionary=adsorbate_indices_dictionary,
             maximum_structure_size=self.maximum_structure_size,
             structure_featurizer=self.structure_featurizer,
             maximum_adsorbate_size=self.maximum_adsorbate_size,
@@ -313,12 +305,12 @@ class AutoCatStructureCorrector:
                 )
 
         if self.maximum_adsorbate_size is None:
-            self.maximum_adsorbate_size = max(
-                [
-                    len(adsorbate_indices_dictionary[a])
-                    for a in adsorbate_indices_dictionary
-                ]
-            )
+            adsorbate_sizes = []
+            for struct in perturbed_structures:
+                adsorbate_sizes.append(
+                    len(np.where(struct.get_tags() <= 0)[0].tolist())
+                )
+            self.maximum_adsorbate_size = max(adsorbate_sizes)
 
         if self.species_list is None:
             species_list = []
@@ -332,9 +324,7 @@ class AutoCatStructureCorrector:
         self.is_fit = True
 
     def predict(
-        self,
-        initial_structure_guesses: List[Atoms],
-        adsorbate_indices_dictionary: Dict[str, int] = None,
+        self, initial_structure_guesses: List[Atoms],
     ):
         """
         From a trained model, will predict corrected structure
@@ -346,12 +336,6 @@ class AutoCatStructureCorrector:
         initial_structure_guesses:
             List of Atoms objects of initial guesses for adsorbate
             placement to be optimized
-
-        adsorbate_indices_dictionary:
-            Dictionary mapping structures to desired adsorbate_indices
-            (N.B. if structures is given as ase.Atoms objects,
-            the key for this dictionary should be
-            ase.Atoms.get_chemical_formula()+ "_" + str(index in list)
 
         Returns
         -------
@@ -366,7 +350,6 @@ class AutoCatStructureCorrector:
         assert self.is_fit
         featurized_input = get_X(
             structures=initial_structure_guesses,
-            adsorbate_indices_dictionary=adsorbate_indices_dictionary,
             structure_featurizer=self.structure_featurizer,
             adsorbate_featurizer=self.adsorbate_featurizer,
             maximum_structure_size=self.maximum_structure_size,
@@ -387,8 +370,7 @@ class AutoCatStructureCorrector:
         corrected_structures = []
         for idx, struct in enumerate(initial_structure_guesses):
             cs = struct.copy()
-            name = cs.get_chemical_formula() + "_" + str(idx)
-            list_of_adsorbate_indices = adsorbate_indices_dictionary[name]
+            list_of_adsorbate_indices = np.where(struct.get_tags() <= 0)[0].tolist()
             list_of_adsorbate_indices.sort()
             num_of_adsorbates = len(list_of_adsorbate_indices)
             corr = predicted_correction_matrix[idx, : 3 * num_of_adsorbates].reshape(

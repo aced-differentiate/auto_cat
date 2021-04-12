@@ -72,10 +72,6 @@ def test_predict_initial_configuration_formats():
     )
     predicted_correction_matrix, corrected_structures, uncs = acsc.predict(
         p_structures[15:],
-        adsorbate_indices_dictionary={
-            base_struct.get_chemical_formula() + "_" + str(i): [-1, -2]
-            for i in range(5)
-        },
     )
     assert isinstance(corrected_structures[0], Atoms)
     assert len(corrected_structures) == 5
