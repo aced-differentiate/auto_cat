@@ -32,12 +32,7 @@ def test_fit_model_on_perturbed_systems():
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
     )
     acsc.fit(
-        p_structures,
-        adsorbate_indices_dictionary={
-            base_struct.get_chemical_formula() + "_" + str(i): [-1, -2]
-            for i in range(15)
-        },
-        collected_matrices=collected_matrices,
+        p_structures, collected_matrices=collected_matrices,
     )
     assert acsc.adsorbate_featurizer == "soap"
     assert acsc.is_fit
@@ -63,12 +58,7 @@ def test_predict_initial_configuration_formats():
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
     )
     acsc.fit(
-        p_structures[:15],
-        adsorbate_indices_dictionary={
-            base_struct.get_chemical_formula() + "_" + str(i): [-1, -2]
-            for i in range(15)
-        },
-        collected_matrices=collected_matrices[:15, :],
+        p_structures[:15], collected_matrices=collected_matrices[:15, :],
     )
     predicted_correction_matrix, corrected_structures, uncs = acsc.predict(
         p_structures[15:],
