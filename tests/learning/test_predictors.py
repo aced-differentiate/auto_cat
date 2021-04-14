@@ -60,19 +60,17 @@ def test_predict_initial_configuration_formats():
     acsc.fit(
         p_structures[:15], collected_matrices=collected_matrices[:15, :],
     )
-    predicted_correction_matrix, corrected_structures, uncs = acsc.predict(
-        p_structures[15:],
-    )
+    predicted_corrections, corrected_structures, uncs = acsc.predict(p_structures[15:],)
     assert isinstance(corrected_structures[0], Atoms)
     assert len(corrected_structures) == 5
     # check that even with refining, corrected structure is
     # returned to full size
     assert len(corrected_structures[2]) == len(p_structures[17])
-    assert isinstance(predicted_correction_matrix, np.ndarray)
-    assert predicted_correction_matrix.shape[0] == 5
+    assert len(predicted_corrections) == 5
     # check that predicted correction matrix is applied correctly
     manual = p_structures[15].copy()
-    manual_corr_mat = predicted_correction_matrix[0].reshape(2, 3)
+    manual_corr_mat = predicted_corrections[0]
+    assert predicted_corrections[0].shape == (2, 3)
     manual.positions[-1] += manual_corr_mat[-1]
     manual.positions[-2] += manual_corr_mat[-2]
     assert np.allclose(manual.positions, corrected_structures[0].positions)

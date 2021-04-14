@@ -340,8 +340,8 @@ class AutoCatStructureCorrector:
         Returns
         -------
 
-        predicted_correction_matrix:
-            Matrix of predicted corrections that were applied
+        predicted_corrections:
+            List of corrections to be applied to each input structure
 
         corrected_structure:
             Atoms object with corrections applied
@@ -359,7 +359,7 @@ class AutoCatStructureCorrector:
             adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
         )
 
-        predicted_correction_matrix, unc = self.regressor.predict(
+        predicted_correction_matrix_full, unc = self.regressor.predict(
             featurized_input, return_std=True
         )
 
@@ -368,15 +368,17 @@ class AutoCatStructureCorrector:
         ]
 
         corrected_structures = []
+        predicted_corrections = []
         for idx, struct in enumerate(initial_structure_guesses):
             cs = struct.copy()
             list_of_adsorbate_indices = np.where(struct.get_tags() <= 0)[0].tolist()
             list_of_adsorbate_indices.sort()
             num_of_adsorbates = len(list_of_adsorbate_indices)
-            corr = predicted_correction_matrix[idx, : 3 * num_of_adsorbates].reshape(
-                num_of_adsorbates, 3
-            )
+            corr = predicted_correction_matrix_full[
+                idx, : 3 * num_of_adsorbates
+            ].reshape(num_of_adsorbates, 3)
+            predicted_corrections.append(corr)
             cs.positions[list_of_adsorbate_indices] += corr
             corrected_structures.append(cs)
 
-        return predicted_correction_matrix, corrected_structures, unc
+        return predicted_corrections, corrected_structures, unc
