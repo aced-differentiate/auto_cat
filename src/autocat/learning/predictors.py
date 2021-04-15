@@ -403,3 +403,63 @@ class AutoCatStructureCorrector:
             corrected_structures.append(cs)
 
         return predicted_corrections, corrected_structures, unc
+
+    def score(
+        self,
+        test_structure_guesses: List[Atoms],
+        corrections_list: List[np.ndarray],
+        metric="mae",
+    ):
+        """
+        Returns a prediction score given the actual corrections.
+
+        Parameters
+        ----------
+
+        test_structure_guesses:
+            List of Atoms objects of structures to be tested o
+
+        corrections_list:
+            List of actual corrections as `np.arrays`
+
+        metric:
+            How the performance metric should be calculated
+            Options:
+            - mae: average of the average norm displacement vector difference
+            - rmse: square root of the average of the average norm displacement
+            vector difference squared
+
+        Returns
+        -------
+
+        score:
+            Float of calculated test score on the given data
+        """
+        assert self.is_fit
+
+        pred_corr, _, _ = self.predict(test_structure_guesses)
+
+        if metric == "mae":
+            all_abs_vec_diff = []
+            for i in range(len(pred_corr)):
+                assert pred_corr[i].shape == corrections_list[i].shape
+                print(np.linalg.norm(corrections_list[i] - pred_corr[i]))
+                N_i = len(pred_corr[i])
+                abs_vec_diff = np.sum(
+                    np.linalg.norm(corrections_list[i] - pred_corr[i], axis=1)
+                )
+                all_abs_vec_diff.append(abs_vec_diff / N_i)
+            return np.sum(all_abs_vec_diff) / len(all_abs_vec_diff)
+        elif metric == "rmse":
+            all_sq_vec_diff = []
+            for i in range(len(pred_corr)):
+                assert pred_corr[i].shape == corrections_list[i].shape
+                N_i = len(pred_corr[i])
+                sq_vec_diff = np.sum(
+                    np.linalg.norm(corrections_list[i] - pred_corr[i], axis=1) ** 2
+                )
+                all_sq_vec_diff.append(sq_vec_diff / N_i)
+            return np.sum(all_sq_vec_diff) / len(all_sq_vec_diff)
+        else:
+            msg = f"Metric: {metric} is not supported"
+            raise AutocatStructureCorrectorError(msg)

@@ -90,6 +90,32 @@ def test_predict_initial_configuration_formats():
     assert len(uncs) == 5
 
 
+def test_score_on_perturbed_systems():
+    # Tests that the score metric yields floats
+    sub = generate_surface_structures(["Fe"], facets={"Fe": ["100"]})["Fe"]["bcc100"][
+        "structure"
+    ]
+    base_struct = place_adsorbate(sub, "CO")["custom"]["structure"]
+    p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
+    p_structures = p_set["collected_structures"]
+    correction_matrix = p_set["correction_matrix"]
+    corrections_list = p_set["corrections_list"]
+    acsc = AutoCatStructureCorrector(
+        structure_featurizer="sine_matrix",
+        adsorbate_featurizer="soap",
+        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
+    )
+    acsc.fit(
+        p_structures[:15], correction_matrix=correction_matrix[:15, :],
+    )
+    mae = acsc.score(p_structures[15:], corrections_list)
+    assert isinstance(mae, float)
+    rmse = acsc.score(p_structures[15:], corrections_list, metric="rmse")
+    assert mae != rmse
+    with pytest.raises(AutocatStructureCorrectorError):
+        acsc.score(p_structures[15:], corrections_list, metric="msd")
+
+
 def test_model_class_and_kwargs():
     # Tests providing regression model class and kwargs
     acsc = AutoCatStructureCorrector(KernelRidge, model_kwargs={"gamma": 0.5})
