@@ -15,6 +15,7 @@ from autocat.perturbations import generate_perturbed_dataset
 from autocat.learning.featurizers import get_X
 from autocat.learning.featurizers import catalyst_featurization
 from autocat.learning.predictors import AutoCatStructureCorrector
+from autocat.learning.predictors import AutocatStructureCorrectorError
 
 
 def test_fit_model_on_perturbed_systems():
@@ -25,14 +26,14 @@ def test_fit_model_on_perturbed_systems():
     base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
     p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=15,)
     p_structures = p_set["collected_structures"]
-    collected_matrices = p_set["collected_matrices"]
+    correction_matrix = p_set["correction_matrix"]
     acsc = AutoCatStructureCorrector(
         structure_featurizer="sine_matrix",
         adsorbate_featurizer="soap",
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
     )
     acsc.fit(
-        p_structures, collected_matrices=collected_matrices,
+        p_structures, correction_matrix=correction_matrix,
     )
     assert acsc.adsorbate_featurizer == "soap"
     assert acsc.is_fit
@@ -41,6 +42,17 @@ def test_fit_model_on_perturbed_systems():
     acsc.adsorbate_featurizer = "acsf"
     assert acsc.adsorbate_featurizer == "acsf"
     assert not acsc.is_fit
+
+    # check can be fit on corrections list
+    p_set["corrections_list"]
+    acsc.adsorbate_featurizer = "soap"
+    acsc.adsorbate_featurization_kwargs = {"rcut": 3.0, "nmax": 6, "lmax": 6}
+    acsc.fit(
+        p_structures, correction_matrix=correction_matrix,
+    )
+    assert acsc.is_fit
+    with pytest.raises(AutocatStructureCorrectorError):
+        acsc.fit(p_structures)
 
 
 def test_predict_initial_configuration_formats():
@@ -51,14 +63,14 @@ def test_predict_initial_configuration_formats():
     base_struct = place_adsorbate(sub, "CO")["custom"]["structure"]
     p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
     p_structures = p_set["collected_structures"]
-    collected_matrices = p_set["collected_matrices"]
+    correction_matrix = p_set["correction_matrix"]
     acsc = AutoCatStructureCorrector(
         structure_featurizer="sine_matrix",
         adsorbate_featurizer="soap",
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
     )
     acsc.fit(
-        p_structures[:15], collected_matrices=collected_matrices[:15, :],
+        p_structures[:15], correction_matrix=correction_matrix[:15, :],
     )
     predicted_corrections, corrected_structures, uncs = acsc.predict(p_structures[15:],)
     assert isinstance(corrected_structures[0], Atoms)

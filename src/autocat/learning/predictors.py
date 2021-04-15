@@ -13,6 +13,10 @@ from autocat.learning.featurizers import get_X
 from autocat.learning.featurizers import _get_number_of_features
 
 
+class AutocatStructureCorrectorError(Exception):
+    pass
+
+
 class AutoCatStructureCorrector:
     def __init__(
         self,
@@ -254,7 +258,8 @@ class AutoCatStructureCorrector:
     def fit(
         self,
         perturbed_structures: List[Union[Atoms, str]],
-        collected_matrices: np.ndarray,
+        corrections_list: List[np.ndarray] = None,
+        correction_matrix: np.ndarray = None,
     ):
         """
         Given a list of perturbed structures
@@ -266,7 +271,7 @@ class AutoCatStructureCorrector:
         perturbed_structures:
             List of perturbed structures to be trained upon
 
-        collected_matrices:
+        correction_matrix:
             Numpy array of collected matrices of perturbations corresponding to
             each of the perturbed structures.
             This can be generated via `autocat.perturbations.generate_perturbed_dataset`.
@@ -289,8 +294,6 @@ class AutoCatStructureCorrector:
             structure_featurization_kwargs=self.structure_featurization_kwargs,
             adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
         )
-
-        self.regressor.fit(X, collected_matrices)
 
         if self.maximum_structure_size is None:
             if self.refine_structures:
@@ -321,6 +324,21 @@ class AutoCatStructureCorrector:
                 ]
                 species_list.extend(new_species)
             self.species_list = species_list
+
+        if corrections_list is not None:
+            correction_matrix = np.zeros(
+                (len(corrections_list), self.maximum_adsorbate_size)
+            )
+            for idx, row in enumerate(corrections_list):
+                correction_matrix[idx, : len(row)] = row
+        elif correction_matrix is not None:
+            pass
+        else:
+            msg = "Must specify either corrections list or matrix"
+            raise AutocatStructureCorrectorError(msg)
+
+        self.regressor.fit(X, correction_matrix)
+
         self.is_fit = True
 
     def predict(
