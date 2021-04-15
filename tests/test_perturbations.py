@@ -97,12 +97,12 @@ def test_generate_perturbed_dataset_write_location():
         os.path.join(_tmp_dir, "HOPt36_0/0/perturbation_matrix.json"),
     )
     assert os.path.samefile(
-        p_set["collected_matrices_path"],
-        os.path.join(_tmp_dir, "collected_matrices.json"),
+        p_set["correction_matrix_path"],
+        os.path.join(_tmp_dir, "correction_matrix.json"),
     )
 
 
-def test_generate_perturbed_dataset_collected_matrices():
+def test_generate_perturbed_dataset_correction_matrix():
     # Check that matrices properly collected for 1 base_structure
     sub = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
@@ -113,16 +113,16 @@ def test_generate_perturbed_dataset_collected_matrices():
     for idx, struct in enumerate(p_set["HOPt36_0"]):
         flat = p_set["HOPt36_0"][struct]["perturbation_matrix"].flatten()
         manual_collect[idx, : len(flat)] = flat
-    assert np.allclose(p_set["collected_matrices"], manual_collect)
-    assert p_set["collected_matrices"].shape == (5, 6)
+    assert np.allclose(p_set["correction_matrix"], manual_collect)
+    assert p_set["correction_matrix"].shape == (5, 6)
     # Check when given specific maximum_structure_size
     p_set = generate_perturbed_dataset(
         [base_struct], num_of_perturbations=5, maximum_adsorbate_size=15,
     )
-    assert p_set["collected_matrices"].shape == (5, 45)
+    assert p_set["correction_matrix"].shape == (5, 45)
 
 
-def test_generate_perturbed_dataset_collected_matrices_multiple():
+def test_generate_perturbed_dataset_correction_matrix_multiple():
     # check that matrices properly collected for 2 base structures of == size
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
@@ -143,8 +143,8 @@ def test_generate_perturbed_dataset_collected_matrices_multiple():
             flat = p_set[base][struct]["perturbation_matrix"].flatten()
             manual_collect[counter, : len(flat)] = flat
             counter += 1
-    assert np.allclose(p_set["collected_matrices"], manual_collect)
-    assert p_set["collected_matrices"].shape == (10, 6)
+    assert np.allclose(p_set["correction_matrix"], manual_collect)
+    assert p_set["correction_matrix"].shape == (10, 6)
 
     # check that matrices properly collected for 2 base structures of != size
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
@@ -166,8 +166,12 @@ def test_generate_perturbed_dataset_collected_matrices_multiple():
     manual_collect_array = np.zeros((10, 3))
     for idx, m in enumerate(manual_collect):
         manual_collect_array[idx, : len(m)] = m
-    assert np.allclose(p_set["collected_matrices"], manual_collect_array)
-    assert p_set["collected_matrices"].shape == (10, 3)
+    assert np.allclose(p_set["correction_matrix"], manual_collect_array)
+    assert p_set["correction_matrix"].shape == (10, 3)
+    # check corrections list
+    corr_list = p_set["corrections_list"]
+    assert len(corr_list) == p_set["correction_matrix"].shape[0]
+    assert (corr_list[3] == p_set["correction_matrix"][3, : len(corr_list[3])]).all()
 
 
 def test_generate_perturbed_dataset_collected_structure_paths():

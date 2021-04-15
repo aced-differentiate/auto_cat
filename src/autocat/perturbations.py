@@ -90,7 +90,7 @@ def generate_perturbed_dataset(
 
     perturbed_dict = {}
 
-    collected_matrices = []
+    corrections_list = []
     collected_structure_paths = []
     collected_structures = []
 
@@ -118,7 +118,7 @@ def generate_perturbed_dataset(
                 maximum_perturbation_distance=maximum_perturbation_distance,
             )
             # keeps flattened atomic coordinates difference vector
-            collected_matrices.append(
+            corrections_list.append(
                 perturbed_dict[name][str(i)]["perturbation_matrix"].flatten()
             )
 
@@ -164,27 +164,26 @@ def generate_perturbed_dataset(
         # factor of 3 from flattening (ie. x,y,z)
         largest_size = 3 * maximum_adsorbate_size
     # ensures correct sized padding
-    collected_matrices_array = np.zeros((len(collected_matrices), largest_size))
+    corrections_matrix = np.zeros((len(corrections_list), largest_size))
     # substitute in collected matrices for each row
-    for idx, row in enumerate(collected_matrices):
-        collected_matrices_array[idx, : len(row)] = row
+    for idx, row in enumerate(corrections_list):
+        corrections_matrix[idx, : len(row)] = row
 
     # adds collected matrices to dict that will be returned
-    perturbed_dict["collected_matrices"] = collected_matrices_array
-    collected_matrices_path = None
+    perturbed_dict["correction_matrix"] = corrections_matrix
+    correction_matrix_path = None
     # write matrix to disk as json if desired
     if write_to_disk:
-        collected_matrices_path = os.path.join(
-            write_location, "collected_matrices.json"
-        )
-        coll = perturbed_dict["collected_matrices"].tolist()
-        with open(collected_matrices_path, "w") as f:
+        correction_matrix_path = os.path.join(write_location, "correction_matrix.json")
+        coll = perturbed_dict["correction_matrix"].tolist()
+        with open(correction_matrix_path, "w") as f:
             json.dump(coll, f)
-        print(f"Collected matrices written to {collected_matrices_path}")
+        print(f"Correction matrix written to {correction_matrix_path}")
     # update output dict with collected structures and paths
     perturbed_dict.update(
         {
-            "collected_matrices_path": collected_matrices_path,
+            "correction_matrix_path": correction_matrix_path,
+            "corrections_list": corrections_list,
             "collected_structures": collected_structures,
             "collected_structure_paths": collected_structure_paths,
         }
