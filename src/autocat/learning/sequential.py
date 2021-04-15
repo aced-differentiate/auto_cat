@@ -58,6 +58,16 @@ def simulated_sequential_learning(
 
     Returns
     -------
+
+    sl_dict:
+        Dictionary containing histories of different quantities throughout
+        the calculation:
+        - maximum uncertainty history
+        - full uncertainty history
+        - predicted corrections history
+        - real corrections history
+        - mae history
+        - rmse history
     """
     if initial_num_of_perturbations_per_base_structure is None:
         initial_num_of_perturbations_per_base_structure = (

@@ -277,6 +277,10 @@ class AutoCatStructureCorrector:
             This can be generated via `autocat.perturbations.generate_perturbed_dataset`.
             Shape should be (# of structures, 3 * # of atoms in the largest structure)
 
+        correction_list:
+            List of np.arrays of correction vectors
+            where each item is of shape (# of adsorbate atoms, 3)
+
         Returns
         -------
 
@@ -443,7 +447,6 @@ class AutoCatStructureCorrector:
             all_abs_vec_diff = []
             for i in range(len(pred_corr)):
                 assert pred_corr[i].shape == corrections_list[i].shape
-                print(np.linalg.norm(corrections_list[i] - pred_corr[i]))
                 N_i = len(pred_corr[i])
                 abs_vec_diff = np.sum(
                     np.linalg.norm(corrections_list[i] - pred_corr[i], axis=1)
