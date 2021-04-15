@@ -171,7 +171,7 @@ def test_generate_perturbed_dataset_correction_matrix_multiple():
     # check corrections list
     corr_list = p_set["corrections_list"]
     assert len(corr_list) == p_set["correction_matrix"].shape[0]
-    assert (corr_list[3] == p_set["correction_matrix"][3, : len(corr_list[3])]).all()
+    assert (corr_list[3] == p_set["correction_matrix"][3, : len(corr_list[3][0])]).all()
 
 
 def test_generate_perturbed_dataset_collected_structure_paths():

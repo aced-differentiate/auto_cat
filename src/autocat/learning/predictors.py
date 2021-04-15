@@ -330,7 +330,7 @@ class AutoCatStructureCorrector:
                 (len(corrections_list), 3 * self.maximum_adsorbate_size)
             )
             for idx, row in enumerate(corrections_list):
-                correction_matrix[idx, : len(row)] = row
+                correction_matrix[idx, : 3 * len(row)] = row.flatten()
         elif correction_matrix is not None:
             pass
         else:
@@ -361,8 +361,11 @@ class AutoCatStructureCorrector:
         predicted_corrections:
             List of corrections to be applied to each input structure
 
-        corrected_structure:
-            Atoms object with corrections applied
+        corrected_structures:
+            List of Atoms object with corrections applied
+
+        unc:
+            List of uncertainties for each prediction
 
         """
         assert self.is_fit

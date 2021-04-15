@@ -118,9 +118,7 @@ def generate_perturbed_dataset(
                 maximum_perturbation_distance=maximum_perturbation_distance,
             )
             # keeps flattened atomic coordinates difference vector
-            corrections_list.append(
-                perturbed_dict[name][str(i)]["perturbation_matrix"].flatten()
-            )
+            corrections_list.append(perturbed_dict[name][str(i)]["perturbation_matrix"])
 
             traj_file_path = None
             pert_mat_file_path = None
@@ -167,7 +165,7 @@ def generate_perturbed_dataset(
     corrections_matrix = np.zeros((len(corrections_list), largest_size))
     # substitute in collected matrices for each row
     for idx, row in enumerate(corrections_list):
-        corrections_matrix[idx, : len(row)] = row
+        corrections_matrix[idx, : 3 * len(row)] = row.flatten()
 
     # adds collected matrices to dict that will be returned
     perturbed_dict["correction_matrix"] = corrections_matrix
