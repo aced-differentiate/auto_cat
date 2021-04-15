@@ -327,7 +327,7 @@ class AutoCatStructureCorrector:
 
         if corrections_list is not None:
             correction_matrix = np.zeros(
-                (len(corrections_list), self.maximum_adsorbate_size)
+                (len(corrections_list), 3 * self.maximum_adsorbate_size)
             )
             for idx, row in enumerate(corrections_list):
                 correction_matrix[idx, : len(row)] = row

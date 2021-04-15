@@ -72,13 +72,16 @@ def simulated_sequential_learning(
     )
 
     train_pert_structures = initial_pert_dataset["collected_structures"]
-    train_pert_coll_matr = initial_pert_dataset["collected_matrices"]
+    train_pert_corr_list = initial_pert_dataset["corrections_list"]
 
-    structure_corrector.fit(train_pert_structures, train_pert_coll_matr)
+    structure_corrector.fit(
+        train_pert_structures, corrections_list=train_pert_corr_list
+    )
 
     full_unc_history = []
     max_unc_history = []
-    pred_corr_matr_history = []
+    pred_corrs_history = []
+    real_corrs_history = []
     while len(max_unc_history) < number_of_sl_loops:
         # generate new perturbations to predict on
         new_perturbations = generate_perturbed_dataset(
@@ -88,14 +91,14 @@ def simulated_sequential_learning(
             minimum_perturbation_distance=minimum_perturbation_distance,
         )
         new_pert_structs = new_perturbations["collected_structures"]
-        new_pert_coll_matr = new_perturbations["collected_matrices"]
+        new_pert_corr_list = new_perturbations["corrections_list"]
 
         # make predictions
-        _pred_corr_matr, _pred_corr_structs, _uncs = structure_corrector.predict(
+        _pred_corrs, _pred_corr_structs, _uncs = structure_corrector.predict(
             new_pert_structs
         )
         full_unc_history.append(_uncs)
-        pred_corr_matr_history.append(_pred_corr_matr)
+        pred_corrs_history.append(_pred_corrs)
 
         # find candidate with highest uncertainty
         high_unc_idx = np.argmax(_uncs)
@@ -104,13 +107,14 @@ def simulated_sequential_learning(
         next_candidate_struct = new_pert_structs[high_unc_idx]
         # add new perturbed struct to training set
         train_pert_structures.append(next_candidate_struct)
-        train_pert_coll_matr = np.concatenate(
-            (train_pert_coll_matr, new_pert_coll_matr[high_unc_idx].reshape(1, -1)),
-            axis=0,
+        train_pert_corr_list.append(new_pert_corr_list[high_unc_idx],)
+        real_corrs_history.append(new_pert_corr_list[high_unc_idx])
+        structure_corrector.fit(
+            train_pert_structures, corrections_list=train_pert_corr_list
         )
-        structure_corrector.fit(train_pert_structures, train_pert_coll_matr)
     return {
         "max_unc_history": max_unc_history,
         "full_unc_history": full_unc_history,
-        "pred_corr_matr_history": pred_corr_matr_history,
+        "pred_corrs_history": pred_corrs_history,
+        "real_corrs_history": real_corrs_history,
     }
