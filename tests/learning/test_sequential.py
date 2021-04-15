@@ -39,3 +39,7 @@ def test_simulated_sequential_outputs():
     )
     # check default for initial number of training perturbations
     assert len(sl_dict["full_unc_history"][0]) == 2
+
+    # check all mae and rmse scores collected
+    assert len(sl_dict["mae_history"]) == 4
+    assert len(sl_dict["rmse_history"]) == 4

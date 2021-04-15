@@ -15,8 +15,8 @@ Array = List[float]
 def simulated_sequential_learning(
     structure_corrector: AutoCatStructureCorrector,
     base_structures: List[Atoms],
-    minimum_perturbation_distance: float = 0.1,
-    maximum_perturbation_distance: float = 1.0,
+    minimum_perturbation_distance: float = 0.01,
+    maximum_perturbation_distance: float = 0.75,
     initial_num_of_perturbations_per_base_structure: int = None,
     batch_num_of_perturbations_per_base_structure: int = 2,
     number_of_sl_loops: int = 100,
@@ -38,11 +38,11 @@ def simulated_sequential_learning(
 
     minimum_perturbation_distance:
         Float of minimum acceptable perturbation distance
-        Default: 0.1 Angstrom
+        Default: 0.01 Angstrom
 
     maximum_perturbation_distance:
         Float of maximum acceptable perturbation distance
-        Default: 1.0 Angstrom
+        Default: 0.75 Angstrom
 
     initial_num_of_perturbations_per_base_structure:
         Integer giving the number of perturbations to generate initially
@@ -82,6 +82,8 @@ def simulated_sequential_learning(
     max_unc_history = []
     pred_corrs_history = []
     real_corrs_history = []
+    mae_history = []
+    rmse_history = []
     while len(max_unc_history) < number_of_sl_loops:
         # generate new perturbations to predict on
         new_perturbations = generate_perturbed_dataset(
@@ -97,6 +99,17 @@ def simulated_sequential_learning(
         _pred_corrs, _pred_corr_structs, _uncs = structure_corrector.predict(
             new_pert_structs
         )
+
+        # get scores on new perturbations
+        mae_history.append(
+            structure_corrector.score(new_pert_structs, new_pert_corr_list)
+        )
+        rmse_history.append(
+            structure_corrector.score(
+                new_pert_structs, new_pert_corr_list, metric="rmse"
+            )
+        )
+
         full_unc_history.append(_uncs)
         pred_corrs_history.append(_pred_corrs)
 
@@ -117,4 +130,6 @@ def simulated_sequential_learning(
         "full_unc_history": full_unc_history,
         "pred_corrs_history": pred_corrs_history,
         "real_corrs_history": real_corrs_history,
+        "mae_history": mae_history,
+        "rmse_history": rmse_history,
     }

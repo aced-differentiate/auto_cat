@@ -14,8 +14,8 @@ class AutocatPerturbationError(Exception):
 
 def generate_perturbed_dataset(
     base_structures: List[Atoms],
-    minimum_perturbation_distance: float = 0.1,
-    maximum_perturbation_distance: float = 1.0,
+    minimum_perturbation_distance: float = 0.01,
+    maximum_perturbation_distance: float = 0.75,
     maximum_adsorbate_size: int = None,
     num_of_perturbations: int = 10,
     write_to_disk: bool = False,
@@ -47,11 +47,11 @@ def generate_perturbed_dataset(
 
     minimum_perturbation_distance:
         Float of minimum acceptable perturbation distance
-        Default: 0.1 Angstrom
+        Default: 0.01 Angstrom
 
     maximum_perturbation_distance:
         Float of maximum acceptable perturbation distance
-        Default: 1.0 Angstrom
+        Default: 0.75 Angstrom
 
     maximum_adsorbate_size:
         Integer giving the largest number of atoms in an adsorbate
