@@ -16,7 +16,8 @@ Array = List[float]
 
 def simulated_sequential_learning(
     structure_corrector: AutoCatStructureCorrector,
-    base_structures: List[Atoms],
+    training_base_structures: List[Atoms],
+    testing_base_structures: List[Atoms] = None,
     minimum_perturbation_distance: float = 0.01,
     maximum_perturbation_distance: float = 0.75,
     initial_num_of_perturbations_per_base_structure: int = None,
@@ -36,9 +37,12 @@ def simulated_sequential_learning(
     structure_corrector:
         AutoCatStructureCorrector object to be used for fitting and prediction
 
-    base_structures:
+    training_base_structures:
         List of Atoms objects for all base structures to be perturbed for training
-        and testing
+        and candidate selection upon each loop
+
+    testing_base_structures:
+        List of Atoms objects for base structures that are
 
     minimum_perturbation_distance:
         Float of minimum acceptable perturbation distance
@@ -86,7 +90,7 @@ def simulated_sequential_learning(
         )
 
     initial_pert_dataset = generate_perturbed_dataset(
-        base_structures,
+        training_base_structures,
         num_of_perturbations=initial_num_of_perturbations_per_base_structure,
         maximum_perturbation_distance=maximum_perturbation_distance,
         minimum_perturbation_distance=minimum_perturbation_distance,
@@ -99,16 +103,28 @@ def simulated_sequential_learning(
         train_pert_structures, corrections_list=train_pert_corr_list
     )
 
+    if testing_base_structures is not None:
+        test_pert_dataset = generate_perturbed_dataset(
+            training_base_structures,
+            num_of_perturbations=initial_num_of_perturbations_per_base_structure,
+            maximum_perturbation_distance=maximum_perturbation_distance,
+            minimum_perturbation_distance=minimum_perturbation_distance,
+        )
+        test_pert_structures = test_pert_dataset["collected_structures"]
+        test_pert_corr_list = test_pert_dataset["corrections_list"]
+
     full_unc_history = []
     max_unc_history = []
     pred_corrs_history = []
     real_corrs_history = []
-    mae_history = []
-    rmse_history = []
+    mae_train_history = []
+    rmse_train_history = []
+    mae_test_history = []
+    rmse_test_history = []
     while len(max_unc_history) < number_of_sl_loops:
         # generate new perturbations to predict on
         new_perturbations = generate_perturbed_dataset(
-            base_structures,
+            training_base_structures,
             num_of_perturbations=batch_num_of_perturbations_per_base_structure,
             maximum_perturbation_distance=maximum_perturbation_distance,
             minimum_perturbation_distance=minimum_perturbation_distance,
@@ -121,15 +137,26 @@ def simulated_sequential_learning(
             new_pert_structs
         )
 
-        # get scores on new perturbations
-        mae_history.append(
+        # get scores on new perturbations (training)
+        mae_train_history.append(
             structure_corrector.score(new_pert_structs, new_pert_corr_list)
         )
-        rmse_history.append(
+        rmse_train_history.append(
             structure_corrector.score(
                 new_pert_structs, new_pert_corr_list, metric="rmse"
             )
         )
+
+        # get scores on test perturbations
+        if testing_base_structures is not None:
+            mae_test_history.append(
+                structure_corrector.score(test_pert_structures, test_pert_corr_list)
+            )
+            rmse_test_history.append(
+                structure_corrector.score(
+                    test_pert_structures, test_pert_corr_list, metric="rmse"
+                )
+            )
 
         full_unc_history.append(_uncs)
         # keeps as lists to make writing to disk easier
@@ -152,9 +179,13 @@ def simulated_sequential_learning(
         "full_unc_history": [unc.tolist() for unc in full_unc_history],
         "pred_corrs_history": pred_corrs_history,
         "real_corrs_history": [r.tolist() for r in real_corrs_history],
-        "mae_history": mae_history,
-        "rmse_history": rmse_history,
+        "mae_train_history": mae_train_history,
+        "rmse_train_history": rmse_train_history,
     }
+
+    if testing_base_structures is not None:
+        sl_dict["mae_test_history"] = mae_test_history
+        sl_dict["rmse_test_history"] = rmse_test_history
 
     if write_to_disk:
         if not os.path.isdir(write_location):
