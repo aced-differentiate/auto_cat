@@ -1,4 +1,6 @@
 import numpy as np
+import os
+import json
 
 from typing import List
 from typing import Dict
@@ -20,6 +22,8 @@ def simulated_sequential_learning(
     initial_num_of_perturbations_per_base_structure: int = None,
     batch_num_of_perturbations_per_base_structure: int = 2,
     number_of_sl_loops: int = 100,
+    write_to_disk: bool = False,
+    write_location: str = ".",
 ):
     """
     Conducts a simulated sequential learning loop given
@@ -55,6 +59,13 @@ def simulated_sequential_learning(
 
     number_of_sl_loops:
         Integer specifying the number of sequential learning loops to be conducted
+
+    write_to_disk:
+        Boolean specifying whether X should be written to disk as a json.
+        Defaults to False.
+
+    write_location:
+        String with the location where X should be written to disk.
 
     Returns
     -------
@@ -121,7 +132,8 @@ def simulated_sequential_learning(
         )
 
         full_unc_history.append(_uncs)
-        pred_corrs_history.append(_pred_corrs)
+        # keeps as lists to make writing to disk easier
+        pred_corrs_history.append([p.tolist() for p in _pred_corrs])
 
         # find candidate with highest uncertainty
         high_unc_idx = np.argmax(_uncs)
@@ -135,11 +147,21 @@ def simulated_sequential_learning(
         structure_corrector.fit(
             train_pert_structures, corrections_list=train_pert_corr_list
         )
-    return {
-        "max_unc_history": max_unc_history,
-        "full_unc_history": full_unc_history,
+    sl_dict = {
+        "max_unc_history": [mu.tolist() for mu in max_unc_history],
+        "full_unc_history": [unc.tolist() for unc in full_unc_history],
         "pred_corrs_history": pred_corrs_history,
-        "real_corrs_history": real_corrs_history,
+        "real_corrs_history": [r.tolist() for r in real_corrs_history],
         "mae_history": mae_history,
         "rmse_history": rmse_history,
     }
+
+    if write_to_disk:
+        if not os.path.isdir(write_location):
+            os.makedirs(write_location)
+        write_path = os.path.join(write_location, "sl_dict.json")
+        with open(write_path, "w") as f:
+            json.dump(sl_dict, f)
+        print(f"SL dictionary written to {write_path}")
+
+    return sl_dict
