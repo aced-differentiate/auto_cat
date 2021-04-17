@@ -48,6 +48,13 @@ def test_simulated_sequential_outputs():
     assert len(sl_dict["mae_train_history"]) == 4
     assert len(sl_dict["rmse_train_history"]) == 4
 
+    # check prediction and correction history
+    assert len(sl_dict["pred_corrs_history"]) == len(sl_dict["real_corrs_history"])
+    assert len(sl_dict["pred_corrs_history"][-1]) == len(
+        sl_dict["real_corrs_history"][-1]
+    )
+    assert len(sl_dict["pred_corrs_history"][0]) == 2
+
 
 def test_simulated_sequential_outputs_testing():
     # Test with testing structures given

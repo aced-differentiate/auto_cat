@@ -121,7 +121,10 @@ def simulated_sequential_learning(
     rmse_train_history = []
     mae_test_history = []
     rmse_test_history = []
+    ctr = 0
     while len(max_unc_history) < number_of_sl_loops:
+        ctr += 1
+        print(f"Sequential Learning Iteration #{ctr}")
         # generate new perturbations to predict on
         new_perturbations = generate_perturbed_dataset(
             training_base_structures,
@@ -159,8 +162,6 @@ def simulated_sequential_learning(
             )
 
         full_unc_history.append(_uncs)
-        # keeps as lists to make writing to disk easier
-        pred_corrs_history.append([p.tolist() for p in _pred_corrs])
 
         # find candidate with highest uncertainty
         high_unc_idx = np.argmax(_uncs)
@@ -170,6 +171,8 @@ def simulated_sequential_learning(
         # add new perturbed struct to training set
         train_pert_structures.append(next_candidate_struct)
         train_pert_corr_list.append(new_pert_corr_list[high_unc_idx],)
+        # keeps as lists to make writing to disk easier
+        pred_corrs_history.append([p.tolist() for p in _pred_corrs[high_unc_idx]])
         real_corrs_history.append(new_pert_corr_list[high_unc_idx])
         structure_corrector.fit(
             train_pert_structures, corrections_list=train_pert_corr_list
