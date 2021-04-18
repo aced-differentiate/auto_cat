@@ -129,13 +129,22 @@ def simulated_sequential_learning(
 
     if testing_base_structures is not None:
         test_pert_dataset = generate_perturbed_dataset(
-            training_base_structures,
+            testing_base_structures,
             num_of_perturbations=initial_num_of_perturbations_per_base_structure,
             maximum_perturbation_distance=maximum_perturbation_distance,
             minimum_perturbation_distance=minimum_perturbation_distance,
         )
         test_pert_structures = test_pert_dataset["collected_structures"]
         test_pert_corr_list = test_pert_dataset["corrections_list"]
+
+    validation_pert_dataset = generate_perturbed_dataset(
+        training_base_structures,
+        num_of_perturbations=initial_num_of_perturbations_per_base_structure,
+        maximum_perturbation_distance=maximum_perturbation_distance,
+        minimum_perturbation_distance=minimum_perturbation_distance,
+    )
+    validation_pert_structures = validation_pert_dataset["collected_structures"]
+    validation_pert_corr_list = validation_pert_dataset["corrections_list"]
 
     full_unc_history = []
     max_unc_history = []
@@ -166,11 +175,13 @@ def simulated_sequential_learning(
 
         # get scores on new perturbations (training)
         mae_train_history.append(
-            structure_corrector.score(new_pert_structs, new_pert_corr_list)
+            structure_corrector.score(
+                validation_pert_structures, validation_pert_corr_list
+            )
         )
         rmse_train_history.append(
             structure_corrector.score(
-                new_pert_structs, new_pert_corr_list, metric="rmse"
+                validation_pert_structures, validation_pert_corr_list, metric="rmse"
             )
         )
 
