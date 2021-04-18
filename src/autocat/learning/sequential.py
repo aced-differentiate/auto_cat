@@ -14,6 +14,10 @@ from autocat.learning.predictors import AutoCatStructureCorrector
 Array = List[float]
 
 
+class AutoCatSequentialLearningError(Exception):
+    pass
+
+
 def simulated_sequential_learning(
     structure_corrector: AutoCatStructureCorrector,
     training_base_structures: List[Atoms],
@@ -22,6 +26,7 @@ def simulated_sequential_learning(
     maximum_perturbation_distance: float = 0.75,
     initial_num_of_perturbations_per_base_structure: int = None,
     batch_num_of_perturbations_per_base_structure: int = 2,
+    batch_size_to_add: int = 1,
     number_of_sl_loops: int = 100,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -61,6 +66,12 @@ def simulated_sequential_learning(
         Integer giving the number of perturbations to generate
         on each loop when finding the next candidate
 
+    batch_size_to_add:
+        Integer giving the number of candidates to be added
+        to the training set on each loop. (ie. N candidates with
+        the highest uncertainties added for each iteration)
+        Default: 1 (ie. adds candidate with max unc on each loop)
+
     number_of_sl_loops:
         Integer specifying the number of sequential learning loops to be conducted
 
@@ -79,11 +90,24 @@ def simulated_sequential_learning(
         the calculation:
         - maximum uncertainty history
         - full uncertainty history
-        - predicted corrections history
-        - real corrections history
-        - mae history
-        - rmse history
+        - predicted corrections training history
+        - real corrections training history
+        - mae training history
+        - rmse training history
+        - mae testing history (if test structures given)
+        - rmse testing history (if test structures given)
+        For the corrections histories, the dimensions are as follows:
+        num of loops -> num of candidates added -> corrections applied
     """
+    if (
+        batch_num_of_perturbations_per_base_structure * len(training_base_structures)
+        < batch_size_to_add
+    ):
+        msg = (
+            "Batch size to add must be greater than the number of candidates generated"
+        )
+        raise AutoCatSequentialLearningError(msg)
+
     if initial_num_of_perturbations_per_base_structure is None:
         initial_num_of_perturbations_per_base_structure = (
             batch_num_of_perturbations_per_base_structure
@@ -164,16 +188,20 @@ def simulated_sequential_learning(
         full_unc_history.append(_uncs)
 
         # find candidate with highest uncertainty
-        high_unc_idx = np.argmax(_uncs)
+        high_unc_idx = np.argsort(_uncs)[-batch_size_to_add:]
         max_unc_history.append(_uncs[high_unc_idx])
 
-        next_candidate_struct = new_pert_structs[high_unc_idx]
+        next_candidate_struct = [new_pert_structs[idx] for idx in high_unc_idx]
         # add new perturbed struct to training set
-        train_pert_structures.append(next_candidate_struct)
-        train_pert_corr_list.append(new_pert_corr_list[high_unc_idx],)
+        train_pert_structures.extend(next_candidate_struct)
+        train_pert_corr_list.extend([new_pert_corr_list[idx] for idx in high_unc_idx],)
         # keeps as lists to make writing to disk easier
-        pred_corrs_history.append([p.tolist() for p in _pred_corrs[high_unc_idx]])
-        real_corrs_history.append(new_pert_corr_list[high_unc_idx])
+        pred_corrs_history.append(
+            [p.tolist() for p in [_pred_corrs[idx] for idx in high_unc_idx]]
+        )
+        real_corrs_history.append(
+            [new_pert_corr_list[idx].tolist() for idx in high_unc_idx]
+        )
         structure_corrector.fit(
             train_pert_structures, corrections_list=train_pert_corr_list
         )
@@ -181,7 +209,7 @@ def simulated_sequential_learning(
         "max_unc_history": [mu.tolist() for mu in max_unc_history],
         "full_unc_history": [unc.tolist() for unc in full_unc_history],
         "pred_corrs_history": pred_corrs_history,
-        "real_corrs_history": [r.tolist() for r in real_corrs_history],
+        "real_corrs_history": [r for r in real_corrs_history],
         "mae_train_history": mae_train_history,
         "rmse_train_history": rmse_train_history,
     }
