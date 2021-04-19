@@ -9,6 +9,7 @@ import tempfile
 
 from autocat.learning.predictors import AutoCatStructureCorrector
 from autocat.learning.sequential import simulated_sequential_learning
+from autocat.learning.sequential import multiple_sequential_learning_runs
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 
@@ -145,3 +146,64 @@ def test_simulated_sequential_write_to_disk():
     with open(os.path.join(_tmp_dir, "sl_dict.json"), "r") as f:
         sl_written = json.load(f)
         assert sl_dict == sl_written
+
+
+def test_multiple_sequential_learning_serial():
+    # Tests serial implementation
+    sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
+        "structure"
+    ]
+    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
+    acsc = AutoCatStructureCorrector(structure_featurizer="elemental_property")
+    runs_history = multiple_sequential_learning_runs(
+        acsc,
+        [base_struct1],
+        3,
+        batch_num_of_perturbations_per_base_structure=1,
+        number_of_sl_loops=2,
+    )
+    assert len(runs_history) == 3
+    assert isinstance(runs_history[0], dict)
+    assert "mae_train_history" in runs_history[1]
+
+
+def test_multiple_sequential_learning_parallel():
+    # Tests parallel implementation
+    sub1 = generate_surface_structures(["Cu"], facets={"Cu": ["111"]})["Cu"]["fcc111"][
+        "structure"
+    ]
+    base_struct1 = place_adsorbate(sub1, "Li")["custom"]["structure"]
+    acsc = AutoCatStructureCorrector(structure_featurizer="elemental_property")
+    runs_history = multiple_sequential_learning_runs(
+        acsc,
+        [base_struct1],
+        3,
+        batch_num_of_perturbations_per_base_structure=1,
+        number_of_sl_loops=2,
+        number_parallel_jobs=2,
+    )
+    assert len(runs_history) == 3
+    assert isinstance(runs_history[2], dict)
+    assert "rmse_train_history" in runs_history[0]
+
+
+def test_multiple_sequential_learning_write_to_disk():
+    # Tests writing run history to disk
+    _tmp_dir = tempfile.TemporaryDirectory().name
+    sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
+        "structure"
+    ]
+    base_struct1 = place_adsorbate(sub1, "N")["custom"]["structure"]
+    acsc = AutoCatStructureCorrector(structure_featurizer="elemental_property")
+    runs_history = multiple_sequential_learning_runs(
+        acsc,
+        [base_struct1],
+        3,
+        batch_num_of_perturbations_per_base_structure=1,
+        number_of_sl_loops=2,
+        write_to_disk=True,
+        write_location=_tmp_dir,
+    )
+    with open(os.path.join(_tmp_dir, "sl_runs_history.json"), "r") as f:
+        runs_history_written = json.load(f)
+        assert runs_history == runs_history_written

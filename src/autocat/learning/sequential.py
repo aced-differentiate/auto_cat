@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import json
+from joblib import Parallel, delayed
 
 from typing import List
 from typing import Dict
@@ -16,6 +17,80 @@ Array = List[float]
 
 class AutoCatSequentialLearningError(Exception):
     pass
+
+
+def multiple_sequential_learning_runs(
+    structure_corrector: AutoCatStructureCorrector,
+    training_base_structures: List[Atoms],
+    number_of_runs: int = 5,
+    number_parallel_jobs: int = None,
+    write_to_disk: bool = False,
+    write_location: str = ".",
+    **sl_kwargs,
+):
+    """
+    Conducts multiple sequential learning runs
+
+    Parameters
+    ----------
+
+    structure_corrector:
+        AutoCatStructureCorrector object to be used for fitting and prediction
+
+    training_base_structures:
+        List of Atoms objects for all base structures to be perturbed for training
+        and candidate selection upon each loop
+
+    number_of_runs:
+        Integer of number of runs to be done
+
+    number_parallel_jobs:
+        Integer giving the number of cores to be paralellized across
+        using `joblib`
+
+    write_to_disk:
+        Boolean specifying whether runs history should be written to disk as a json.
+        Defaults to False.
+
+    write_location:
+        String with the location where runs history should be written to disk.
+
+    Returns
+    -------
+
+    run_history:
+        List of dictionaries generated for each run containing info
+        about that run such as mae history, rmse history, etc..
+    """
+    if number_parallel_jobs is not None:
+        runs_history = Parallel(n_jobs=number_parallel_jobs)(
+            delayed(simulated_sequential_learning)(
+                structure_corrector=structure_corrector,
+                training_base_structures=training_base_structures,
+                **sl_kwargs,
+            )
+            for i in range(number_of_runs)
+        )
+
+    else:
+        runs_history = [
+            simulated_sequential_learning(
+                structure_corrector=structure_corrector,
+                training_base_structures=training_base_structures,
+                **sl_kwargs,
+            )
+            for i in range(number_of_runs)
+        ]
+
+    if write_to_disk:
+        if not os.path.isdir(write_location):
+            os.makedirs(write_location)
+        write_path = os.path.join(write_location, "sl_runs_history.json")
+        with open(write_path, "w") as f:
+            json.dump(runs_history, f)
+        print(f"SL histories written to {write_path}")
+
+    return runs_history
 
 
 def simulated_sequential_learning(
@@ -76,11 +151,11 @@ def simulated_sequential_learning(
         Integer specifying the number of sequential learning loops to be conducted
 
     write_to_disk:
-        Boolean specifying whether X should be written to disk as a json.
+        Boolean specifying whether the sl dictionary should be written to disk as a json.
         Defaults to False.
 
     write_location:
-        String with the location where X should be written to disk.
+        String with the location where sl_dict should be written to disk.
 
     Returns
     -------
