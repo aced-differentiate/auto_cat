@@ -7,6 +7,7 @@ from dscribe.descriptors import SOAP
 from matminer.featurizers.composition import ElementProperty
 from matminer.featurizers.site import ChemicalSRO
 from matminer.featurizers.site import OPSiteFingerprint
+from matminer.featurizers.site import CrystalNNFingerprint
 
 import tempfile
 import os
@@ -427,6 +428,16 @@ def adsorbate_featurization(
             representation = np.concatenate((representation, feat))
         num_of_features = len(opsf.feature_labels())
 
+    elif featurizer == "crystalnn_sitefingerprint":
+        cnn = CrystalNNFingerprint.from_preset("cn")
+        conv = AseAtomsAdaptor()
+        pym_struct = conv.get_structure(structure)
+        representation = np.array([])
+        for idx in adsorbate_indices:
+            feat = cnn.featurize(pym_struct, idx)
+            representation = np.concatenate((representation, feat))
+        num_of_features = len(cnn.feature_labels())
+
     else:
         raise NotImplementedError("selected featurizer not implemented")
 
@@ -557,6 +568,7 @@ def _get_number_of_features(
         "elemental_property": ElementProperty.from_preset(elementalproperty_preset),
         "chemical_sro": None,
         "op_sitefingerprint": OPSiteFingerprint,
+        "crystalnn_sitefingerprint": CrystalNNFingerprint,
     }
 
     if featurizer in supported_dscribe_featurizers:
@@ -569,9 +581,9 @@ def _get_number_of_features(
             return len(ep.features) * len(ep.stats)
         elif featurizer == "chemical_sro":
             return len(species)
-        elif featurizer == "op_sitefingerprint":
-            opsf = supported_matminer_featurizers[featurizer](**kwargs)
-            return len(opsf.feature_labels())
+        elif featurizer in ["op_sitefingerprint", "crystalnn_sitefingerprint"]:
+            f = supported_matminer_featurizers[featurizer](**kwargs)
+            return len(f.feature_labels())
 
     else:
         raise NotImplementedError(

@@ -16,6 +16,7 @@ from dscribe.descriptors import SOAP
 from matminer.featurizers.composition import ElementProperty
 from matminer.featurizers.site import ChemicalSRO
 from matminer.featurizers.site import OPSiteFingerprint
+from matminer.featurizers.site import CrystalNNFingerprint
 
 # from autocat.io.qml import ase_atoms_to_qml_compound
 from autocat.adsorption import generate_rxn_structures
@@ -153,6 +154,28 @@ def test_adsorbate_featurization_op_sitefingerprint():
         (manual_feat, np.zeros(2 * len(opsf.feature_labels())))
     )
     assert np.allclose(opsf_feat, manual_feat)
+
+
+def test_adsorbate_featurization_crystalnn_fingerprint():
+    # Test CrystalNN site fingerprint
+    surf = generate_surface_structures(["Ag"])["Ag"]["fcc100"]["structure"]
+    ads_struct = generate_rxn_structures(surf, ads=["OH"])["OH"]["ontop"]["0.0_0.0"][
+        "structure"
+    ]
+    cnn_feat = adsorbate_featurization(
+        ads_struct,
+        featurizer="crystalnn_sitefingerprint",
+        maximum_adsorbate_size=4,
+        refine_structure=False,
+    )
+    cnn = CrystalNNFingerprint.from_preset("cn")
+    conv = AseAtomsAdaptor()
+    pym_struct = conv.get_structure(ads_struct)
+    manual_feat = cnn.featurize(pym_struct, -2)
+    manual_feat = np.concatenate((manual_feat, cnn.featurize(pym_struct, -1)))
+    manual_feat = np.concatenate((manual_feat, np.zeros(2 * len(cnn.feature_labels()))))
+    assert np.allclose(cnn_feat, manual_feat)
+    assert cnn_feat.shape[0] == 4 * len(cnn.feature_labels())
 
 
 def test_adsorbate_featurization_padding():
