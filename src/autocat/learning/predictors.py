@@ -279,7 +279,9 @@ class AutoCatStructureCorrector:
 
         correction_list:
             List of np.arrays of correction vectors
-            where each item is of shape (# of adsorbate atoms, 3)
+            where each item is of shape (# of adsorbate atoms, 3).
+            Adding the negative of these vectors to any perturbed
+            structure should return it to the base structure
 
         Returns
         -------
@@ -403,7 +405,7 @@ class AutoCatStructureCorrector:
                 idx, : 3 * num_of_adsorbates
             ].reshape(num_of_adsorbates, 3)
             predicted_corrections.append(corr)
-            cs.positions[list_of_adsorbate_indices] += corr
+            cs.positions[list_of_adsorbate_indices] -= corr
             corrected_structures.append(cs)
 
         return predicted_corrections, corrected_structures, unc
