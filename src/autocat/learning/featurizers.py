@@ -581,8 +581,11 @@ def _get_number_of_features(
             return len(ep.features) * len(ep.stats)
         elif featurizer == "chemical_sro":
             return len(species)
-        elif featurizer in ["op_sitefingerprint", "crystalnn_sitefingerprint"]:
+        elif featurizer == "op_sitefingerprint":
             f = supported_matminer_featurizers[featurizer](**kwargs)
+            return len(f.feature_labels())
+        elif featurizer == "crystalnn_sitefingerprint":
+            f = supported_matminer_featurizers[featurizer].from_preset("cn")
             return len(f.feature_labels())
 
     else:
