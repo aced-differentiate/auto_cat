@@ -464,7 +464,7 @@ class AutoCatStructureCorrector:
                     np.linalg.norm(corrections_list[i] - pred_corr[i], axis=1) ** 2
                 )
                 all_sq_vec_diff.append(sq_vec_diff / N_i)
-            return np.sum(all_sq_vec_diff) / len(all_sq_vec_diff)
+            return np.sqrt(np.sum(all_sq_vec_diff) / len(all_sq_vec_diff))
         else:
             msg = f"Metric: {metric} is not supported"
             raise AutocatStructureCorrectorError(msg)
