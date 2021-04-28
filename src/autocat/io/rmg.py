@@ -6,6 +6,46 @@ from rdkit.Chem.rdmolfiles import SDWriter
 
 import tempfile
 import os
+import yaml
+
+
+def output_yaml_to_surface_rmg_mol(output_yaml: str):
+    """
+    Reads in output yaml and collects all surface species
+    into a dict of `rmgpy.Molecule` objects
+
+    Parameters
+    ----------
+
+    output_yaml:
+        String of name of yaml file from output of an `ReactionMechanismSimulator` run
+
+    Returns
+    -------
+
+    rmg_surf_dict:
+        Dict of `rmgpy.Molecule` objects  and corresponding `Atoms` objects with names as keys
+        for surface species only
+
+    """
+
+    with open(output_yaml, "r") as f:
+        out_yml = yaml.load(f)
+
+    for phase in out_yml:
+        if out_yml["Phases"][phase].get("name") == "surface":
+            surfaces = out_yml["Phases"][phase]["Species"]
+
+    rmg_surf_dict = {}
+    for spec in surfaces:
+        name = spec["name"]
+        rmg_surf_dict[name] = {}
+        rmg_surf_dict[name]["raw_dict"] = spec
+        rmgmol = Molecule().from_adjacency_list
+        rmg_surf_dict[name]["rmg_mol"] = rmgmol
+        rmg_surf_dict[name]["ase_obj"] = rmgmol_to_ase_atoms(rmgmol)
+
+    return rmg_surf_dict
 
 
 def load_organized_species_dictionary(species_dictionary_location: str = "."):
