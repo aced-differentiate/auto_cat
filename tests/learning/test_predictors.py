@@ -130,3 +130,27 @@ def test_model_class_and_kwargs():
     acsc.model_kwargs = {"alpha": 2.5}
     assert acsc.model_kwargs == {"alpha": 2.5}
     assert acsc.regressor.alpha == 2.5
+
+
+def test_model_without_unc():
+    # Test that predictions are still made when the model class
+    # provided does not have uncertainty
+    sub = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
+        "structure"
+    ]
+    base_struct = place_adsorbate(sub, "S")["custom"]["structure"]
+    p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
+    p_structures = p_set["collected_structures"]
+    correction_matrix = p_set["correction_matrix"]
+    acsc = AutoCatStructureCorrector(
+        model_class=KernelRidge,
+        structure_featurizer="sine_matrix",
+        adsorbate_featurizer=None,
+    )
+    acsc.fit(
+        p_structures[:15], correction_matrix=correction_matrix[:15, :],
+    )
+    predicted_corrections, corrected_structures, uncs = acsc.predict(p_structures[15:],)
+    assert uncs is None
+    assert predicted_corrections is not None
+    assert corrected_structures is not None

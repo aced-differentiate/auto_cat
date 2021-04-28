@@ -385,10 +385,13 @@ class AutoCatStructureCorrector:
             structure_featurization_kwargs=self.structure_featurization_kwargs,
             adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
         )
-
-        predicted_correction_matrix_full, unc = self.regressor.predict(
-            featurized_input, return_std=True
-        )
+        try:
+            predicted_correction_matrix_full, unc = self.regressor.predict(
+                featurized_input, return_std=True
+            )
+        except TypeError:
+            predicted_correction_matrix_full = self.regressor.predict(featurized_input,)
+            unc = None
 
         corrected_structures = [
             init_struct.copy() for init_struct in initial_structure_guesses
