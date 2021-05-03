@@ -21,6 +21,7 @@ class AutoCatStructureCorrector:
     def __init__(
         self,
         model_class=None,
+        multiple_separate_models: bool = None,
         structure_featurizer: str = None,
         adsorbate_featurizer: str = None,
         maximum_structure_size: int = None,
@@ -42,6 +43,11 @@ class AutoCatStructureCorrector:
             If this is changed after initialization, all previously set
             model_kwargs will be removed.
             N.B. must have fit and predict methods
+
+        multiple_separate_models:
+            Bool indicating whether to train separate models for each target output.
+            If this is true, when fit to data, `acsc.regressor` will become the list
+            of regressors with length of number of targets
 
         structure_featurizer:
             String giving featurizer to be used for full structure which will be
@@ -73,6 +79,9 @@ class AutoCatStructureCorrector:
 
         """
         self.is_fit = False
+
+        self._multiple_separate_models = False
+        self.multiple_separate_models = multiple_separate_models
 
         self._model_class = GaussianProcessRegressor
         self.model_class = model_class
@@ -121,6 +130,17 @@ class AutoCatStructureCorrector:
                 self.is_fit = False
             # generates new regressor with default settings
             self.regressor = self._model_class()
+
+    @property
+    def multiple_separate_models(self):
+        return self._multiple_separate_models
+
+    @multiple_separate_models.setter
+    def multiple_separate_models(self, multiple_separate_models):
+        if multiple_separate_models is not None:
+            self._multiple_separate_models = multiple_separate_models
+            if self.is_fit:
+                self.is_fit = False
 
     @property
     def model_kwargs(self):
@@ -338,12 +358,23 @@ class AutoCatStructureCorrector:
             for idx, row in enumerate(corrections_list):
                 correction_matrix[idx, : 3 * len(row)] = row.flatten()
         elif correction_matrix is not None:
-            pass
+            if correction_matrix.shape[1] != 3 * self.maximum_adsorbate_size:
+                msg = f"Correction matrix must have {3 * self.maximum_adsorbate_size} targets, got {correction_matrix.shape[1]}"
+                raise AutocatStructureCorrectorError(msg)
         else:
             msg = "Must specify either corrections list or matrix"
             raise AutocatStructureCorrectorError(msg)
 
-        self.regressor.fit(X, correction_matrix)
+        if not self.multiple_separate_models:
+            self.regressor.fit(X, correction_matrix)
+        else:
+            regs = []
+            for i in range(correction_matrix.shape[1]):
+                reg = self.model_class(**self.model_kwargs or {})
+                reg.fit(X, correction_matrix[:, i])
+                regs.append(reg)
+            assert regs[0] is not regs[1]
+            self.regressor = regs
 
         self.is_fit = True
 
@@ -385,13 +416,35 @@ class AutoCatStructureCorrector:
             structure_featurization_kwargs=self.structure_featurization_kwargs,
             adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
         )
-        try:
-            predicted_correction_matrix_full, unc = self.regressor.predict(
-                featurized_input, return_std=True
+        if not self.multiple_separate_models:
+            try:
+                predicted_correction_matrix_full, unc = self.regressor.predict(
+                    featurized_input, return_std=True
+                )
+            except TypeError:
+                predicted_correction_matrix_full = self.regressor.predict(
+                    featurized_input,
+                )
+                unc = None
+        else:
+            predicted_correction_matrix_full = np.zeros(
+                (len(initial_structure_guesses), 3 * self.maximum_adsorbate_size)
             )
-        except TypeError:
-            predicted_correction_matrix_full = self.regressor.predict(featurized_input,)
-            unc = None
+            try:
+                uncs = np.zeros((len(initial_structure_guesses), len(self.regressor)))
+                for idx, r in enumerate(self.regressor):
+                    preds = r.predict(featurized_input, return_std=True)
+                    predicted_correction_matrix_full[:, idx] = preds[0]
+                    # uncertainties for target r for each struct to predict on
+                    uncs[:, idx] = preds[1]
+                # take average uncertainty for each struct
+                unc = np.mean(uncs, axis=1)
+            except TypeError:
+                for idx, r in enumerate(self.regressor):
+                    predicted_correction_matrix_full[:, idx] = r.predict(
+                        featurized_input
+                    )
+                unc = None
 
         corrected_structures = [
             init_struct.copy() for init_struct in initial_structure_guesses
