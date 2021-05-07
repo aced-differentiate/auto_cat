@@ -8,6 +8,7 @@ from typing import Dict
 from typing import Union
 
 from ase import Atoms
+from ase.io import write as ase_write
 
 from autocat.perturbations import generate_perturbed_dataset
 from autocat.learning.predictors import AutoCatStructureCorrector
@@ -85,10 +86,27 @@ def multiple_sequential_learning_runs(
     if write_to_disk:
         if not os.path.isdir(write_location):
             os.makedirs(write_location)
-        write_path = os.path.join(write_location, "sl_runs_history.json")
-        with open(write_path, "w") as f:
-            json.dump(runs_history, f)
-        print(f"SL histories written to {write_path}")
+        json_write_path = os.path.join(write_location, "sl_runs_history.json")
+        data_runs_history = []
+        for r_idx, run in enumerate(runs_history):
+            # get dict excluding selected candidate structures
+            j_dict = {
+                key: run[key] for key in run if key != "selected_candidate_history"
+            }
+            data_runs_history.append(j_dict)
+            # write out selected candidates for each iteration of each run
+            c_hist = run["selected_candidate_history"]
+            for i, c in enumerate(c_hist):
+                traj_file_path = os.path.join(
+                    write_location, f"run{r_idx+1}_candidates_sl_iter{i+1}.traj"
+                )
+                ase_write(traj_file_path, c)
+                print(
+                    f"Selected SL Candidates for run {r_idx+1}, iteration {i+1} written to {traj_file_path}"
+                )
+        with open(json_write_path, "w") as f:
+            json.dump(data_runs_history, f)
+        print(f"SL histories written to {json_write_path}")
 
     return runs_history
 
@@ -178,9 +196,7 @@ def simulated_sequential_learning(
         batch_num_of_perturbations_per_base_structure * len(training_base_structures)
         < batch_size_to_add
     ):
-        msg = (
-            "Batch size to add must be greater than the number of candidates generated"
-        )
+        msg = "Batch size to add must be less than the number of candidates generated"
         raise AutoCatSequentialLearningError(msg)
 
     if initial_num_of_perturbations_per_base_structure is None:
@@ -229,6 +245,7 @@ def simulated_sequential_learning(
     rmse_train_history = []
     mae_test_history = []
     rmse_test_history = []
+    selected_candidate_history = []
     ctr = 0
     while len(max_unc_history) < number_of_sl_loops:
         ctr += 1
@@ -281,6 +298,10 @@ def simulated_sequential_learning(
         # add new perturbed struct to training set
         train_pert_structures.extend(next_candidate_struct)
         train_pert_corr_list.extend([new_pert_corr_list[idx] for idx in high_unc_idx],)
+
+        # keeps all candidate structures added for each loop
+        selected_candidate_history.append(next_candidate_struct)
+
         # keeps as lists to make writing to disk easier
         pred_corrs_history.append(
             [p.tolist() for p in [_pred_corrs[idx] for idx in high_unc_idx]]
@@ -296,6 +317,7 @@ def simulated_sequential_learning(
         "full_unc_history": [unc.tolist() for unc in full_unc_history],
         "pred_corrs_history": pred_corrs_history,
         "real_corrs_history": [r for r in real_corrs_history],
+        "selected_candidate_history": selected_candidate_history,
         "mae_train_history": mae_train_history,
         "rmse_train_history": rmse_train_history,
     }
@@ -307,9 +329,21 @@ def simulated_sequential_learning(
     if write_to_disk:
         if not os.path.isdir(write_location):
             os.makedirs(write_location)
-        write_path = os.path.join(write_location, "sl_dict.json")
-        with open(write_path, "w") as f:
-            json.dump(sl_dict, f)
-        print(f"SL dictionary written to {write_path}")
+        json_write_path = os.path.join(write_location, "sl_dict.json")
+        data_sl_dict = {
+            key: sl_dict[key] for key in sl_dict if key != "selected_candidate_history"
+        }
+        with open(json_write_path, "w") as f:
+            json.dump(data_sl_dict, f)
+        print(f"SL dictionary written to {json_write_path}")
+        candidate_struct_hist = sl_dict["selected_candidate_history"]
+        for i, c in enumerate(candidate_struct_hist):
+            traj_file_path = os.path.join(
+                write_location, f"candidates_sl_iter{i+1}.traj"
+            )
+            ase_write(traj_file_path, c)
+            print(
+                f"Selected SL Candidates for iteration {i+1} written to {traj_file_path}"
+            )
 
     return sl_dict

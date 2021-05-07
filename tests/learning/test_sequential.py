@@ -7,6 +7,8 @@ import json
 
 import tempfile
 
+from ase.io import read as ase_read
+
 from autocat.learning.predictors import AutoCatStructureCorrector
 from autocat.learning.sequential import simulated_sequential_learning
 from autocat.learning.sequential import multiple_sequential_learning_runs
@@ -112,6 +114,7 @@ def test_simulated_sequential_outputs_testing():
         [base_struct1, base_struct2],
         testing_base_structures=[base_struct3],
         batch_num_of_perturbations_per_base_structure=3,
+        batch_size_to_add=3,
         number_of_sl_loops=2,
     )
     # Check lenght of testing scores
@@ -119,6 +122,10 @@ def test_simulated_sequential_outputs_testing():
     assert len(sl_dict["rmse_train_history"]) == 2
     assert len(sl_dict["mae_train_history"]) == 2
     assert sl_dict["mae_test_history"] != sl_dict["mae_train_history"]
+
+    # check selected_candidate_history
+    assert len(sl_dict["selected_candidate_history"]) == 2
+    assert len(sl_dict["selected_candidate_history"][0]) == 3
 
 
 def test_simulated_sequential_write_to_disk():
@@ -139,13 +146,25 @@ def test_simulated_sequential_write_to_disk():
         [base_struct1, base_struct2],
         testing_base_structures=[base_struct3],
         batch_num_of_perturbations_per_base_structure=1,
-        number_of_sl_loops=1,
+        batch_size_to_add=2,
+        number_of_sl_loops=2,
         write_to_disk=True,
         write_location=_tmp_dir,
     )
+    # when writing to disk, candidate history separated out
+    sl_dict_data = {
+        key: sl_dict[key] for key in sl_dict if key != "selected_candidate_history"
+    }
+    # check data written as json
     with open(os.path.join(_tmp_dir, "sl_dict.json"), "r") as f:
         sl_written = json.load(f)
-        assert sl_dict == sl_written
+        assert sl_dict_data == sl_written
+
+    # check written sl selected candidates
+    cands1 = ase_read(f"{_tmp_dir}/candidates_sl_iter1.traj", index=":")
+    assert sl_dict["selected_candidate_history"][0] == cands1
+    cands2 = ase_read(f"{_tmp_dir}/candidates_sl_iter2.traj", index=":")
+    assert sl_dict["selected_candidate_history"][1] == cands2
 
 
 def test_multiple_sequential_learning_serial():
@@ -204,6 +223,27 @@ def test_multiple_sequential_learning_write_to_disk():
         write_to_disk=True,
         write_location=_tmp_dir,
     )
+    runs_history_data = []
+    for r in runs_history:
+        data_dict = {key: r[key] for key in r if key != "selected_candidate_history"}
+        runs_history_data.append(data_dict)
+
+    # check data history
     with open(os.path.join(_tmp_dir, "sl_runs_history.json"), "r") as f:
         runs_history_written = json.load(f)
-        assert runs_history == runs_history_written
+        assert runs_history_data == runs_history_written
+
+    # check selected candidate history
+    # check run 1 iteration 1
+    cands1_1 = ase_read(f"{_tmp_dir}/run1_candidates_sl_iter1.traj", index=":")
+    assert len(cands1_1) == 1
+    assert runs_history[0]["selected_candidate_history"][0] == cands1_1
+    # check run 1 iteration 2
+    cands1_2 = ase_read(f"{_tmp_dir}/run1_candidates_sl_iter2.traj", index=":")
+    assert runs_history[0]["selected_candidate_history"][1] == cands1_2
+    # check run 2 iteration 1
+    cands2_1 = ase_read(f"{_tmp_dir}/run2_candidates_sl_iter1.traj", index=":")
+    assert runs_history[1]["selected_candidate_history"][0] == cands2_1
+    # check run 2 iteration 2
+    cands2_2 = ase_read(f"{_tmp_dir}/run2_candidates_sl_iter2.traj", index=":")
+    assert runs_history[1]["selected_candidate_history"][1] == cands2_2
