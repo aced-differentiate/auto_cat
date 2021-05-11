@@ -161,9 +161,13 @@ def test_simulated_sequential_write_to_disk():
         assert sl_dict_data == sl_written
 
     # check written sl selected candidates
-    cands1 = ase_read(f"{_tmp_dir}/candidates_sl_iter1.traj", index=":")
-    assert sl_dict["selected_candidate_history"][0] == cands1
-    cands2 = ase_read(f"{_tmp_dir}/candidates_sl_iter2.traj", index=":")
+    cands1 = ase_read(f"{_tmp_dir}/candidate_structures/sl_iter1.traj", index=":")
+    # print(cands1)
+    assert len(cands1) == 2
+    # assert sl_dict["selected_candidate_history"][0] == cands1
+    cands2 = ase_read(f"{_tmp_dir}/candidate_structures/sl_iter2.traj", index=":")
+    print(cands2)
+    print(sl_dict["selected_candidate_history"])
     assert sl_dict["selected_candidate_history"][1] == cands2
 
 
@@ -218,8 +222,9 @@ def test_multiple_sequential_learning_write_to_disk():
         acsc,
         [base_struct1],
         3,
-        batch_num_of_perturbations_per_base_structure=1,
+        batch_num_of_perturbations_per_base_structure=2,
         number_of_sl_loops=2,
+        batch_size_to_add=2,
         write_to_disk=True,
         write_location=_tmp_dir,
     )
@@ -235,15 +240,23 @@ def test_multiple_sequential_learning_write_to_disk():
 
     # check selected candidate history
     # check run 1 iteration 1
-    cands1_1 = ase_read(f"{_tmp_dir}/run1_candidates_sl_iter1.traj", index=":")
-    assert len(cands1_1) == 1
+    cands1_1 = ase_read(
+        f"{_tmp_dir}/candidate_structures/run1/sl_iter1.traj", index=":"
+    )
+    assert len(cands1_1) == 2
     assert runs_history[0]["selected_candidate_history"][0] == cands1_1
     # check run 1 iteration 2
-    cands1_2 = ase_read(f"{_tmp_dir}/run1_candidates_sl_iter2.traj", index=":")
+    cands1_2 = ase_read(
+        f"{_tmp_dir}/candidate_structures/run1/sl_iter2.traj", index=":"
+    )
     assert runs_history[0]["selected_candidate_history"][1] == cands1_2
     # check run 2 iteration 1
-    cands2_1 = ase_read(f"{_tmp_dir}/run2_candidates_sl_iter1.traj", index=":")
+    cands2_1 = ase_read(
+        f"{_tmp_dir}/candidate_structures/run2/sl_iter1.traj", index=":"
+    )
     assert runs_history[1]["selected_candidate_history"][0] == cands2_1
     # check run 2 iteration 2
-    cands2_2 = ase_read(f"{_tmp_dir}/run2_candidates_sl_iter2.traj", index=":")
+    cands2_2 = ase_read(
+        f"{_tmp_dir}/candidate_structures/run2/sl_iter2.traj", index=":"
+    )
     assert runs_history[1]["selected_candidate_history"][1] == cands2_2

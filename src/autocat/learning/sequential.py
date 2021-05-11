@@ -27,6 +27,7 @@ def multiple_sequential_learning_runs(
     number_parallel_jobs: int = None,
     write_to_disk: bool = False,
     write_location: str = ".",
+    dirs_exist_ok_structures: bool = False,
     **sl_kwargs,
 ):
     """
@@ -55,6 +56,9 @@ def multiple_sequential_learning_runs(
 
     write_location:
         String with the location where runs history should be written to disk.
+
+    dirs_exist_ok_structures:
+        Boolean indicating if existing candidate structure files can be overwritten
 
     Returns
     -------
@@ -96,11 +100,13 @@ def multiple_sequential_learning_runs(
             data_runs_history.append(j_dict)
             # write out selected candidates for each iteration of each run
             c_hist = run["selected_candidate_history"]
+            traj_file_path = os.path.join(
+                write_location, f"candidate_structures/run{r_idx+1}",
+            )
+            os.makedirs(traj_file_path, exist_ok=dirs_exist_ok_structures)
             for i, c in enumerate(c_hist):
-                traj_file_path = os.path.join(
-                    write_location, f"run{r_idx+1}_candidates_sl_iter{i+1}.traj"
-                )
-                ase_write(traj_file_path, c)
+                traj_filename = os.path.join(traj_file_path, f"sl_iter{i+1}.traj")
+                ase_write(traj_filename, c)
                 print(
                     f"Selected SL Candidates for run {r_idx+1}, iteration {i+1} written to {traj_file_path}"
                 )
@@ -123,6 +129,7 @@ def simulated_sequential_learning(
     number_of_sl_loops: int = 100,
     write_to_disk: bool = False,
     write_location: str = ".",
+    dirs_exist_ok_structures: bool = False,
 ):
     """
     Conducts a simulated sequential learning loop given
@@ -174,6 +181,9 @@ def simulated_sequential_learning(
 
     write_location:
         String with the location where sl_dict should be written to disk.
+
+    dirs_exist_ok_structures:
+        Boolean indicating if existing candidate structure files can be overwritten
 
     Returns
     -------
@@ -337,11 +347,11 @@ def simulated_sequential_learning(
             json.dump(data_sl_dict, f)
         print(f"SL dictionary written to {json_write_path}")
         candidate_struct_hist = sl_dict["selected_candidate_history"]
+        traj_file_path = os.path.join(write_location, f"candidate_structures")
+        os.makedirs(traj_file_path, exist_ok=dirs_exist_ok_structures)
         for i, c in enumerate(candidate_struct_hist):
-            traj_file_path = os.path.join(
-                write_location, f"candidates_sl_iter{i+1}.traj"
-            )
-            ase_write(traj_file_path, c)
+            traj_filename = os.path.join(traj_file_path, f"sl_iter{i+1}.traj")
+            ase_write(traj_filename, c)
             print(
                 f"Selected SL Candidates for iteration {i+1} written to {traj_file_path}"
             )
