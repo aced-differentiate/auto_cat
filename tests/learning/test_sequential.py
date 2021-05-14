@@ -35,9 +35,9 @@ def test_simulated_sequential_outputs():
         number_of_sl_loops=4,
     )
     # Test that number of max uncertainties equals number of sl loops
-    assert len(sl_dict["max_unc_history"]) == 4
+    assert len(sl_dict["candidate_max_unc_history"]) == 4
     # Test the number of total uncertainties collected
-    assert len(sl_dict["full_unc_history"][-1]) == 6
+    assert len(sl_dict["candidate_full_unc_history"][-1]) == 6
     sl_dict = simulated_sequential_learning(
         acsc,
         [base_struct1, base_struct2],
@@ -45,19 +45,21 @@ def test_simulated_sequential_outputs():
         number_of_sl_loops=4,
     )
     # check default for initial number of training perturbations
-    assert len(sl_dict["full_unc_history"][0]) == 2
+    assert len(sl_dict["candidate_full_unc_history"][0]) == 2
 
     # check all mae and rmse training scores collected
     assert len(sl_dict["mae_train_history"]) == 4
     assert len(sl_dict["rmse_train_history"]) == 4
 
     # check prediction and correction history
-    assert len(sl_dict["pred_corrs_history"]) == len(sl_dict["real_corrs_history"])
-    assert len(sl_dict["pred_corrs_history"][-1]) == len(
-        sl_dict["real_corrs_history"][-1]
+    assert len(sl_dict["candidate_pred_corrs_history"]) == len(
+        sl_dict["candidate_real_corrs_history"]
     )
-    assert len(sl_dict["pred_corrs_history"]) == 4
-    assert len(sl_dict["real_corrs_history"]) == 4
+    assert len(sl_dict["candidate_pred_corrs_history"][-1]) == len(
+        sl_dict["candidate_real_corrs_history"][-1]
+    )
+    assert len(sl_dict["candidate_pred_corrs_history"]) == 4
+    assert len(sl_dict["candidate_real_corrs_history"]) == 4
 
 
 def test_simulated_sequential_batch_added():
@@ -81,20 +83,20 @@ def test_simulated_sequential_batch_added():
         number_of_sl_loops=num_loops,
     )
     # each max unc history should be equal to number of candidates added
-    assert len(sl_dict["max_unc_history"][0]) == bsta
+    assert len(sl_dict["candidate_max_unc_history"][0]) == bsta
     # first dimension is number of loops
-    assert len(sl_dict["pred_corrs_history"]) == num_loops
+    assert len(sl_dict["candidate_pred_corrs_history"]) == num_loops
     # next dimension is size of candidates added on each loop
-    assert len(sl_dict["pred_corrs_history"][0]) == bsta
+    assert len(sl_dict["candidate_pred_corrs_history"][0]) == bsta
     # next dimension is size of adsorbate
-    assert len(sl_dict["pred_corrs_history"][0][0]) == 2
+    assert len(sl_dict["candidate_pred_corrs_history"][0][0]) == 2
     # next dimension is vector correction to atom in adsorbate
-    assert len(sl_dict["pred_corrs_history"][0][0][0]) == 3
+    assert len(sl_dict["candidate_pred_corrs_history"][0][0][0]) == 3
     # check same holds for real history
-    assert len(sl_dict["real_corrs_history"]) == num_loops
-    assert len(sl_dict["real_corrs_history"][0]) == bsta
-    assert len(sl_dict["real_corrs_history"][0][0]) == 2
-    assert len(sl_dict["real_corrs_history"][0][0][0]) == 3
+    assert len(sl_dict["candidate_real_corrs_history"]) == num_loops
+    assert len(sl_dict["candidate_real_corrs_history"][0]) == bsta
+    assert len(sl_dict["candidate_real_corrs_history"][0][0]) == 2
+    assert len(sl_dict["candidate_real_corrs_history"][0][0][0]) == 3
 
 
 def test_simulated_sequential_outputs_testing():
@@ -121,6 +123,10 @@ def test_simulated_sequential_outputs_testing():
     assert len(sl_dict["mae_test_history"]) == 2
     assert len(sl_dict["rmse_train_history"]) == 2
     assert len(sl_dict["mae_train_history"]) == 2
+    assert len(sl_dict["test_preds_history"]) == 2
+    assert len(sl_dict["test_preds_history"][0]) == 3
+    assert len(sl_dict["test_unc_history"]) == 2
+    assert len(sl_dict["test_unc_history"][0]) == 3
     assert sl_dict["mae_test_history"] != sl_dict["mae_train_history"]
 
     # check selected_candidate_history

@@ -123,6 +123,12 @@ def test_score_on_perturbed_systems():
     mae = acsc.score(p_structures[15:], corrections_list)
     assert isinstance(mae, float)
     rmse = acsc.score(p_structures[15:], corrections_list, metric="rmse")
+    # Test returning predictions
+    _, pred_corr, unc = acsc.score(
+        p_structures[15:], corrections_list, return_predictions=True
+    )
+    assert len(pred_corr) == 5
+    assert len(unc) == 5
     assert mae != rmse
     with pytest.raises(AutocatStructureCorrectorError):
         acsc.score(p_structures[15:], corrections_list, metric="msd")

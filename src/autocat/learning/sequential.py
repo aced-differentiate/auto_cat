@@ -191,14 +191,16 @@ def simulated_sequential_learning(
     sl_dict:
         Dictionary containing histories of different quantities throughout
         the calculation:
-        - maximum uncertainty history
-        - full uncertainty history
+        - candidate maximum uncertainty history
+        - candidate full uncertainty history
         - predicted corrections training history
         - real corrections training history
         - mae training history
         - rmse training history
         - mae testing history (if test structures given)
         - rmse testing history (if test structures given)
+        - testing predictions (if test structures given)
+        - testing uncertainties (if test structures given)
         For the corrections histories, the dimensions are as follows:
         num of loops -> num of candidates added -> corrections applied
     """
@@ -247,17 +249,19 @@ def simulated_sequential_learning(
     validation_pert_structures = validation_pert_dataset["collected_structures"]
     validation_pert_corr_list = validation_pert_dataset["corrections_list"]
 
-    full_unc_history = []
-    max_unc_history = []
-    pred_corrs_history = []
-    real_corrs_history = []
+    candidate_full_unc_history = []
+    candidate_max_unc_history = []
+    candidate_pred_corrs_history = []
+    candidate_real_corrs_history = []
     mae_train_history = []
     rmse_train_history = []
     mae_test_history = []
     rmse_test_history = []
     selected_candidate_history = []
+    test_preds_history = []
+    test_unc_history = []
     ctr = 0
-    while len(max_unc_history) < number_of_sl_loops:
+    while len(candidate_max_unc_history) < number_of_sl_loops:
         ctr += 1
         print(f"Sequential Learning Iteration #{ctr}")
         # generate new perturbations to predict on
@@ -289,20 +293,23 @@ def simulated_sequential_learning(
 
         # get scores on test perturbations
         if testing_base_structures is not None:
-            mae_test_history.append(
-                structure_corrector.score(test_pert_structures, test_pert_corr_list)
+            mae_test_score, test_preds, test_unc = structure_corrector.score(
+                test_pert_structures, test_pert_corr_list, return_predictions=True
             )
+            mae_test_history.append(mae_test_score)
+            test_preds_history.append([p.tolist() for p in test_preds])
+            test_unc_history.append([u.tolist() for u in test_unc])
             rmse_test_history.append(
                 structure_corrector.score(
                     test_pert_structures, test_pert_corr_list, metric="rmse"
                 )
             )
 
-        full_unc_history.append(_uncs)
+        candidate_full_unc_history.append(_uncs)
 
         # find candidate with highest uncertainty
         high_unc_idx = np.argsort(_uncs)[-batch_size_to_add:]
-        max_unc_history.append(_uncs[high_unc_idx])
+        candidate_max_unc_history.append(_uncs[high_unc_idx])
 
         next_candidate_struct = [new_pert_structs[idx] for idx in high_unc_idx]
         # add new perturbed struct to training set
@@ -313,20 +320,22 @@ def simulated_sequential_learning(
         selected_candidate_history.append(next_candidate_struct)
 
         # keeps as lists to make writing to disk easier
-        pred_corrs_history.append(
+        candidate_pred_corrs_history.append(
             [p.tolist() for p in [_pred_corrs[idx] for idx in high_unc_idx]]
         )
-        real_corrs_history.append(
+        candidate_real_corrs_history.append(
             [new_pert_corr_list[idx].tolist() for idx in high_unc_idx]
         )
         structure_corrector.fit(
             train_pert_structures, corrections_list=train_pert_corr_list
         )
     sl_dict = {
-        "max_unc_history": [mu.tolist() for mu in max_unc_history],
-        "full_unc_history": [unc.tolist() for unc in full_unc_history],
-        "pred_corrs_history": pred_corrs_history,
-        "real_corrs_history": [r for r in real_corrs_history],
+        "candidate_max_unc_history": [mu.tolist() for mu in candidate_max_unc_history],
+        "candidate_full_unc_history": [
+            unc.tolist() for unc in candidate_full_unc_history
+        ],
+        "candidate_pred_corrs_history": candidate_pred_corrs_history,
+        "candidate_real_corrs_history": [r for r in candidate_real_corrs_history],
         "selected_candidate_history": selected_candidate_history,
         "mae_train_history": mae_train_history,
         "rmse_train_history": rmse_train_history,
@@ -335,6 +344,8 @@ def simulated_sequential_learning(
     if testing_base_structures is not None:
         sl_dict["mae_test_history"] = mae_test_history
         sl_dict["rmse_test_history"] = rmse_test_history
+        sl_dict["test_preds_history"] = test_preds_history
+        sl_dict["test_unc_history"] = test_unc_history
 
     if write_to_disk:
         if not os.path.isdir(write_location):
