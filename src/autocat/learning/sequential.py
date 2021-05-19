@@ -125,6 +125,7 @@ def simulated_sequential_learning(
     maximum_perturbation_distance: float = 0.75,
     initial_num_of_perturbations_per_base_structure: int = None,
     batch_num_of_perturbations_per_base_structure: int = 2,
+    test_num_of_perturbations_per_base_structure: int = None,
     batch_size_to_add: int = 1,
     number_of_sl_loops: int = 100,
     write_to_disk: bool = False,
@@ -231,9 +232,13 @@ def simulated_sequential_learning(
     )
 
     if testing_base_structures is not None:
+        if test_num_of_perturbations_per_base_structure is None:
+            test_num_of_perturbations_per_base_structure = (
+                batch_num_of_perturbations_per_base_structure
+            )
         test_pert_dataset = generate_perturbed_dataset(
             testing_base_structures,
-            num_of_perturbations=initial_num_of_perturbations_per_base_structure,
+            num_of_perturbations=test_num_of_perturbations_per_base_structure,
             maximum_perturbation_distance=maximum_perturbation_distance,
             minimum_perturbation_distance=minimum_perturbation_distance,
         )
@@ -345,6 +350,7 @@ def simulated_sequential_learning(
         sl_dict["mae_test_history"] = mae_test_history
         sl_dict["rmse_test_history"] = rmse_test_history
         sl_dict["test_preds_history"] = test_preds_history
+        sl_dict["test_real_corrections"] = [t.tolist() for t in test_pert_corr_list]
         sl_dict["test_unc_history"] = test_unc_history
 
     if write_to_disk:
