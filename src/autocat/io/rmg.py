@@ -47,7 +47,6 @@ def output_yaml_to_surface_rmg_mol(output_yaml: str):
     rmg_surf_dict = {}
     for spec in surfaces:
         rmgmol = Molecule().from_adjacency_list(spec["adjlist"])
-        print(spec["name"])
         if rmgmol.is_surface_site():
             continue
         name = spec["name"]
@@ -172,7 +171,6 @@ def _whether_to_optimize_conformer(rmgmol):
     If a single isolated atom, sets optimizer to False
     """
     atoms = rmgmol.atoms
-    print(atoms)
     if len(atoms) > 1:
         return True
     return False
