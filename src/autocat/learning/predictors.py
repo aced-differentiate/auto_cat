@@ -13,11 +13,11 @@ from autocat.learning.featurizers import get_X
 from autocat.learning.featurizers import _get_number_of_features
 
 
-class AutocatStructureCorrectorError(Exception):
+class AutoCatPredictorError(Exception):
     pass
 
 
-class AutoCatStructureCorrector:
+class AutoCatPredictor:
     def __init__(
         self,
         model_class=None,
@@ -276,10 +276,7 @@ class AutoCatStructureCorrector:
         return num_struct_feat, num_ads_feat
 
     def fit(
-        self,
-        perturbed_structures: List[Union[Atoms, str]],
-        corrections_list: List[np.ndarray] = None,
-        correction_matrix: np.ndarray = None,
+        self, training_structures: List[Union[Atoms, str]], y: np.ndarray,
     ):
         """
         Given a list of perturbed structures
@@ -288,20 +285,12 @@ class AutoCatStructureCorrector:
         Parameters
         ----------
 
-        perturbed_structures:
+        training_structures:
             List of perturbed structures to be trained upon
 
-        correction_matrix:
-            Numpy array of collected matrices of perturbations corresponding to
-            each of the perturbed structures.
-            This can be generated via `autocat.perturbations.generate_perturbed_dataset`.
-            Shape should be (# of structures, 3 * # of atoms in the largest structure)
-
-        correction_list:
-            List of np.arrays of correction vectors
-            where each item is of shape (# of adsorbate atoms, 3).
-            Adding the negative of these vectors to any perturbed
-            structure should return it to the base structure
+        y:
+            Numpy array of labels corresponding to training structures
+            of shape (# of training structures, # of targets)
 
         Returns
         -------
@@ -310,7 +299,7 @@ class AutoCatStructureCorrector:
             Trained `sklearn` model object
         """
         X = get_X(
-            perturbed_structures,
+            training_structures,
             maximum_structure_size=self.maximum_structure_size,
             structure_featurizer=self.structure_featurizer,
             maximum_adsorbate_size=self.maximum_adsorbate_size,
@@ -325,17 +314,15 @@ class AutoCatStructureCorrector:
             if self.refine_structures:
                 ref_structures = [
                     structure[np.where(structure.get_tags() < 2)[0].tolist()]
-                    for structure in perturbed_structures
+                    for structure in training_structures
                 ]
                 self.maximum_structure_size = max([len(ref) for ref in ref_structures])
             else:
-                self.maximum_structure_size = max(
-                    [len(s) for s in perturbed_structures]
-                )
+                self.maximum_structure_size = max([len(s) for s in training_structures])
 
         if self.maximum_adsorbate_size is None:
             adsorbate_sizes = []
-            for struct in perturbed_structures:
+            for struct in training_structures:
                 adsorbate_sizes.append(
                     len(np.where(struct.get_tags() <= 0)[0].tolist())
                 )
@@ -343,7 +330,7 @@ class AutoCatStructureCorrector:
 
         if self.species_list is None:
             species_list = []
-            for s in perturbed_structures:
+            for s in training_structures:
                 found_species = np.unique(s.get_chemical_symbols()).tolist()
                 new_species = [
                     spec for spec in found_species if spec not in species_list
@@ -351,27 +338,17 @@ class AutoCatStructureCorrector:
                 species_list.extend(new_species)
             self.species_list = species_list
 
-        if corrections_list is not None:
-            correction_matrix = np.zeros(
-                (len(corrections_list), 3 * self.maximum_adsorbate_size)
-            )
-            for idx, row in enumerate(corrections_list):
-                correction_matrix[idx, : 3 * len(row)] = row.flatten()
-        elif correction_matrix is not None:
-            if correction_matrix.shape[1] != 3 * self.maximum_adsorbate_size:
-                msg = f"Correction matrix must have {3 * self.maximum_adsorbate_size} targets, got {correction_matrix.shape[1]}"
-                raise AutocatStructureCorrectorError(msg)
-        else:
-            msg = "Must specify either corrections list or matrix"
-            raise AutocatStructureCorrectorError(msg)
+        if len(y.shape) == 1:
+            y = y.reshape(-1, 1)
 
         if not self.multiple_separate_models:
-            self.regressor.fit(X, correction_matrix)
+            self.regressor.fit(X, y)
         else:
+            assert y.shape[1] > 1
             regs = []
-            for i in range(correction_matrix.shape[1]):
+            for i in range(y.shape[1]):
                 reg = self.model_class(**self.model_kwargs or {})
-                reg.fit(X, correction_matrix[:, i])
+                reg.fit(X, y[:, i])
                 regs.append(reg)
             assert regs[0] is not regs[1]
             self.regressor = regs
@@ -379,7 +356,7 @@ class AutoCatStructureCorrector:
         self.is_fit = True
 
     def predict(
-        self, initial_structure_guesses: List[Atoms],
+        self, testing_structures: List[Atoms],
     ):
         """
         From a trained model, will predict corrected structure
@@ -388,7 +365,7 @@ class AutoCatStructureCorrector:
         Parameters
         ----------
 
-        initial_structure_guesses:
+        testing_structures:
             List of Atoms objects of initial guesses for adsorbate
             placement to be optimized
 
@@ -398,16 +375,13 @@ class AutoCatStructureCorrector:
         predicted_corrections:
             List of corrections to be applied to each input structure
 
-        corrected_structures:
-            List of Atoms object with corrections applied
-
         unc:
             List of uncertainties for each prediction
 
         """
         assert self.is_fit
         featurized_input = get_X(
-            structures=initial_structure_guesses,
+            structures=testing_structures,
             structure_featurizer=self.structure_featurizer,
             adsorbate_featurizer=self.adsorbate_featurizer,
             maximum_structure_size=self.maximum_structure_size,
@@ -418,58 +392,34 @@ class AutoCatStructureCorrector:
         )
         if not self.multiple_separate_models:
             try:
-                predicted_correction_matrix_full, unc = self.regressor.predict(
+                predicted_labels, unc = self.regressor.predict(
                     featurized_input, return_std=True
                 )
             except TypeError:
-                predicted_correction_matrix_full = self.regressor.predict(
-                    featurized_input,
-                )
+                predicted_labels = self.regressor.predict(featurized_input,)
                 unc = None
         else:
-            predicted_correction_matrix_full = np.zeros(
-                (len(initial_structure_guesses), 3 * self.maximum_adsorbate_size)
-            )
+            predicted_labels = np.zeros((len(testing_structures), len(self.regressor)))
             try:
-                uncs = np.zeros((len(initial_structure_guesses), len(self.regressor)))
+                uncs = np.zeros((len(testing_structures), len(self.regressor)))
                 for idx, r in enumerate(self.regressor):
                     preds = r.predict(featurized_input, return_std=True)
-                    predicted_correction_matrix_full[:, idx] = preds[0]
+                    predicted_labels[:, idx] = preds[0]
                     # uncertainties for target r for each struct to predict on
                     uncs[:, idx] = preds[1]
                 # take average uncertainty for each struct
                 unc = np.mean(uncs, axis=1)
             except TypeError:
                 for idx, r in enumerate(self.regressor):
-                    predicted_correction_matrix_full[:, idx] = r.predict(
-                        featurized_input
-                    )
+                    predicted_labels[:, idx] = r.predict(featurized_input)
                 unc = None
 
-        corrected_structures = [
-            init_struct.copy() for init_struct in initial_structure_guesses
-        ]
-
-        corrected_structures = []
-        predicted_corrections = []
-        for idx, struct in enumerate(initial_structure_guesses):
-            cs = struct.copy()
-            list_of_adsorbate_indices = np.where(struct.get_tags() <= 0)[0].tolist()
-            list_of_adsorbate_indices.sort()
-            num_of_adsorbates = len(list_of_adsorbate_indices)
-            corr = predicted_correction_matrix_full[
-                idx, : 3 * num_of_adsorbates
-            ].reshape(num_of_adsorbates, 3)
-            predicted_corrections.append(corr)
-            cs.positions[list_of_adsorbate_indices] -= corr
-            corrected_structures.append(cs)
-
-        return predicted_corrections, corrected_structures, unc
+        return predicted_labels, unc
 
     def score(
         self,
-        test_structure_guesses: List[Atoms],
-        corrections_list: List[np.ndarray],
+        testing_structures: List[Atoms],
+        y: List[np.ndarray],
         metric: str = "mae",
         return_predictions: bool = False,
     ):
@@ -504,16 +454,14 @@ class AutoCatStructureCorrector:
         """
         assert self.is_fit
 
-        pred_corr, _, unc = self.predict(test_structure_guesses)
+        pred_corr, unc = self.predict(testing_structures)
 
         if metric == "mae":
             all_abs_vec_diff = []
             for i in range(len(pred_corr)):
-                assert pred_corr[i].shape == corrections_list[i].shape
+                assert pred_corr[i].shape == y[i].shape
                 N_i = len(pred_corr[i])
-                abs_vec_diff = np.sum(
-                    np.linalg.norm(corrections_list[i] - pred_corr[i], axis=1)
-                )
+                abs_vec_diff = np.sum(np.linalg.norm(y[i] - pred_corr[i], axis=1))
                 all_abs_vec_diff.append(abs_vec_diff / N_i)
             if return_predictions:
                 return np.sum(all_abs_vec_diff) / len(all_abs_vec_diff), pred_corr, unc
@@ -522,11 +470,9 @@ class AutoCatStructureCorrector:
         elif metric == "rmse":
             all_sq_vec_diff = []
             for i in range(len(pred_corr)):
-                assert pred_corr[i].shape == corrections_list[i].shape
+                assert pred_corr[i].shape == y[i].shape
                 N_i = len(pred_corr[i])
-                sq_vec_diff = np.sum(
-                    np.linalg.norm(corrections_list[i] - pred_corr[i], axis=1) ** 2
-                )
+                sq_vec_diff = np.sum(np.linalg.norm(y[i] - pred_corr[i], axis=1) ** 2)
                 all_sq_vec_diff.append(sq_vec_diff / N_i)
             if return_predictions:
                 return (
@@ -538,4 +484,4 @@ class AutoCatStructureCorrector:
                 return np.sqrt(np.sum(all_sq_vec_diff) / len(all_sq_vec_diff))
         else:
             msg = f"Metric: {metric} is not supported"
-            raise AutocatStructureCorrectorError(msg)
+            raise AutoCatPredictorError(msg)
