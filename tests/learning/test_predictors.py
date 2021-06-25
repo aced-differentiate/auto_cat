@@ -86,27 +86,35 @@ def test_score_on_perturbed_systems():
     p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
     p_structures = p_set["collected_structures"]
     correction_matrix = p_set["correction_matrix"]
-    corrections_list = p_set["corrections_list"]
     acsc = AutoCatPredictor(
         structure_featurizer="sine_matrix",
         adsorbate_featurizer="soap",
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
     )
     acsc.fit(
-        p_structures[:15], correction_matrix=correction_matrix[:15, :],
+        p_structures[:15], correction_matrix[:15, :],
     )
-    mae = acsc.score(p_structures[15:], corrections_list)
+    mae = acsc.score(p_structures[15:], correction_matrix)
     assert isinstance(mae, float)
-    rmse = acsc.score(p_structures[15:], corrections_list, metric="rmse")
+    rmse = acsc.score(p_structures[15:], correction_matrix, metric="rmse")
+    assert isinstance(rmse, float)
+
     # Test returning predictions
     _, pred_corr, unc = acsc.score(
-        p_structures[15:], corrections_list, return_predictions=True
+        p_structures[15:], correction_matrix, return_predictions=True
     )
     assert len(pred_corr) == 5
     assert len(unc) == 5
     assert mae != rmse
     with pytest.raises(AutoCatPredictorError):
-        acsc.score(p_structures[15:], corrections_list, metric="msd")
+        acsc.score(p_structures[15:], correction_matrix, metric="msd")
+
+    # Test with single target
+    acsc.fit(
+        p_structures[:15], np.arange(15),
+    )
+    mae = acsc.score(p_structures[15:], np.arange(15))
+    assert isinstance(mae, float)
 
 
 def test_model_class_and_kwargs():

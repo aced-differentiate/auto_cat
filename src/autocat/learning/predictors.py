@@ -419,7 +419,7 @@ class AutoCatPredictor:
     def score(
         self,
         testing_structures: List[Atoms],
-        y: List[np.ndarray],
+        y: np.ndarray,
         metric: str = "mae",
         return_predictions: bool = False,
     ):
@@ -454,30 +454,41 @@ class AutoCatPredictor:
         """
         assert self.is_fit
 
-        pred_corr, unc = self.predict(testing_structures)
+        pred_label, unc = self.predict(testing_structures)
+
+        if len(y.shape) == 1:
+            y = y.reshape(-1, 1)
 
         if metric == "mae":
             all_abs_vec_diff = []
-            for i in range(len(pred_corr)):
-                assert pred_corr[i].shape == y[i].shape
-                N_i = len(pred_corr[i])
-                abs_vec_diff = np.sum(np.linalg.norm(y[i] - pred_corr[i], axis=1))
+            for i in range(len(pred_label)):
+                assert pred_label[i].shape == y[i].shape
+                N_i = len(pred_label[i])
+                # check if multi-target and takes norm if it is
+                if len(y[i]) > 1:
+                    abs_vec_diff = np.sum(np.linalg.norm(y[i] - pred_label[i]))
+                else:
+                    abs_vec_diff = np.sum(y[i] - pred_label[i])
                 all_abs_vec_diff.append(abs_vec_diff / N_i)
             if return_predictions:
-                return np.sum(all_abs_vec_diff) / len(all_abs_vec_diff), pred_corr, unc
+                return np.sum(all_abs_vec_diff) / len(all_abs_vec_diff), pred_label, unc
             else:
                 return np.sum(all_abs_vec_diff) / len(all_abs_vec_diff)
         elif metric == "rmse":
             all_sq_vec_diff = []
-            for i in range(len(pred_corr)):
-                assert pred_corr[i].shape == y[i].shape
-                N_i = len(pred_corr[i])
-                sq_vec_diff = np.sum(np.linalg.norm(y[i] - pred_corr[i], axis=1) ** 2)
+            for i in range(len(pred_label)):
+                assert pred_label[i].shape == y[i].shape
+                N_i = len(pred_label[i])
+                # check if multi-target and takes norm if it is
+                if len(y[i]) > 1:
+                    sq_vec_diff = np.sum(np.linalg.norm(y[i] - pred_label[i]) ** 2)
+                else:
+                    sq_vec_diff = np.sum((y[i] - pred_label[i]) ** 2)
                 all_sq_vec_diff.append(sq_vec_diff / N_i)
             if return_predictions:
                 return (
                     np.sqrt(np.sum(all_sq_vec_diff) / len(all_sq_vec_diff)),
-                    pred_corr,
+                    pred_label,
                     unc,
                 )
             else:
