@@ -194,6 +194,7 @@ def perturb_structure(
     base_structure: Union[str, Atoms],
     minimum_perturbation_distance: float = 0.1,
     maximum_perturbation_distance: float = 1.0,
+    direction_sign_constraint: int = None,
 ):
     """
 
@@ -208,6 +209,13 @@ def perturb_structure(
     -2: free in xy only
     -3: free in x only
     -4: free in y only
+
+    The direction sign can also be constrained (e.g.
+    only perturb in the + direction)
+
+    For example, to perturb an atom in only the
+    +z direction, its tag should be -1 and
+    direction_sign_constraint = 1
 
     Parameters
     ----------
@@ -224,6 +232,13 @@ def perturb_structure(
     maximum_perturbation_distance:
         Float of maximum acceptable perturbation distance
         Default: 1.0 Angstrom
+
+    direction_sign_constraint:
+        Int used to restrict the sign of the perturbation.
+        Options:
+        1 = perturb in only the + direction
+        -1 = perturb in only the - direction
+        Default: allows both +/- directions.
 
     Returns
     -------
@@ -254,6 +269,11 @@ def perturb_structure(
     for idx in atom_indices_to_perturb:
         # randomize +/- direction of each perturbation
         signs = np.array([-1, -1, -1]) ** np.random.randint(low=1, high=11, size=(1, 3))
+        if direction_sign_constraint is not None:
+            if direction_sign_constraint not in [-1, 1]:
+                msg = f"direction_sign_constraint must be either -1 or 1, got {direction_sign_constraint}"
+                raise AutocatPerturbationError(msg)
+            signs = direction_sign_constraint * abs(signs)
         # generate perturbation matrix
         pert_matrix[idx, :] = (
             constr[ase_obj[idx].tag]

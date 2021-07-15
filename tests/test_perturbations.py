@@ -10,7 +10,7 @@ from ase import Atoms
 
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
-from autocat.perturbations import perturb_structure
+from autocat.perturbations import AutocatPerturbationError, perturb_structure
 from autocat.perturbations import generate_perturbed_dataset
 
 
@@ -29,6 +29,30 @@ def test_perturb_structure_directions():
     assert p_struct["structure"].positions[-1][0] == base_struct.positions[-1][0]
     assert p_struct["structure"].positions[-1][1] == base_struct.positions[-1][1]
     assert p_struct["structure"].positions[-1][-1] != base_struct.positions[-1][-1]
+
+
+def test_perturb_structure_sign_constraint():
+    # Tests fixing sign of perturbation
+    sub = generate_surface_structures(["Cu"], facets={"Cu": ["111"]})["Cu"]["fcc111"][
+        "structure"
+    ]
+    base_struct = place_adsorbate(sub, "O")["custom"]["structure"]
+    # free in +z
+    base_struct[-1].tag = -1
+    p_struct = perturb_structure(base_struct, direction_sign_constraint=1)
+    assert p_struct["structure"].positions[-1][0] == base_struct.positions[-1][0]
+    assert p_struct["structure"].positions[-1][-1] - base_struct.positions[-1][-1] > 0.0
+    # free in -x
+    base_struct[-1].tag = -3
+    p_struct = perturb_structure(base_struct, direction_sign_constraint=-1)
+    assert p_struct["structure"].positions[-1][0] - base_struct.positions[-1][0] < 0.0
+    # free in +xy
+    base_struct[-1].tag = -2
+    p_struct = perturb_structure(base_struct, direction_sign_constraint=1)
+    assert p_struct["structure"].positions[-1][0] - base_struct.positions[-1][0] > 0.0
+    assert p_struct["structure"].positions[-1][1] - base_struct.positions[-1][1] > 0.0
+    with pytest.raises(AutocatPerturbationError):
+        p_struct = perturb_structure(base_struct, direction_sign_constraint=2)
 
 
 def test_perturb_structure_matrix():
