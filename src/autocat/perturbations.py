@@ -18,6 +18,7 @@ def generate_perturbed_dataset(
     maximum_perturbation_distance: float = 0.75,
     maximum_adsorbate_size: int = None,
     num_of_perturbations: int = 10,
+    direction_sign_constraint: int = None,
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
@@ -36,6 +37,13 @@ def generate_perturbed_dataset(
     -2: free in xy only
     -3: free in x only
     -4: free in y only
+
+    The direction sign can also be constrained (e.g.
+    only perturb in the + direction)
+
+    For example, to perturb an atom in only the
+    +z direction, its tag should be -1 and
+    direction_sign_constraint = 1
 
     Parameters
     ----------
@@ -63,6 +71,13 @@ def generate_perturbed_dataset(
         Int specifying number of perturbations to generate.
         Default 10
 
+    direction_sign_constraint:
+        Int used to restrict the sign of the perturbation.
+        Options:
+        1 = perturb in only the + direction
+        -1 = perturb in only the - direction
+        Default: allows both +/- directions.
+
     write_to_disk:
         Boolean specifying whether the perturbed structures generated should be
         written to disk.
@@ -77,7 +92,6 @@ def generate_perturbed_dataset(
         overwritten or not. This is passed on to the `os.makedirs` builtin.
         Defaults to False (raises an error if directories corresponding the
         species and crystal structure already exist).
-
 
     Returns
     -------
@@ -116,6 +130,7 @@ def generate_perturbed_dataset(
                 structure,
                 minimum_perturbation_distance=minimum_perturbation_distance,
                 maximum_perturbation_distance=maximum_perturbation_distance,
+                direction_sign_constraint=direction_sign_constraint,
             )
             # keeps flattened atomic coordinates difference vector
             corrections_list.append(perturbed_dict[name][str(i)]["perturbation_matrix"])
