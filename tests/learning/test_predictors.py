@@ -85,27 +85,27 @@ def test_score_on_perturbed_systems():
     base_struct = place_adsorbate(sub, "CO")["custom"]["structure"]
     p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
     p_structures = p_set["collected_structures"]
-    correction_matrix = p_set["correction_matrix"]
+    correction_matrix = p_set["correction_matrix"][:, 0]
     acsc = AutoCatPredictor(
         structure_featurizer="sine_matrix",
         adsorbate_featurizer="soap",
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
     )
     acsc.fit(
-        p_structures[:15], correction_matrix[:15, :],
+        p_structures[:15], correction_matrix[:15],
     )
-    mae = acsc.score(p_structures[15:], correction_matrix)
+    mae = acsc.score(p_structures[15:], correction_matrix[15:])
     assert isinstance(mae, float)
-    rmse = acsc.score(p_structures[15:], correction_matrix, metric="rmse")
-    assert isinstance(rmse, float)
+    mse = acsc.score(p_structures[15:], correction_matrix[15:], metric="mse")
+    assert isinstance(mse, float)
 
     # Test returning predictions
-    _, pred_corr, unc = acsc.score(
-        p_structures[15:], correction_matrix, return_predictions=True
+    score, pred_corr, unc = acsc.score(
+        p_structures[15:], correction_matrix[15:], return_predictions=True
     )
     assert len(pred_corr) == 5
     assert len(unc) == 5
-    assert mae != rmse
+    assert mae != mse
     with pytest.raises(AutoCatPredictorError):
         acsc.score(p_structures[15:], correction_matrix, metric="msd")
 
@@ -113,7 +113,8 @@ def test_score_on_perturbed_systems():
     acsc.fit(
         p_structures[:15], np.arange(15),
     )
-    mae = acsc.score(p_structures[15:], np.arange(15))
+
+    mae = acsc.score(p_structures[15:], np.arange(5))
     assert isinstance(mae, float)
 
 
@@ -154,78 +155,3 @@ def test_model_without_unc():
     predicted_corrections, uncs = acsc.predict(p_structures[15:],)
     assert uncs is None
     assert predicted_corrections is not None
-
-
-def test_multi_separate_models_fit():
-    # Tests fitting multiple separate models for each output
-    sub = generate_surface_structures(["Fe"], facets={"Fe": ["100"]})["Fe"]["bcc100"][
-        "structure"
-    ]
-    base_struct = place_adsorbate(sub, "O")["custom"]["structure"]
-    p_set = generate_perturbed_dataset(
-        [base_struct], num_of_perturbations=20, maximum_adsorbate_size=2,
-    )
-    p_structures = p_set["collected_structures"]
-    correction_matrix = p_set["correction_matrix"]
-    acsc = AutoCatPredictor(
-        structure_featurizer="sine_matrix",
-        adsorbate_featurizer=None,
-        multiple_separate_models=True,
-        maximum_adsorbate_size=2,
-    )
-    acsc.fit(
-        p_structures[:15], correction_matrix[:15, :],
-    )
-    assert len(acsc.regressor) == 6
-    assert isinstance(acsc.regressor[0], GaussianProcessRegressor)
-    assert hasattr(acsc.regressor[-1], "alpha_")
-    assert acsc.regressor[1] is not acsc.regressor[2]
-    # Check fitting to supplied model class
-    acsc.model_class = BayesianRidge
-    acsc.fit(
-        p_structures[:15], correction_matrix[:15, :],
-    )
-    assert len(acsc.regressor) == 6
-    assert hasattr(acsc.regressor[2], "coef_")
-    assert acsc.regressor[0] is not acsc.regressor[-1]
-
-
-def test_multi_separate_models_predict():
-    # Tests predicting with multiple separate models
-    sub = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"]["hcp0001"][
-        "structure"
-    ]
-    base_struct = place_adsorbate(sub, "NH")["custom"]["structure"]
-    p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
-    p_structures = p_set["collected_structures"]
-    correction_matrix = p_set["correction_matrix"]
-    acsc = AutoCatPredictor(
-        structure_featurizer="sine_matrix",
-        adsorbate_featurizer=None,
-        multiple_separate_models=True,
-    )
-    acsc.fit(
-        p_structures[:15], correction_matrix[:15, :],
-    )
-    predicted_corrections, uncs = acsc.predict(p_structures[15:],)
-    assert len(predicted_corrections) == 5
-    assert len(predicted_corrections[0]) == correction_matrix.shape[1]
-    assert len(uncs) == 5
-    # Test for model class without unc
-    acsc.model_class = KernelRidge
-    acsc.fit(
-        p_structures[:15], correction_matrix[:15, :],
-    )
-    predicted_corrections, uncs = acsc.predict(p_structures[15:],)
-    assert len(predicted_corrections) == 5
-    assert len(predicted_corrections[0]) == correction_matrix.shape[1]
-    assert uncs is None
-    # Test for model class with uncertainty
-    acsc.model_class = BayesianRidge
-    acsc.fit(
-        p_structures[:15], correction_matrix[:15, :],
-    )
-    predicted_corrections, uncs = acsc.predict(p_structures[15:],)
-    assert len(predicted_corrections) == 5
-    assert len(predicted_corrections[0]) == correction_matrix.shape[1]
-    assert len(uncs) == 5

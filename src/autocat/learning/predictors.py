@@ -5,9 +5,12 @@ from typing import Dict
 from typing import Union
 
 from ase import Atoms
+from sklearn import metrics
 
 from sklearn.model_selection import KFold
 from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_squared_error
 
 from autocat.learning.featurizers import get_X
 from autocat.learning.featurizers import _get_number_of_features
@@ -43,11 +46,6 @@ class AutoCatPredictor:
             If this is changed after initialization, all previously set
             model_kwargs will be removed.
             N.B. must have fit and predict methods
-
-        multiple_separate_models:
-            Bool indicating whether to train separate models for each target output.
-            If this is true, when fit to data, `acsc.regressor` will become the list
-            of regressors with length of number of targets
 
         structure_featurizer:
             String giving featurizer to be used for full structure which will be
@@ -130,17 +128,6 @@ class AutoCatPredictor:
                 self.is_fit = False
             # generates new regressor with default settings
             self.regressor = self._model_class()
-
-    @property
-    def multiple_separate_models(self):
-        return self._multiple_separate_models
-
-    @multiple_separate_models.setter
-    def multiple_separate_models(self, multiple_separate_models):
-        if multiple_separate_models is not None:
-            self._multiple_separate_models = multiple_separate_models
-            if self.is_fit:
-                self.is_fit = False
 
     @property
     def model_kwargs(self):
@@ -338,21 +325,7 @@ class AutoCatPredictor:
                 species_list.extend(new_species)
             self.species_list = species_list
 
-        if len(y.shape) == 1:
-            y = y.reshape(-1, 1)
-
-        if not self.multiple_separate_models:
-            self.regressor.fit(X, y)
-        else:
-            assert y.shape[1] > 1
-            regs = []
-            for i in range(y.shape[1]):
-                reg = self.model_class(**self.model_kwargs or {})
-                reg.fit(X, y[:, i])
-                regs.append(reg)
-            assert regs[0] is not regs[1]
-            self.regressor = regs
-
+        self.regressor.fit(X, y)
         self.is_fit = True
 
     def predict(
@@ -390,29 +363,13 @@ class AutoCatPredictor:
             structure_featurization_kwargs=self.structure_featurization_kwargs,
             adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
         )
-        if not self.multiple_separate_models:
-            try:
-                predicted_labels, unc = self.regressor.predict(
-                    featurized_input, return_std=True
-                )
-            except TypeError:
-                predicted_labels = self.regressor.predict(featurized_input,)
-                unc = None
-        else:
-            predicted_labels = np.zeros((len(testing_structures), len(self.regressor)))
-            try:
-                uncs = np.zeros((len(testing_structures), len(self.regressor)))
-                for idx, r in enumerate(self.regressor):
-                    preds = r.predict(featurized_input, return_std=True)
-                    predicted_labels[:, idx] = preds[0]
-                    # uncertainties for target r for each struct to predict on
-                    uncs[:, idx] = preds[1]
-                # take average uncertainty for each struct
-                unc = np.mean(uncs, axis=1)
-            except TypeError:
-                for idx, r in enumerate(self.regressor):
-                    predicted_labels[:, idx] = r.predict(featurized_input)
-                unc = None
+        try:
+            predicted_labels, unc = self.regressor.predict(
+                featurized_input, return_std=True
+            )
+        except TypeError:
+            predicted_labels = self.regressor.predict(featurized_input,)
+            unc = None
 
         return predicted_labels, unc
 
@@ -422,6 +379,7 @@ class AutoCatPredictor:
         y: np.ndarray,
         metric: str = "mae",
         return_predictions: bool = False,
+        **kwargs,
     ):
         """
         Returns a prediction score given the actual corrections.
@@ -432,15 +390,14 @@ class AutoCatPredictor:
         test_structure_guesses:
             List of Atoms objects of structures to be tested o
 
-        corrections_list:
-            List of actual corrections as `np.arrays`
+        y:
+            Labels for the testing structures
 
         metric:
             How the performance metric should be calculated
             Options:
-            - mae: average of the average norm displacement vector difference
-            - rmse: square root of the average of the average norm displacement
-            vector difference squared
+            - mae
+            - mse
 
         return_predictions:
             Bool indicating whether the predictions and uncertainties should
@@ -456,43 +413,14 @@ class AutoCatPredictor:
 
         pred_label, unc = self.predict(testing_structures)
 
-        if len(y.shape) == 1:
-            y = y.reshape(-1, 1)
+        score_func = {"mae": mean_absolute_error, "mse": mean_squared_error}
 
-        if metric == "mae":
-            all_abs_vec_diff = []
-            for i in range(len(pred_label)):
-                assert pred_label[i].shape == y[i].shape
-                N_i = len(pred_label[i])
-                # check if multi-target and takes norm if it is
-                if len(y[i]) > 1:
-                    abs_vec_diff = np.sum(np.linalg.norm(y[i] - pred_label[i]))
-                else:
-                    abs_vec_diff = np.sum(y[i] - pred_label[i])
-                all_abs_vec_diff.append(abs_vec_diff / N_i)
-            if return_predictions:
-                return np.sum(all_abs_vec_diff) / len(all_abs_vec_diff), pred_label, unc
-            else:
-                return np.sum(all_abs_vec_diff) / len(all_abs_vec_diff)
-        elif metric == "rmse":
-            all_sq_vec_diff = []
-            for i in range(len(pred_label)):
-                assert pred_label[i].shape == y[i].shape
-                N_i = len(pred_label[i])
-                # check if multi-target and takes norm if it is
-                if len(y[i]) > 1:
-                    sq_vec_diff = np.sum(np.linalg.norm(y[i] - pred_label[i]) ** 2)
-                else:
-                    sq_vec_diff = np.sum((y[i] - pred_label[i]) ** 2)
-                all_sq_vec_diff.append(sq_vec_diff / N_i)
-            if return_predictions:
-                return (
-                    np.sqrt(np.sum(all_sq_vec_diff) / len(all_sq_vec_diff)),
-                    pred_label,
-                    unc,
-                )
-            else:
-                return np.sqrt(np.sum(all_sq_vec_diff) / len(all_sq_vec_diff))
-        else:
+        if metric not in score_func:
             msg = f"Metric: {metric} is not supported"
             raise AutoCatPredictorError(msg)
+
+        score = score_func[metric](y, pred_label, **kwargs)
+
+        if return_predictions:
+            return score, pred_label, unc
+        return score
