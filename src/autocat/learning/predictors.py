@@ -126,6 +126,8 @@ class AutoCatPredictor:
             self._model_kwargs = None
             if self.is_fit:
                 self.is_fit = False
+                self.X_ = None
+                self.y_ = None
             # generates new regressor with default settings
             self.regressor = self._model_class()
 
@@ -139,6 +141,8 @@ class AutoCatPredictor:
             self._model_kwargs = model_kwargs
             if self.is_fit:
                 self.is_fit = False
+                self.X_ = None
+                self.y_ = None
             self.regressor = self.model_class(**model_kwargs)
 
     @property
@@ -151,6 +155,8 @@ class AutoCatPredictor:
             self._refine_structures = refine_structures
             if self.is_fit:
                 self.is_fit = False
+                self.X_ = None
+                self.y_ = None
 
     @property
     def structure_featurizer(self):
@@ -162,6 +168,8 @@ class AutoCatPredictor:
             self._structure_featurizer = structure_featurizer
             if self.is_fit:
                 self.is_fit = False
+                self.X_ = None
+                self.y_ = None
 
     @property
     def adsorbate_featurizer(self):
@@ -173,6 +181,8 @@ class AutoCatPredictor:
             self._adsorbate_featurizer = adsorbate_featurizer
             if self.is_fit:
                 self.is_fit = False
+                self.X_ = None
+                self.y_ = None
 
     @property
     def structure_featurization_kwargs(self):
@@ -186,6 +196,8 @@ class AutoCatPredictor:
                 self._structure_featurization_kwargs = structure_featurization_kwargs
             if self.is_fit:
                 self.is_fit = False
+                self.X_ = None
+                self.y_ = None
 
     @property
     def adsorbate_featurization_kwargs(self):
@@ -198,6 +210,8 @@ class AutoCatPredictor:
             self._adsorbate_featurization_kwargs = adsorbate_featurization_kwargs
             if self.is_fit:
                 self.is_fit = False
+                self.X_ = None
+                self.y_ = None
 
     @property
     def maximum_structure_size(self):
@@ -209,6 +223,8 @@ class AutoCatPredictor:
             self._maximum_structure_size = maximum_structure_size
             if self.is_fit:
                 self.is_fit = False
+                self.X_ = None
+                self.y_ = None
 
     @property
     def maximum_adsorbate_size(self):
@@ -220,6 +236,8 @@ class AutoCatPredictor:
             self._maximum_adsorbate_size = maximum_adsorbate_size
             if self.is_fit:
                 self.is_fit = False
+                self.X_ = None
+                self.y_ = None
 
     @property
     def species_list(self):
@@ -231,6 +249,8 @@ class AutoCatPredictor:
             self._species_list = species_list
             if self.is_fit:
                 self.is_fit = False
+                self.X_ = None
+                self.y_ = None
 
     def get_total_number_of_features(self):
         # get specified kwargs for featurizers
@@ -285,7 +305,7 @@ class AutoCatPredictor:
         trained_model:
             Trained `sklearn` model object
         """
-        X = get_X(
+        self.X_ = get_X(
             training_structures,
             maximum_structure_size=self.maximum_structure_size,
             structure_featurizer=self.structure_featurizer,
@@ -324,8 +344,8 @@ class AutoCatPredictor:
                 ]
                 species_list.extend(new_species)
             self.species_list = species_list
-
-        self.regressor.fit(X, y)
+        self.y_ = y
+        self.regressor.fit(self.X_, self.y_)
         self.is_fit = True
 
     def predict(
