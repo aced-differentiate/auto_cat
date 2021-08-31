@@ -9,9 +9,10 @@ from typing import Union
 
 from ase import Atoms
 from ase.io import write as ase_write
+from scipy import stats
 
 from autocat.perturbations import generate_perturbed_dataset
-from autocat.learning.predictors import AutoCatStructureCorrector
+from autocat.learning.predictors import AutoCatPredictor
 
 Array = List[float]
 
@@ -21,7 +22,7 @@ class AutoCatSequentialLearningError(Exception):
 
 
 def multiple_sequential_learning_runs(
-    structure_corrector: AutoCatStructureCorrector,
+    predictor: AutoCatPredictor,
     training_base_structures: List[Atoms],
     number_of_runs: int = 5,
     number_parallel_jobs: int = None,
@@ -36,8 +37,8 @@ def multiple_sequential_learning_runs(
     Parameters
     ----------
 
-    structure_corrector:
-        AutoCatStructureCorrector object to be used for fitting and prediction
+    predictor:
+        AutoCatPredictor object to be used for fitting and prediction
 
     training_base_structures:
         List of Atoms objects for all base structures to be perturbed for training
@@ -70,7 +71,7 @@ def multiple_sequential_learning_runs(
     if number_parallel_jobs is not None:
         runs_history = Parallel(n_jobs=number_parallel_jobs)(
             delayed(simulated_sequential_learning)(
-                structure_corrector=structure_corrector,
+                predictor=predictor,
                 training_base_structures=training_base_structures,
                 **sl_kwargs,
             )
@@ -80,7 +81,7 @@ def multiple_sequential_learning_runs(
     else:
         runs_history = [
             simulated_sequential_learning(
-                structure_corrector=structure_corrector,
+                predictor=predictor,
                 training_base_structures=training_base_structures,
                 **sl_kwargs,
             )
@@ -118,14 +119,12 @@ def multiple_sequential_learning_runs(
 
 
 def simulated_sequential_learning(
-    structure_corrector: AutoCatStructureCorrector,
-    training_base_structures: List[Atoms],
-    testing_base_structures: List[Atoms] = None,
-    minimum_perturbation_distance: float = 0.01,
-    maximum_perturbation_distance: float = 0.75,
-    initial_num_of_perturbations_per_base_structure: int = None,
-    batch_num_of_perturbations_per_base_structure: int = 2,
-    test_num_of_perturbations_per_base_structure: int = None,
+    predictor: AutoCatPredictor,
+    all_training_structures: List[Atoms],
+    all_training_y: np.ndarray,
+    init_training_size: int = 10,
+    testing_structures: List[Atoms] = None,
+    testing_y: np.ndarray = None,
     batch_size_to_add: int = 1,
     number_of_sl_loops: int = 100,
     write_to_disk: bool = False,
@@ -134,14 +133,13 @@ def simulated_sequential_learning(
 ):
     """
     Conducts a simulated sequential learning loop given
-    a set of base structures. For each loop, new perturbations
-    are generated. Maximum Uncertainty is used as the acquisition function
+    a set of base training structures.
 
     Parameters
     ----------
 
-    structure_corrector:
-        AutoCatStructureCorrector object to be used for fitting and prediction
+    predictor:
+        AutoCatPredictor object to be used for fitting and prediction
 
     training_base_structures:
         List of Atoms objects for all base structures to be perturbed for training
@@ -149,23 +147,6 @@ def simulated_sequential_learning(
 
     testing_base_structures:
         List of Atoms objects for base structures that are
-
-    minimum_perturbation_distance:
-        Float of minimum acceptable perturbation distance
-        Default: 0.01 Angstrom
-
-    maximum_perturbation_distance:
-        Float of maximum acceptable perturbation distance
-        Default: 0.75 Angstrom
-
-    initial_num_of_perturbations_per_base_structure:
-        Integer giving the number of perturbations to generate initially
-        for each of the given base structures for initial training purposes.
-        Default: uses same value as `batch_num_of_perturbations_per_base_structure`
-
-    batch_num_of_perturbations_per_base_structure:
-        Integer giving the number of perturbations to generate
-        on each loop when finding the next candidate
 
     batch_size_to_add:
         Integer giving the number of candidates to be added
@@ -205,107 +186,60 @@ def simulated_sequential_learning(
         For the corrections histories, the dimensions are as follows:
         num of loops -> num of candidates added -> corrections applied
     """
-    if (
-        batch_num_of_perturbations_per_base_structure * len(training_base_structures)
-        < batch_size_to_add
-    ):
-        msg = "Batch size to add must be less than the number of candidates generated"
+
+    if init_training_size > len(all_training_structures):
+        msg = f"Initial training size ({init_training_size}) larger than design space ({len(all_training_structures)})"
         raise AutoCatSequentialLearningError(msg)
 
-    if initial_num_of_perturbations_per_base_structure is None:
-        initial_num_of_perturbations_per_base_structure = (
-            batch_num_of_perturbations_per_base_structure
+    # generate initial training set
+    train_idx = np.zeros(len(all_training_structures), dtype=bool)
+    train_idx[
+        np.random.choice(
+            len(all_training_structures), init_training_size, replace=False
         )
+    ] = 1
+    train_history = [train_idx]
 
-    initial_pert_dataset = generate_perturbed_dataset(
-        training_base_structures,
-        num_of_perturbations=initial_num_of_perturbations_per_base_structure,
-        maximum_perturbation_distance=maximum_perturbation_distance,
-        minimum_perturbation_distance=minimum_perturbation_distance,
-    )
-
-    train_pert_structures = initial_pert_dataset["collected_structures"]
-    train_pert_corr_list = initial_pert_dataset["corrections_list"]
-
-    structure_corrector.fit(
-        train_pert_structures, corrections_list=train_pert_corr_list
-    )
-
-    if testing_base_structures is not None:
-        if test_num_of_perturbations_per_base_structure is None:
-            test_num_of_perturbations_per_base_structure = (
-                batch_num_of_perturbations_per_base_structure
-            )
-        test_pert_dataset = generate_perturbed_dataset(
-            testing_base_structures,
-            num_of_perturbations=test_num_of_perturbations_per_base_structure,
-            maximum_perturbation_distance=maximum_perturbation_distance,
-            minimum_perturbation_distance=minimum_perturbation_distance,
-        )
-        test_pert_structures = test_pert_dataset["collected_structures"]
-        test_pert_corr_list = test_pert_dataset["corrections_list"]
-
-    validation_pert_dataset = generate_perturbed_dataset(
-        training_base_structures,
-        num_of_perturbations=initial_num_of_perturbations_per_base_structure,
-        maximum_perturbation_distance=maximum_perturbation_distance,
-        minimum_perturbation_distance=minimum_perturbation_distance,
-    )
-    validation_pert_structures = validation_pert_dataset["collected_structures"]
-    validation_pert_corr_list = validation_pert_dataset["corrections_list"]
+    # fit on initial training set
+    predictor.fit(all_training_structures[train_idx], all_training_y[train_idx])
 
     candidate_full_unc_history = []
     candidate_max_unc_history = []
-    candidate_pred_corrs_history = []
-    candidate_real_corrs_history = []
     mae_train_history = []
     rmse_train_history = []
     mae_test_history = []
     rmse_test_history = []
-    selected_candidate_history = []
     test_preds_history = []
     test_unc_history = []
     ctr = 0
     while len(candidate_max_unc_history) < number_of_sl_loops:
         ctr += 1
         print(f"Sequential Learning Iteration #{ctr}")
-        # generate new perturbations to predict on
-        new_perturbations = generate_perturbed_dataset(
-            training_base_structures,
-            num_of_perturbations=batch_num_of_perturbations_per_base_structure,
-            maximum_perturbation_distance=maximum_perturbation_distance,
-            minimum_perturbation_distance=minimum_perturbation_distance,
-        )
-        new_pert_structs = new_perturbations["collected_structures"]
-        new_pert_corr_list = new_perturbations["corrections_list"]
+        # select new candidates to predict on
 
         # make predictions
-        _pred_corrs, _pred_corr_structs, _uncs = structure_corrector.predict(
-            new_pert_structs
-        )
+        _pred_corrs, _uncs = predictor.predict(new_pert_structs)
 
         # get scores on new perturbations (training)
         mae_train_history.append(
-            structure_corrector.score(
-                validation_pert_structures, validation_pert_corr_list
-            )
+            predictor.score(validation_pert_structures, validation_pert_corr_list)
         )
         rmse_train_history.append(
-            structure_corrector.score(
+            predictor.score(
                 validation_pert_structures, validation_pert_corr_list, metric="rmse"
             )
         )
 
         # get scores on test perturbations
         if testing_base_structures is not None:
-            mae_test_score, test_preds, test_unc = structure_corrector.score(
+            mae_test_score, test_preds, test_unc = predictor.score(
                 test_pert_structures, test_pert_corr_list, return_predictions=True
             )
             mae_test_history.append(mae_test_score)
             test_preds_history.append([p.tolist() for p in test_preds])
             test_unc_history.append([u.tolist() for u in test_unc])
             rmse_test_history.append(
-                structure_corrector.score(
+                predictor.score(
                     test_pert_structures, test_pert_corr_list, metric="rmse"
                 )
             )
@@ -319,7 +253,12 @@ def simulated_sequential_learning(
         next_candidate_struct = [new_pert_structs[idx] for idx in high_unc_idx]
         # add new perturbed struct to training set
         train_pert_structures.extend(next_candidate_struct)
-        train_pert_corr_list.extend([new_pert_corr_list[idx] for idx in high_unc_idx],)
+        train_pert_corr_list = np.concatenate(
+            (
+                train_pert_corr_list,
+                np.array([new_pert_corr_list[idx] for idx in high_unc_idx]),
+            )
+        )
 
         # keeps all candidate structures added for each loop
         selected_candidate_history.append(next_candidate_struct)
@@ -331,9 +270,7 @@ def simulated_sequential_learning(
         candidate_real_corrs_history.append(
             [new_pert_corr_list[idx].tolist() for idx in high_unc_idx]
         )
-        structure_corrector.fit(
-            train_pert_structures, corrections_list=train_pert_corr_list
-        )
+        predictor.fit(train_pert_structures, train_pert_corr_list)
     sl_dict = {
         "candidate_max_unc_history": [mu.tolist() for mu in candidate_max_unc_history],
         "candidate_full_unc_history": [
@@ -374,3 +311,134 @@ def simulated_sequential_learning(
             )
 
     return sl_dict
+
+
+def choose_next_candidate(
+    labels: Array = None,
+    train_idx: Array = None,
+    pred: Array = None,
+    unc: Array = None,
+    aq: str = "MLI",
+    num_candidates_to_pick: int = None,
+    target_min: float = None,
+    target_max: float = None,
+):
+    """
+    Chooses the next candidate(s) from a given acquisition function
+
+    Parameters
+    ----------
+
+    labels:
+        Array of the labels for the data
+
+    train_idx:
+        Indices of all data entries already in the training set
+
+    pred:
+        Predictions for all structures in the dataset
+
+    unc:
+        Uncertainties for all structures in the dataset
+
+    aq:
+        Acquisition function to be used to select the next candidates
+        Options
+        - MLI: maximum likelihood of improvement (default)
+        - Random
+        - MU: maximum uncertainty
+
+    num_candidates_to_pick:
+        Number of candidates to choose from the dataset
+
+    target_min:
+        Minimum target value to optimize for
+
+    target_max:
+        Maximum target value to optimize for
+
+    Returns
+    -------
+
+    parent_idx:
+        Index/indices of the selected candidates
+
+    max_scores:
+        Maximum scores (corresponding to the selected candidates for given `aq`)
+
+    aq_scores:
+        Calculated scores based on the selected `aq` for the entire training set
+    """
+    if aq == "Random":
+        if labels is None:
+            msg = "For aq = 'Random', the labels must be supplied"
+            raise AutoCatSequentialLearningError(msg)
+
+        next_idx = np.random.choice(
+            len(labels[~train_idx]), size=num_candidates_to_pick, replace=False
+        )
+        if num_candidates_to_pick is None:
+            next_idx = np.array([next_idx])
+        parent_idx = np.arange(labels.shape[0])[~train_idx][next_idx]
+
+        max_scores = []
+        aq_scores = []
+
+    elif aq == "MU":
+        if unc is None:
+            msg = "For aq = 'MU', the uncertainties must be supplied"
+            raise AutoCatSequentialLearningError(msg)
+
+        if num_candidates_to_pick is None:
+            next_idx = np.array([np.argmax(unc[~train_idx])])
+            max_scores = [np.max(unc[~train_idx])]
+
+        else:
+            next_idx = np.argsort(unc[~train_idx])[-num_candidates_to_pick:]
+            sorted_array = unc[~train_idx][next_idx]
+            max_scores = list(sorted_array[-num_candidates_to_pick:])
+        parent_idx = np.arange(unc.shape[0])[~train_idx][next_idx]
+        aq_scores = unc
+
+    elif aq == "MLI":
+        if unc is None or pred is None:
+            msg = "For aq = 'MLI', both uncertainties and predictions must be supplied"
+            raise AutoCatSequentialLearningError(msg)
+
+        aq_scores = np.array(
+            [
+                get_overlap_score(mean, std, x2=target_max, x1=target_min)
+                for mean, std in zip(pred, unc)
+            ]
+        )
+        if num_candidates_to_pick is None:
+            next_idx = np.array([np.argmax(aq_scores[~train_idx])])
+            max_scores = [np.max(aq_scores[~train_idx])]
+
+        else:
+            next_idx = np.argsort(aq_scores[~train_idx])[-num_candidates_to_pick:]
+            sorted_array = aq_scores[~train_idx][next_idx]
+            max_scores = list(sorted_array[-num_candidates_to_pick:])
+        parent_idx = np.arange(aq_scores.shape[0])[~train_idx][next_idx]
+
+    else:
+        msg = f"Acquisition function {aq} is not supported"
+        raise NotImplementedError(msg)
+
+    return parent_idx, max_scores, aq_scores
+
+
+def get_overlap_score(mean: float, std: float, x2: float = None, x1: float = None):
+    """Calculate overlap score given targets x2 (max) and x1 (min)"""
+    if x2 is not None and x1 is None:
+        x1 = 0.0
+
+    elif x2 is None and x1 is not None:
+        x2 = np.inf
+
+    else:
+        msg = "Please specify at least either a minimum or maximum target for MLI"
+        raise AutoCatSequentialLearningError(msg)
+
+    norm_dist = stats.norm(loc=mean, scale=std)
+    return norm_dist.cdf(x2) - norm_dist.cdf(x1)
