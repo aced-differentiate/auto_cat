@@ -125,8 +125,11 @@ def simulated_sequential_learning(
     init_training_size: int = 10,
     testing_structures: List[Atoms] = None,
     testing_y: np.ndarray = None,
+    acquisition_function: str = "MLI",
     batch_size_to_add: int = 1,
     number_of_sl_loops: int = 100,
+    target_min: float = None,
+    target_max: float = None,
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok_structures: bool = False,
@@ -203,54 +206,58 @@ def simulated_sequential_learning(
     # fit on initial training set
     predictor.fit(all_training_structures[train_idx], all_training_y[train_idx])
 
-    candidate_full_unc_history = []
-    candidate_max_unc_history = []
+    pred_history = []
+    unc_history = []
     mae_train_history = []
     rmse_train_history = []
     mae_test_history = []
     rmse_test_history = []
-    test_preds_history = []
+    test_pred_history = []
     test_unc_history = []
     ctr = 0
-    while len(candidate_max_unc_history) < number_of_sl_loops:
+    while ctr < number_of_sl_loops:
         ctr += 1
         print(f"Sequential Learning Iteration #{ctr}")
         # select new candidates to predict on
 
         # make predictions
-        _pred_corrs, _uncs = predictor.predict(new_pert_structs)
+        _preds, _uncs = predictor.predict(all_training_structures)
 
-        # get scores on new perturbations (training)
+        # get scores on full training set
         mae_train_history.append(
-            predictor.score(validation_pert_structures, validation_pert_corr_list)
+            predictor.score(all_training_structures, all_training_y)
         )
         rmse_train_history.append(
-            predictor.score(
-                validation_pert_structures, validation_pert_corr_list, metric="rmse"
-            )
+            predictor.score(all_training_structures, all_training_y, metric="rmse")
         )
 
         # get scores on test perturbations
-        if testing_base_structures is not None:
+        if testing_structures is not None:
             mae_test_score, test_preds, test_unc = predictor.score(
-                test_pert_structures, test_pert_corr_list, return_predictions=True
+                testing_structures, testing_y, return_predictions=True
             )
             mae_test_history.append(mae_test_score)
-            test_preds_history.append([p.tolist() for p in test_preds])
+            test_pred_history.append([p.tolist() for p in test_preds])
             test_unc_history.append([u.tolist() for u in test_unc])
             rmse_test_history.append(
-                predictor.score(
-                    test_pert_structures, test_pert_corr_list, metric="rmse"
-                )
+                predictor.score(testing_structures, testing_y, metric="rmse")
             )
 
-        candidate_full_unc_history.append(_uncs)
+        unc_history.append(_uncs)
+        pred_history.append(_preds)
 
-        # find candidate with highest uncertainty
-        high_unc_idx = np.argsort(_uncs)[-batch_size_to_add:]
-        candidate_max_unc_history.append(_uncs[high_unc_idx])
+        # select next candidate(s)
+        next_candidate_idx, max_scores, aq_scores = choose_next_candidate(
+            all_training_y,
+            train_idx,
+            _preds,
+            _uncs,
+            acquisition_function,
+            batch_size_to_add,
+            target_min,
+            target_max,
+        )
 
-        next_candidate_struct = [new_pert_structs[idx] for idx in high_unc_idx]
         # add new perturbed struct to training set
         train_pert_structures.extend(next_candidate_struct)
         train_pert_corr_list = np.concatenate(
@@ -334,6 +341,7 @@ def choose_next_candidate(
 
     train_idx:
         Indices of all data entries already in the training set
+        Default: consider entire training set
 
     pred:
         Predictions for all structures in the dataset
@@ -374,6 +382,9 @@ def choose_next_candidate(
             msg = "For aq = 'Random', the labels must be supplied"
             raise AutoCatSequentialLearningError(msg)
 
+        if train_idx is None:
+            train_idx = np.zeros(len(labels), dtype=bool)
+
         next_idx = np.random.choice(
             len(labels[~train_idx]), size=num_candidates_to_pick, replace=False
         )
@@ -388,6 +399,9 @@ def choose_next_candidate(
         if unc is None:
             msg = "For aq = 'MU', the uncertainties must be supplied"
             raise AutoCatSequentialLearningError(msg)
+
+        if train_idx is None:
+            train_idx = np.zeros(len(unc), dtype=bool)
 
         if num_candidates_to_pick is None:
             next_idx = np.array([np.argmax(unc[~train_idx])])
@@ -404,6 +418,9 @@ def choose_next_candidate(
         if unc is None or pred is None:
             msg = "For aq = 'MLI', both uncertainties and predictions must be supplied"
             raise AutoCatSequentialLearningError(msg)
+
+        if train_idx is None:
+            train_idx = np.zeros(len(unc), dtype=bool)
 
         aq_scores = np.array(
             [
@@ -430,15 +447,15 @@ def choose_next_candidate(
 
 def get_overlap_score(mean: float, std: float, x2: float = None, x1: float = None):
     """Calculate overlap score given targets x2 (max) and x1 (min)"""
-    if x2 is not None and x1 is None:
-        x1 = 0.0
-
-    elif x2 is None and x1 is not None:
-        x2 = np.inf
-
-    else:
+    if x1 is None and x2 is None:
         msg = "Please specify at least either a minimum or maximum target for MLI"
         raise AutoCatSequentialLearningError(msg)
+
+    if x1 is None:
+        x1 = -np.inf
+
+    if x2 is None:
+        x2 = np.inf
 
     norm_dist = stats.norm(loc=mean, scale=std)
     return norm_dist.cdf(x2) - norm_dist.cdf(x1)
