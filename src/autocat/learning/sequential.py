@@ -21,28 +21,18 @@ class AutoCatSequentialLearningError(Exception):
     pass
 
 
-def multiple_sequential_learning_runs(
-    predictor: AutoCatPredictor,
-    training_base_structures: List[Atoms],
+def multiple_simulated_sequential_learning_runs(
     number_of_runs: int = 5,
     number_parallel_jobs: int = None,
     write_to_disk: bool = False,
     write_location: str = ".",
-    dirs_exist_ok_structures: bool = False,
     **sl_kwargs,
 ):
     """
-    Conducts multiple sequential learning runs
+    Conducts multiple simulated sequential learning runs
 
     Parameters
     ----------
-
-    predictor:
-        AutoCatPredictor object to be used for fitting and prediction
-
-    training_base_structures:
-        List of Atoms objects for all base structures to be perturbed for training
-        and candidate selection upon each loop
 
     number_of_runs:
         Integer of number of runs to be done
@@ -58,9 +48,6 @@ def multiple_sequential_learning_runs(
     write_location:
         String with the location where runs history should be written to disk.
 
-    dirs_exist_ok_structures:
-        Boolean indicating if existing candidate structure files can be overwritten
-
     Returns
     -------
 
@@ -70,49 +57,21 @@ def multiple_sequential_learning_runs(
     """
     if number_parallel_jobs is not None:
         runs_history = Parallel(n_jobs=number_parallel_jobs)(
-            delayed(simulated_sequential_learning)(
-                predictor=predictor,
-                training_base_structures=training_base_structures,
-                **sl_kwargs,
-            )
+            delayed(simulated_sequential_learning)(**sl_kwargs,)
             for i in range(number_of_runs)
         )
 
     else:
         runs_history = [
-            simulated_sequential_learning(
-                predictor=predictor,
-                training_base_structures=training_base_structures,
-                **sl_kwargs,
-            )
-            for i in range(number_of_runs)
+            simulated_sequential_learning(**sl_kwargs,) for i in range(number_of_runs)
         ]
 
     if write_to_disk:
         if not os.path.isdir(write_location):
             os.makedirs(write_location)
         json_write_path = os.path.join(write_location, "sl_runs_history.json")
-        data_runs_history = []
-        for r_idx, run in enumerate(runs_history):
-            # get dict excluding selected candidate structures
-            j_dict = {
-                key: run[key] for key in run if key != "selected_candidate_history"
-            }
-            data_runs_history.append(j_dict)
-            # write out selected candidates for each iteration of each run
-            c_hist = run["selected_candidate_history"]
-            traj_file_path = os.path.join(
-                write_location, f"candidate_structures/run{r_idx+1}",
-            )
-            os.makedirs(traj_file_path, exist_ok=dirs_exist_ok_structures)
-            for i, c in enumerate(c_hist):
-                traj_filename = os.path.join(traj_file_path, f"sl_iter{i+1}.traj")
-                ase_write(traj_filename, c)
-                print(
-                    f"Selected SL Candidates for run {r_idx+1}, iteration {i+1} written to {traj_file_path}"
-                )
         with open(json_write_path, "w") as f:
-            json.dump(data_runs_history, f)
+            json.dump(runs_history, f)
         print(f"SL histories written to {json_write_path}")
 
     return runs_history
