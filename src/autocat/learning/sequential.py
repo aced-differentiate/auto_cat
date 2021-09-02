@@ -86,7 +86,7 @@ def simulated_sequential_learning(
     testing_y: np.ndarray = None,
     acquisition_function: str = "MLI",
     batch_size_to_add: int = 1,
-    number_of_sl_loops: int = 100,
+    number_of_sl_loops: int = None,
     target_min: float = None,
     target_max: float = None,
     write_to_disk: bool = False,
@@ -115,7 +115,8 @@ def simulated_sequential_learning(
 
     init_training_size:
         Size of the initial training set to be selected from
-        the full space
+        the full space.
+        Default: 10
 
     testing_structures:
         List of all Atoms objects to be excluded from the
@@ -137,6 +138,7 @@ def simulated_sequential_learning(
 
     number_of_sl_loops:
         Integer specifying the number of sequential learning loops to be conducted
+        Default: Size of training set
 
     target_min:
         Label value that ideal candidates should be greater than
@@ -177,6 +179,12 @@ def simulated_sequential_learning(
         msg = f"Initial training size ({init_training_size}) larger than design space ({len(all_training_structures)})"
         raise AutoCatSequentialLearningError(msg)
 
+    if number_of_sl_loops is None:
+        number_of_sl_loops = np.ceil(len(all_training_structures) / batch_size_to_add)
+
+    if number_of_sl_loops > len(all_training_structures):
+        msg = f"Number of SL loops ({number_of_sl_loops}) cannot be greater than the design space ({len(all_training_structures)})"
+
     # generate initial training set
     train_idx = np.zeros(len(all_training_structures), dtype=bool)
     train_idx[
@@ -187,7 +195,9 @@ def simulated_sequential_learning(
     train_history = [train_idx]
 
     # fit on initial training set
-    predictor.fit(all_training_structures[train_idx], all_training_y[train_idx])
+    X = [s for s, i in zip(all_training_structures, train_idx) if i]
+    y = all_training_y[train_idx]
+    predictor.fit(X, y)
 
     pred_history = []
     unc_history = []
@@ -213,11 +223,17 @@ def simulated_sequential_learning(
             predictor.score(all_training_structures, all_training_y)
         )
         rmse_train_history.append(
-            predictor.score(all_training_structures, all_training_y, metric="rmse")
+            predictor.score(
+                all_training_structures, all_training_y, metric="mse", squared=False
+            )
         )
 
         # get scores on test perturbations
         if testing_structures is not None:
+            if testing_y is None:
+                msg = f"Labels for the test structures must be provided"
+                raise AutoCatSequentialLearningError(msg)
+
             mae_test_score, test_preds, test_unc = predictor.score(
                 testing_structures, testing_y, return_predictions=True
             )
@@ -225,11 +241,20 @@ def simulated_sequential_learning(
             test_pred_history.append([p.tolist() for p in test_preds])
             test_unc_history.append([u.tolist() for u in test_unc])
             rmse_test_history.append(
-                predictor.score(testing_structures, testing_y, metric="rmse")
+                predictor.score(
+                    testing_structures, testing_y, metric="mse", squared=False
+                )
             )
 
         unc_history.append(_uncs)
         pred_history.append(_preds)
+
+        # check that enough data pts left to adhere to batch_size_to_add
+        # otherwise just add the leftover data
+        if batch_size_to_add < len(all_training_y[~train_idx]):
+            bsa = batch_size_to_add
+        else:
+            bsa = len(all_training_y[~train_idx])
 
         # select next candidate(s)
         next_candidate_idx, max_scores, aq_scores = choose_next_candidate(
@@ -238,7 +263,7 @@ def simulated_sequential_learning(
             _preds,
             _uncs,
             acquisition_function,
-            batch_size_to_add,
+            bsa,
             target_min,
             target_max,
         )
@@ -250,7 +275,9 @@ def simulated_sequential_learning(
         train_history.append(train_idx)
 
         # retrain on training set with new additions
-        predictor.fit(all_training_structures[train_idx], all_training_y[train_idx])
+        X = [s for s, i in zip(all_training_structures, train_idx) if i]
+        y = all_training_y[train_idx]
+        predictor.fit(X, y)
 
     sl_dict = {
         "training_history": [th.tolist() for th in train_history],
