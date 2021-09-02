@@ -132,11 +132,12 @@ def simulated_sequential_learning(
     target_max: float = None,
     write_to_disk: bool = False,
     write_location: str = ".",
-    dirs_exist_ok_structures: bool = False,
 ):
     """
     Conducts a simulated sequential learning loop given
-    a set of base training structures.
+    a data set to explore. Can optionally provide a holdout
+    test set that is never added to the training set
+    to measure transferability at each iteration
 
     Parameters
     ----------
@@ -144,21 +145,47 @@ def simulated_sequential_learning(
     predictor:
         AutoCatPredictor object to be used for fitting and prediction
 
-    training_base_structures:
-        List of Atoms objects for all base structures to be perturbed for training
-        and candidate selection upon each loop
+    all_training_structures:
+        List of all Atoms objects that make up the design space
+        to be considered
 
-    testing_base_structures:
-        List of Atoms objects for base structures that are
+    all_training_y:
+        Labels corresponding to each structure in the design
+        space to be explored (ie. correspond to
+        `all_training_structures`)
+
+    init_training_size:
+        Size of the initial training set to be selected from
+        the full space
+
+    testing_structures:
+        List of all Atoms objects to be excluded from the
+        SL search (ie. structures to never be added to the set).
+        Used for testing transferability of the model at each iteration
+
+    testing_y:
+        Labels for corresponding to `testing_structures`
+
+    acquisition_function:
+        Acquisition function to be used to determine candidates to be
+        added to the training set at each iteration of the sl loop
 
     batch_size_to_add:
-        Integer giving the number of candidates to be added
-        to the training set on each loop. (ie. N candidates with
-        the highest uncertainties added for each iteration)
+        Number of candidates to be added to the training set on each loop.
+        (ie. N candidates with the highest uncertainties added
+        for each iteration)
         Default: 1 (ie. adds candidate with max unc on each loop)
 
     number_of_sl_loops:
         Integer specifying the number of sequential learning loops to be conducted
+
+    target_min:
+        Label value that ideal candidates should be greater than
+        Default: -inf
+
+    target_max:
+        Label value that ideal candidates should be less than
+        Default: +inf
 
     write_to_disk:
         Boolean specifying whether the sl dictionary should be written to disk as a json.
@@ -166,9 +193,6 @@ def simulated_sequential_learning(
 
     write_location:
         String with the location where sl_dict should be written to disk.
-
-    dirs_exist_ok_structures:
-        Boolean indicating if existing candidate structure files can be overwritten
 
     Returns
     -------
@@ -208,6 +232,8 @@ def simulated_sequential_learning(
 
     pred_history = []
     unc_history = []
+    max_scores_history = []
+    aq_scores_history = []
     mae_train_history = []
     rmse_train_history = []
     mae_test_history = []
@@ -257,65 +283,39 @@ def simulated_sequential_learning(
             target_min,
             target_max,
         )
+        max_scores_history.append(max_scores)
+        aq_scores_history.append(aq_scores)
 
-        # add new perturbed struct to training set
-        train_pert_structures.extend(next_candidate_struct)
-        train_pert_corr_list = np.concatenate(
-            (
-                train_pert_corr_list,
-                np.array([new_pert_corr_list[idx] for idx in high_unc_idx]),
-            )
-        )
+        # add next candidates to training set
+        train_idx[next_candidate_idx] = True
+        train_history.append(train_idx)
 
-        # keeps all candidate structures added for each loop
-        selected_candidate_history.append(next_candidate_struct)
+        # retrain on training set with new additions
+        predictor.fit(all_training_structures[train_idx], all_training_y[train_idx])
 
-        # keeps as lists to make writing to disk easier
-        candidate_pred_corrs_history.append(
-            [p.tolist() for p in [_pred_corrs[idx] for idx in high_unc_idx]]
-        )
-        candidate_real_corrs_history.append(
-            [new_pert_corr_list[idx].tolist() for idx in high_unc_idx]
-        )
-        predictor.fit(train_pert_structures, train_pert_corr_list)
     sl_dict = {
-        "candidate_max_unc_history": [mu.tolist() for mu in candidate_max_unc_history],
-        "candidate_full_unc_history": [
-            unc.tolist() for unc in candidate_full_unc_history
-        ],
-        "candidate_pred_corrs_history": candidate_pred_corrs_history,
-        "candidate_real_corrs_history": [r for r in candidate_real_corrs_history],
-        "selected_candidate_history": selected_candidate_history,
+        "training_history": [th.tolist() for th in train_history],
+        "uncertainty_history": [mu.tolist() for mu in unc_history],
+        "prediction_history": [p.tolist() for p in pred_history],
         "mae_train_history": mae_train_history,
         "rmse_train_history": rmse_train_history,
+        "max_scores_history": max_scores_history,
+        "aq_scores_history": aq_scores_history,
     }
 
-    if testing_base_structures is not None:
+    if testing_structures is not None:
         sl_dict["mae_test_history"] = mae_test_history
         sl_dict["rmse_test_history"] = rmse_test_history
-        sl_dict["test_preds_history"] = test_preds_history
-        sl_dict["test_real_corrections"] = [t.tolist() for t in test_pert_corr_list]
-        sl_dict["test_unc_history"] = test_unc_history
+        sl_dict["test_prediction_history"] = test_pred_history
+        sl_dict["test_uncertainty_history"] = test_unc_history
 
     if write_to_disk:
         if not os.path.isdir(write_location):
             os.makedirs(write_location)
         json_write_path = os.path.join(write_location, "sl_dict.json")
-        data_sl_dict = {
-            key: sl_dict[key] for key in sl_dict if key != "selected_candidate_history"
-        }
         with open(json_write_path, "w") as f:
-            json.dump(data_sl_dict, f)
+            json.dump(sl_dict, f)
         print(f"SL dictionary written to {json_write_path}")
-        candidate_struct_hist = sl_dict["selected_candidate_history"]
-        traj_file_path = os.path.join(write_location, f"candidate_structures")
-        os.makedirs(traj_file_path, exist_ok=dirs_exist_ok_structures)
-        for i, c in enumerate(candidate_struct_hist):
-            traj_filename = os.path.join(traj_file_path, f"sl_iter{i+1}.traj")
-            ase_write(traj_filename, c)
-            print(
-                f"Selected SL Candidates for iteration {i+1} written to {traj_file_path}"
-            )
 
     return sl_dict
 
