@@ -8,7 +8,6 @@ from typing import Dict
 from typing import Union
 
 from ase import Atoms
-from ase.io import write as ase_write
 from scipy import stats
 
 from autocat.perturbations import generate_perturbed_dataset
@@ -26,7 +25,7 @@ def multiple_simulated_sequential_learning_runs(
     number_parallel_jobs: int = None,
     write_to_disk: bool = False,
     write_location: str = ".",
-    **sl_kwargs,
+    sl_kwargs=None,
 ):
     """
     Conducts multiple simulated sequential learning runs
@@ -48,6 +47,10 @@ def multiple_simulated_sequential_learning_runs(
     write_location:
         String with the location where runs history should be written to disk.
 
+    sl_kwargs:
+        Mapping of keywords for `simulated_sequential_learning`.
+        Note: Do not use the `write_to_disk` keyword here
+
     Returns
     -------
 
@@ -55,6 +58,9 @@ def multiple_simulated_sequential_learning_runs(
         List of dictionaries generated for each run containing info
         about that run such as mae history, rmse history, etc..
     """
+    if sl_kwargs is None:
+        sl_kwargs = {}
+
     if number_parallel_jobs is not None:
         runs_history = Parallel(n_jobs=number_parallel_jobs)(
             delayed(simulated_sequential_learning)(**sl_kwargs,)
@@ -137,8 +143,10 @@ def simulated_sequential_learning(
         Default: 1 (ie. adds candidate with max unc on each loop)
 
     number_of_sl_loops:
-        Integer specifying the number of sequential learning loops to be conducted
-        Default: Size of training set
+        Integer specifying the number of sequential learning loops to be conducted.
+        This value cannot be greater than
+        `(len(all_training_structures) - init_training_size)/batch_size_to_add`
+        Default: maximum number of sl loops calculated above
 
     target_min:
         Label value that ideal candidates should be greater than
@@ -161,29 +169,34 @@ def simulated_sequential_learning(
     sl_dict:
         Dictionary containing histories of different quantities throughout
         the calculation:
-        - candidate maximum uncertainty history
-        - candidate full uncertainty history
-        - predicted corrections training history
-        - real corrections training history
-        - mae training history
-        - rmse training history
-        - mae testing history (if test structures given)
-        - rmse testing history (if test structures given)
-        - testing predictions (if test structures given)
-        - testing uncertainties (if test structures given)
-        For the corrections histories, the dimensions are as follows:
-        num of loops -> num of candidates added -> corrections applied
+        - training_history: indices that are included in the training set
+        - uncertainty_history: prediction uncertainties at each iteration
+        - predicted_history: all predictions at each iteration
+        - mae_train_history: mae scores on predicting training set
+        - rmse_train_history: rmse scores on predicting training set
+        - max_scores_history: max aq scores for candidate selection
+        - aq_scores_history: all aq scores at each iteration
+        If testing structures and labels given:
+        - mae_test_history: mae scores on testing set
+        - rmse_test_history: rmse scores on testing set
+        - test_prediction_history: predictions on testing set
+        - test_uncertainty_history: uncertainties on predicting on test set
     """
 
     if init_training_size > len(all_training_structures):
         msg = f"Initial training size ({init_training_size}) larger than design space ({len(all_training_structures)})"
         raise AutoCatSequentialLearningError(msg)
 
-    if number_of_sl_loops is None:
-        number_of_sl_loops = np.ceil(len(all_training_structures) / batch_size_to_add)
+    max_num_sl_loops = int(
+        np.ceil((len(all_training_structures) - init_training_size) / batch_size_to_add)
+    )
 
-    if number_of_sl_loops > len(all_training_structures):
-        msg = f"Number of SL loops ({number_of_sl_loops}) cannot be greater than the design space ({len(all_training_structures)})"
+    if number_of_sl_loops is None:
+        number_of_sl_loops = max_num_sl_loops
+
+    if number_of_sl_loops > max_num_sl_loops:
+        msg = f"Number of SL loops ({number_of_sl_loops}) cannot be greater than ({max_num_sl_loops})"
+        raise AutoCatSequentialLearningError(msg)
 
     # generate initial training set
     train_idx = np.zeros(len(all_training_structures), dtype=bool)
@@ -192,7 +205,7 @@ def simulated_sequential_learning(
             len(all_training_structures), init_training_size, replace=False
         )
     ] = 1
-    train_history = [train_idx]
+    train_history = [train_idx.copy()]
 
     # fit on initial training set
     X = [s for s, i in zip(all_training_structures, train_idx) if i]
@@ -209,13 +222,10 @@ def simulated_sequential_learning(
     rmse_test_history = []
     test_pred_history = []
     test_unc_history = []
-    ctr = 0
-    while ctr < number_of_sl_loops:
-        ctr += 1
-        print(f"Sequential Learning Iteration #{ctr}")
-        # select new candidates to predict on
 
-        # make predictions
+    def _collect_pred_stats(
+        all_training_structures, all_training_y, testing_structures, testing_y
+    ):
         _preds, _uncs = predictor.predict(all_training_structures)
 
         # get scores on full training set
@@ -248,6 +258,14 @@ def simulated_sequential_learning(
 
         unc_history.append(_uncs)
         pred_history.append(_preds)
+        return _preds, _uncs
+
+    for i in range(number_of_sl_loops):
+        print(f"Sequential Learning Iteration #{i+1}")
+        # make predictions
+        _preds, _uncs = _collect_pred_stats(
+            all_training_structures, all_training_y, testing_structures, testing_y
+        )
 
         # check that enough data pts left to adhere to batch_size_to_add
         # otherwise just add the leftover data
@@ -272,12 +290,17 @@ def simulated_sequential_learning(
 
         # add next candidates to training set
         train_idx[next_candidate_idx] = True
-        train_history.append(train_idx)
+        train_history.append(train_idx.copy())
 
         # retrain on training set with new additions
         X = [s for s, i in zip(all_training_structures, train_idx) if i]
         y = all_training_y[train_idx]
         predictor.fit(X, y)
+
+    # make preds on final model
+    _, _ = _collect_pred_stats(
+        all_training_structures, all_training_y, testing_structures, testing_y
+    )
 
     sl_dict = {
         "training_history": [th.tolist() for th in train_history],
