@@ -7,11 +7,16 @@ import json
 
 import tempfile
 
-from ase.io import read as ase_read
+from scipy import stats
 
-from autocat.learning.predictors import AutoCatStructureCorrector
+from autocat.learning.predictors import AutoCatPredictor
+from autocat.learning.sequential import (
+    AutoCatSequentialLearningError,
+    choose_next_candidate,
+    get_overlap_score,
+)
 from autocat.learning.sequential import simulated_sequential_learning
-from autocat.learning.sequential import multiple_sequential_learning_runs
+from autocat.learning.sequential import multiple_simulated_sequential_learning_runs
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 
@@ -26,40 +31,37 @@ def test_simulated_sequential_outputs():
     ]
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
     base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
-    acsc = AutoCatStructureCorrector(structure_featurizer="elemental_property")
+    base_struct3 = place_adsorbate(sub2, "H")["custom"]["structure"]
+    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
     sl_dict = simulated_sequential_learning(
         acsc,
-        [base_struct1, base_struct2],
-        initial_num_of_perturbations_per_base_structure=4,
-        batch_num_of_perturbations_per_base_structure=3,
-        number_of_sl_loops=4,
+        [base_struct1, base_struct2, base_struct3, sub1, sub2,],
+        np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        init_training_size=1,
+        batch_size_to_add=2,
+        number_of_sl_loops=2,
+        acquisition_function="MLI",
+        target_min=0.9,
+        target_max=2.1,
     )
-    # Test that number of max uncertainties equals number of sl loops
-    assert len(sl_dict["candidate_max_unc_history"]) == 4
+
+    # Test number of train histories equals number of sl loops + 1
+    assert len(sl_dict["training_history"]) == 3
+
+    # Test initial training size
+    assert len([a for a in sl_dict["training_history"][0] if a]) == 1
+
+    # Test keeping track of history
+    assert sl_dict["training_history"][0] != sl_dict["training_history"][1]
+
+    # Test that number of max uncertainties equals number of sl loops + 1
+    assert len(sl_dict["uncertainty_history"]) == 3
     # Test the number of total uncertainties collected
-    assert len(sl_dict["candidate_full_unc_history"][-1]) == 6
-    sl_dict = simulated_sequential_learning(
-        acsc,
-        [base_struct1, base_struct2],
-        batch_num_of_perturbations_per_base_structure=1,
-        number_of_sl_loops=4,
-    )
-    # check default for initial number of training perturbations
-    assert len(sl_dict["candidate_full_unc_history"][0]) == 2
+    assert len(sl_dict["uncertainty_history"][-1]) == 5
 
     # check all mae and rmse training scores collected
-    assert len(sl_dict["mae_train_history"]) == 4
-    assert len(sl_dict["rmse_train_history"]) == 4
-
-    # check prediction and correction history
-    assert len(sl_dict["candidate_pred_corrs_history"]) == len(
-        sl_dict["candidate_real_corrs_history"]
-    )
-    assert len(sl_dict["candidate_pred_corrs_history"][-1]) == len(
-        sl_dict["candidate_real_corrs_history"][-1]
-    )
-    assert len(sl_dict["candidate_pred_corrs_history"]) == 4
-    assert len(sl_dict["candidate_real_corrs_history"]) == 4
+    assert len(sl_dict["mae_train_history"]) == 3
+    assert len(sl_dict["rmse_train_history"]) == 3
 
 
 def test_simulated_sequential_batch_added():
@@ -72,31 +74,71 @@ def test_simulated_sequential_batch_added():
     ]
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
     base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
-    acsc = AutoCatStructureCorrector(structure_featurizer="elemental_property")
+    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
     bsta = 2
-    num_loops = 3
+    num_loops = 2
     sl_dict = simulated_sequential_learning(
         acsc,
-        [base_struct1, base_struct2],
-        batch_num_of_perturbations_per_base_structure=4,
+        [base_struct1, base_struct2, sub1, sub2],
+        np.array([5.0, 6.0, 7.0, 8.0]),
         batch_size_to_add=bsta,
         number_of_sl_loops=num_loops,
+        acquisition_function="Random",
+        init_training_size=1,
     )
-    # each max unc history should be equal to number of candidates added
-    assert len(sl_dict["candidate_max_unc_history"][0]) == bsta
-    # first dimension is number of loops
-    assert len(sl_dict["candidate_pred_corrs_history"]) == num_loops
-    # next dimension is size of candidates added on each loop
-    assert len(sl_dict["candidate_pred_corrs_history"][0]) == bsta
-    # next dimension is size of adsorbate
-    assert len(sl_dict["candidate_pred_corrs_history"][0][0]) == 2
-    # next dimension is vector correction to atom in adsorbate
-    assert len(sl_dict["candidate_pred_corrs_history"][0][0][0]) == 3
-    # check same holds for real history
-    assert len(sl_dict["candidate_real_corrs_history"]) == num_loops
-    assert len(sl_dict["candidate_real_corrs_history"][0]) == bsta
-    assert len(sl_dict["candidate_real_corrs_history"][0][0]) == 2
-    assert len(sl_dict["candidate_real_corrs_history"][0][0][0]) == 3
+    assert len(sl_dict["training_history"]) == num_loops + 1
+    num_in_tr_set0 = len([a for a in sl_dict["training_history"][0] if a])
+    num_in_tr_set1 = len([a for a in sl_dict["training_history"][1] if a])
+    num_in_tr_set2 = len([a for a in sl_dict["training_history"][2] if a])
+    # should add 2 candidates on first loop
+    assert num_in_tr_set1 - num_in_tr_set0 == bsta
+    # since only 1 left, should add it on the next
+    assert num_in_tr_set2 - num_in_tr_set1 == 1
+
+
+def test_simulated_sequential_num_loops():
+    # Tests the number of loops
+    sub1 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
+        "structure"
+    ]
+    base_struct1 = place_adsorbate(sub1, "H")["custom"]["structure"]
+    base_struct2 = place_adsorbate(sub2, "N")["custom"]["structure"]
+    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    # Test default number of loops
+    bsta = 3
+    sl_dict = simulated_sequential_learning(
+        acsc,
+        [base_struct1, base_struct2, sub1, sub2],
+        np.array([5.0, 6.0, 7.0, 8.0]),
+        batch_size_to_add=bsta,
+        acquisition_function="Random",
+        init_training_size=1,
+    )
+    assert len(sl_dict["training_history"]) == 2
+
+    # Test catches maximum number of loops
+    with pytest.raises(AutoCatSequentialLearningError):
+        sl_dict = simulated_sequential_learning(
+            acsc,
+            [base_struct1, base_struct2, sub1, sub2],
+            np.array([5.0, 6.0, 7.0, 8.0]),
+            batch_size_to_add=bsta,
+            acquisition_function="Random",
+            init_training_size=1,
+            number_of_sl_loops=3,
+        )
+
+    sl_dict = simulated_sequential_learning(
+        acsc,
+        [base_struct1, base_struct2, sub2],
+        np.array([5.0, 6.0, 7.0]),
+        acquisition_function="Random",
+        init_training_size=1,
+    )
+    assert len(sl_dict["training_history"]) == 3
 
 
 def test_simulated_sequential_outputs_testing():
@@ -110,28 +152,30 @@ def test_simulated_sequential_outputs_testing():
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
     base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
     base_struct3 = place_adsorbate(sub2, "H")["custom"]["structure"]
-    acsc = AutoCatStructureCorrector(structure_featurizer="elemental_property")
+    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
     sl_dict = simulated_sequential_learning(
         acsc,
-        [base_struct1, base_struct2],
-        testing_base_structures=[base_struct3],
-        batch_num_of_perturbations_per_base_structure=3,
-        batch_size_to_add=3,
+        [base_struct1, base_struct2, sub1],
+        np.array([0.0, 2.0, 4.0]),
+        init_training_size=1,
+        testing_structures=[base_struct3, sub2],
+        testing_y=np.array([8.0, 10.0]),
+        batch_size_to_add=1,
         number_of_sl_loops=2,
+        acquisition_function="MU",
     )
-    # Check lenght of testing scores
-    assert len(sl_dict["mae_test_history"]) == 2
-    assert len(sl_dict["rmse_train_history"]) == 2
-    assert len(sl_dict["mae_train_history"]) == 2
-    assert len(sl_dict["test_preds_history"]) == 2
-    assert len(sl_dict["test_preds_history"][0]) == 3
-    assert len(sl_dict["test_unc_history"]) == 2
-    assert len(sl_dict["test_unc_history"][0]) == 3
+    # Check length of testing scores
+    assert len(sl_dict["training_history"]) == 3
+    assert len(sl_dict["aq_scores_history"]) == 2
+    assert len(sl_dict["max_scores_history"]) == 2
+    assert len(sl_dict["mae_test_history"]) == 3
+    assert len(sl_dict["rmse_train_history"]) == 3
+    assert len(sl_dict["mae_train_history"]) == 3
+    assert len(sl_dict["test_prediction_history"]) == 3
+    assert len(sl_dict["test_prediction_history"][0]) == 2
+    assert len(sl_dict["test_uncertainty_history"]) == 3
+    assert len(sl_dict["test_uncertainty_history"][0]) == 2
     assert sl_dict["mae_test_history"] != sl_dict["mae_train_history"]
-
-    # check selected_candidate_history
-    assert len(sl_dict["selected_candidate_history"]) == 2
-    assert len(sl_dict["selected_candidate_history"][0]) == 3
 
 
 def test_simulated_sequential_write_to_disk():
@@ -146,35 +190,24 @@ def test_simulated_sequential_write_to_disk():
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
     base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
     base_struct3 = place_adsorbate(sub2, "N")["custom"]["structure"]
-    acsc = AutoCatStructureCorrector(structure_featurizer="elemental_property")
+    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
     sl_dict = simulated_sequential_learning(
         acsc,
-        [base_struct1, base_struct2],
-        testing_base_structures=[base_struct3],
-        batch_num_of_perturbations_per_base_structure=1,
+        [base_struct1, base_struct2, base_struct3],
+        np.array([0, 1, 2]),
+        init_training_size=2,
+        testing_structures=[base_struct3],
+        testing_y=np.array([2]),
         batch_size_to_add=2,
-        number_of_sl_loops=2,
+        number_of_sl_loops=1,
         write_to_disk=True,
         write_location=_tmp_dir,
+        acquisition_function="Random",
     )
-    # when writing to disk, candidate history separated out
-    sl_dict_data = {
-        key: sl_dict[key] for key in sl_dict if key != "selected_candidate_history"
-    }
     # check data written as json
     with open(os.path.join(_tmp_dir, "sl_dict.json"), "r") as f:
         sl_written = json.load(f)
-        assert sl_dict_data == sl_written
-
-    # check written sl selected candidates
-    cands1 = ase_read(f"{_tmp_dir}/candidate_structures/sl_iter1.traj", index=":")
-    # print(cands1)
-    assert len(cands1) == 2
-    # assert sl_dict["selected_candidate_history"][0] == cands1
-    cands2 = ase_read(f"{_tmp_dir}/candidate_structures/sl_iter2.traj", index=":")
-    print(cands2)
-    print(sl_dict["selected_candidate_history"])
-    assert sl_dict["selected_candidate_history"][1] == cands2
+        assert sl_dict == sl_written
 
 
 def test_multiple_sequential_learning_serial():
@@ -183,13 +216,17 @@ def test_multiple_sequential_learning_serial():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    acsc = AutoCatStructureCorrector(structure_featurizer="elemental_property")
-    runs_history = multiple_sequential_learning_runs(
-        acsc,
-        [base_struct1],
-        3,
-        batch_num_of_perturbations_per_base_structure=1,
-        number_of_sl_loops=2,
+    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    runs_history = multiple_simulated_sequential_learning_runs(
+        number_of_runs=3,
+        sl_kwargs={
+            "predictor": acsc,
+            "all_training_structures": [base_struct1, sub1],
+            "all_training_y": np.array([0.0, 0.0]),
+            "number_of_sl_loops": 1,
+            "acquisition_function": "MU",
+            "init_training_size": 1,
+        },
     )
     assert len(runs_history) == 3
     assert isinstance(runs_history[0], dict)
@@ -202,14 +239,18 @@ def test_multiple_sequential_learning_parallel():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, "Li")["custom"]["structure"]
-    acsc = AutoCatStructureCorrector(structure_featurizer="elemental_property")
-    runs_history = multiple_sequential_learning_runs(
-        acsc,
-        [base_struct1],
-        3,
-        batch_num_of_perturbations_per_base_structure=1,
-        number_of_sl_loops=2,
+    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    runs_history = multiple_simulated_sequential_learning_runs(
+        number_of_runs=3,
         number_parallel_jobs=2,
+        sl_kwargs={
+            "predictor": acsc,
+            "all_training_structures": [base_struct1, sub1],
+            "all_training_y": np.array([0.0, 0.0]),
+            "number_of_sl_loops": 1,
+            "acquisition_function": "Random",
+            "init_training_size": 1,
+        },
     )
     assert len(runs_history) == 3
     assert isinstance(runs_history[2], dict)
@@ -223,46 +264,75 @@ def test_multiple_sequential_learning_write_to_disk():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, "N")["custom"]["structure"]
-    acsc = AutoCatStructureCorrector(structure_featurizer="elemental_property")
-    runs_history = multiple_sequential_learning_runs(
-        acsc,
-        [base_struct1],
-        3,
-        batch_num_of_perturbations_per_base_structure=2,
-        number_of_sl_loops=2,
-        batch_size_to_add=2,
+    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    runs_history = multiple_simulated_sequential_learning_runs(
+        number_of_runs=3,
+        number_parallel_jobs=2,
         write_to_disk=True,
         write_location=_tmp_dir,
+        sl_kwargs={
+            "predictor": acsc,
+            "all_training_structures": [base_struct1, sub1],
+            "all_training_y": np.array([0.0, 0.0]),
+            "number_of_sl_loops": 1,
+            "acquisition_function": "Random",
+            "init_training_size": 1,
+            "batch_size_to_add": 2,
+        },
     )
-    runs_history_data = []
-    for r in runs_history:
-        data_dict = {key: r[key] for key in r if key != "selected_candidate_history"}
-        runs_history_data.append(data_dict)
 
     # check data history
     with open(os.path.join(_tmp_dir, "sl_runs_history.json"), "r") as f:
         runs_history_written = json.load(f)
-        assert runs_history_data == runs_history_written
+        assert runs_history == runs_history_written
 
-    # check selected candidate history
-    # check run 1 iteration 1
-    cands1_1 = ase_read(
-        f"{_tmp_dir}/candidate_structures/run1/sl_iter1.traj", index=":"
-    )
-    assert len(cands1_1) == 2
-    assert runs_history[0]["selected_candidate_history"][0] == cands1_1
-    # check run 1 iteration 2
-    cands1_2 = ase_read(
-        f"{_tmp_dir}/candidate_structures/run1/sl_iter2.traj", index=":"
-    )
-    assert runs_history[0]["selected_candidate_history"][1] == cands1_2
-    # check run 2 iteration 1
-    cands2_1 = ase_read(
-        f"{_tmp_dir}/candidate_structures/run2/sl_iter1.traj", index=":"
-    )
-    assert runs_history[1]["selected_candidate_history"][0] == cands2_1
-    # check run 2 iteration 2
-    cands2_2 = ase_read(
-        f"{_tmp_dir}/candidate_structures/run2/sl_iter2.traj", index=":"
-    )
-    assert runs_history[1]["selected_candidate_history"][1] == cands2_2
+
+def test_choose_next_candidate_input_minimums():
+    # Tests that appropriately catches minimum necessary inputs
+    labels = np.random.rand(5)
+    train_idx = np.zeros(5, dtype=bool)
+    train_idx[np.random.choice(5, size=2, replace=False)] = 1
+    unc = np.random.rand(5)
+    pred = np.random.rand(5)
+
+    with pytest.raises(AutoCatSequentialLearningError):
+        choose_next_candidate()
+
+    with pytest.raises(AutoCatSequentialLearningError):
+        choose_next_candidate(unc=unc, pred=pred, num_candidates_to_pick=2, aq="Random")
+
+    with pytest.raises(AutoCatSequentialLearningError):
+        choose_next_candidate(
+            labels=labels, pred=pred, num_candidates_to_pick=2, aq="MU"
+        )
+
+    with pytest.raises(AutoCatSequentialLearningError):
+        choose_next_candidate(pred=pred, num_candidates_to_pick=2, aq="MLI")
+
+    with pytest.raises(AutoCatSequentialLearningError):
+        choose_next_candidate(unc=unc, num_candidates_to_pick=2, aq="MLI")
+
+
+def test_get_overlap_score():
+    # Tests default behavior
+    mean = 0.0
+    std = 0.1
+    x1 = -0.4
+    x2 = 0.8
+    norm = stats.norm(loc=mean, scale=std)
+
+    # checks that at least target min or max is provided
+    with pytest.raises(AutoCatSequentialLearningError):
+        get_overlap_score(mean, std)
+
+    # test default min
+    overlap_score = get_overlap_score(mean, std, x2=x2)
+    assert np.isclose(overlap_score, norm.cdf(x2))
+
+    # test default max
+    overlap_score = get_overlap_score(mean, std, x1=x1)
+    assert np.isclose(overlap_score, 1.0 - norm.cdf(x1))
+
+    # test both max and min
+    overlap_score = get_overlap_score(mean, std, x1=x1, x2=x2)
+    assert np.isclose(overlap_score, norm.cdf(x2) - norm.cdf(x1))
