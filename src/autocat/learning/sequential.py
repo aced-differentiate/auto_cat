@@ -468,3 +468,53 @@ def get_overlap_score(mean: float, std: float, x2: float = None, x1: float = Non
 
     norm_dist = stats.norm(loc=mean, scale=std)
     return norm_dist.cdf(x2) - norm_dist.cdf(x1)
+
+
+def calculate_hhi_scores(structures: List[Atoms], hhi_type: str = "production"):
+    """
+    Calculates HHI scores for structures weighted by their composition.
+    The scores are normalized and inverted such that these should
+    be maximized in the interest of finding a low cost system
+
+    Parameters
+    ----------
+
+    structures:
+        List of Atoms objects for which to calculate the scores
+
+    hhi_type:
+        Type of HHI index to be used for the score
+        Options
+        - production (default)
+        - reserves
+
+    Returns
+    -------
+
+    hhi_scores:
+        Scores corresponding to each of the provided structures
+
+    """
+    if structures is None:
+        msg = "To include HHI, the structures must be provided"
+        raise AutoCatSequentialLearningError(msg)
+
+    raw_hhi_data = {"production": HHI_PRODUCTION, "reserves": HHI_RESERVES}
+    max_hhi = np.max([raw_hhi_data[hhi_type][r] for r in raw_hhi_data[hhi_type]])
+    min_hhi = np.min([raw_hhi_data[hhi_type][r] for r in raw_hhi_data[hhi_type]])
+    # normalize and invert (so that this score is to be maximized)
+    norm_hhi_data = {
+        el: 1.0 - (raw_hhi_data[hhi_type][el] - min_hhi) / (max_hhi - min_hhi)
+        for el in raw_hhi_data[hhi_type]
+    }
+
+    hhi_scores = np.zeros(len(structures))
+    for idx, struct in enumerate(structures):
+        hhi = 0
+        el_counts = struct.symbols.formula.count()
+        tot_size = len(struct)
+        # weight calculated hhi score by composition
+        for el in el_counts:
+            hhi += norm_hhi_data[el] * el_counts[el] / tot_size
+        hhi_scores[idx] = hhi
+    return hhi_scores

@@ -9,6 +9,8 @@ import tempfile
 
 from scipy import stats
 
+from autocat.data.hhi import HHI_PRODUCTION
+from autocat.data.hhi import HHI_RESERVES
 from autocat.learning.predictors import AutoCatPredictor
 from autocat.learning.sequential import (
     AutoCatSequentialLearningError,
@@ -17,8 +19,10 @@ from autocat.learning.sequential import (
 )
 from autocat.learning.sequential import simulated_sequential_learning
 from autocat.learning.sequential import multiple_simulated_sequential_learning_runs
+from autocat.learning.sequential import calculate_hhi_scores
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
+from autocat.saa import generate_saa_structures
 
 
 def test_simulated_sequential_outputs():
@@ -336,3 +340,54 @@ def test_get_overlap_score():
     # test both max and min
     overlap_score = get_overlap_score(mean, std, x1=x1, x2=x2)
     assert np.isclose(overlap_score, norm.cdf(x2) - norm.cdf(x1))
+
+
+def test_calculate_hhi_scores():
+    # Tests calculating the HHI scores
+    saa_dict = generate_saa_structures(
+        ["Pt", "Cu", "Ni"],
+        ["Ru"],
+        facets={"Pt": ["111"], "Cu": ["111"], "Ni": ["111"]},
+    )
+    saa_structs = [saa_dict[host]["Ru"]["fcc111"]["structure"] for host in saa_dict]
+    # test production
+    hhi_prod_scores = calculate_hhi_scores(saa_structs)
+    norm_hhi_prod = {
+        el: 1.0 - (HHI_PRODUCTION[el] - 500.0) / 9300.0 for el in HHI_PRODUCTION
+    }
+    # check approach properly normalizes and inverts
+    assert np.isclose(norm_hhi_prod["Y"], 0.0)
+    assert np.isclose(norm_hhi_prod["O"], 1.0)
+    # test scores calculated on SAAs
+    assert np.isclose(
+        hhi_prod_scores[0], (35 * norm_hhi_prod["Pt"] + norm_hhi_prod["Ru"]) / 36
+    )
+    assert np.isclose(
+        hhi_prod_scores[1], (35 * norm_hhi_prod["Cu"] + norm_hhi_prod["Ru"]) / 36
+    )
+    assert np.isclose(
+        hhi_prod_scores[2], (35 * norm_hhi_prod["Ni"] + norm_hhi_prod["Ru"]) / 36
+    )
+    # check scores normalized
+    assert (hhi_prod_scores <= 1.0).all()
+    assert (hhi_prod_scores >= 0.0).all()
+    # test reserves
+    hhi_res_scores = calculate_hhi_scores(saa_structs, "reserves")
+    norm_hhi_res = {
+        el: 1.0 - (HHI_RESERVES[el] - 500.0) / 8600.0 for el in HHI_RESERVES
+    }
+    # check approach properly normalizes and inverts
+    assert np.isclose(norm_hhi_res["Pt"], 0.0)
+    assert np.isclose(norm_hhi_res["C"], 1.0)
+    assert np.isclose(
+        hhi_res_scores[0], (35 * norm_hhi_res["Pt"] + norm_hhi_res["Ru"]) / 36
+    )
+    assert np.isclose(
+        hhi_res_scores[1], (35 * norm_hhi_res["Cu"] + norm_hhi_res["Ru"]) / 36
+    )
+    assert np.isclose(
+        hhi_res_scores[2], (35 * norm_hhi_res["Ni"] + norm_hhi_res["Ru"]) / 36
+    )
+    # check normalized
+    assert (hhi_res_scores <= 1.0).all()
+    assert (hhi_res_scores >= 0.0).all()
