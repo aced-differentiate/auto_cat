@@ -10,8 +10,9 @@ from typing import Union
 from ase import Atoms
 from scipy import stats
 
-from autocat.perturbations import generate_perturbed_dataset
 from autocat.learning.predictors import AutoCatPredictor
+from autocat.data.hhi import HHI_PRODUCTION
+from autocat.data.hhi import HHI_RESERVES
 
 Array = List[float]
 
