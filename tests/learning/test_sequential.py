@@ -317,6 +317,43 @@ def test_choose_next_candidate_input_minimums():
         choose_next_candidate(unc=unc, num_candidates_to_pick=2, aq="MLI")
 
 
+def test_choose_next_candidate_hhi_weighting():
+    # Tests that the HHI weighting is properly applied
+    unc = np.array([0.1, 0.1])
+    pred = np.array([4.0, 4.0])
+    # Tests using production HHI values and MU
+    y_struct = generate_surface_structures(["Y"], facets={"Y": ["0001"]})["Y"][
+        "hcp0001"
+    ]["structure"]
+    ni_struct = generate_surface_structures(["Ni"], facets={"Ni": ["111"]})["Ni"][
+        "fcc111"
+    ]["structure"]
+    parent_idx, _, aq_scores = choose_next_candidate(
+        [y_struct, ni_struct], unc=unc, include_hhi=True, aq="MU"
+    )
+    assert parent_idx[0] == 1
+    assert aq_scores[0] < aq_scores[1]
+
+    # Tests using reserves HHI values and MLI
+    nb_struct = generate_surface_structures(["Nb"], facets={"Nb": ["111"]})["Nb"][
+        "bcc111"
+    ]["structure"]
+    na_struct = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"][
+        "bcc110"
+    ]["structure"]
+    parent_idx, _, aq_scores = choose_next_candidate(
+        [na_struct, nb_struct],
+        unc=unc,
+        pred=pred,
+        target_min=3,
+        target_max=5,
+        include_hhi=True,
+        hhi_type="reserves",
+    )
+    assert parent_idx[0] == 0
+    assert aq_scores[0] > aq_scores[1]
+
+
 def test_get_overlap_score():
     # Tests default behavior
     mean = 0.0

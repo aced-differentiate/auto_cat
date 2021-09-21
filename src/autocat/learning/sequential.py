@@ -340,7 +340,7 @@ def choose_next_candidate(
     num_candidates_to_pick: int = None,
     target_min: float = None,
     target_max: float = None,
-    include_hhi: bool = None,
+    include_hhi: bool = False,
     hhi_type: str = "production",
 ):
     """
@@ -348,6 +348,9 @@ def choose_next_candidate(
 
     Parameters
     ----------
+
+    structures:
+        List of `Atoms` objects to be used for HHI weighting if desired
 
     labels:
         Array of the labels for the data
@@ -378,6 +381,15 @@ def choose_next_candidate(
     target_max:
         Maximum target value to optimize for
 
+    include_hhi:
+        Whether HHI scores should be used to weight aq scores
+
+    hhi_type:
+        Type of HHI index to be used for weighting
+        Options
+        - production (default)
+        - reserves
+
     Returns
     -------
 
@@ -390,6 +402,7 @@ def choose_next_candidate(
     aq_scores:
         Calculated scores based on the selected `aq` for the entire training set
     """
+    hhi_scores = None
     if include_hhi:
         if structures is None:
             msg = "Structures must be provided to include HHI scores"
@@ -404,7 +417,12 @@ def choose_next_candidate(
         if train_idx is None:
             train_idx = np.zeros(len(labels), dtype=bool)
 
-        aq_scores = np.random.choice(len(labels), size=len(labels), replace=False)
+        if hhi_scores is None:
+            hhi_scores = np.ones(len(train_idx))
+
+        aq_scores = (
+            np.random.choice(len(labels), size=len(labels), replace=False) * hhi_scores
+        )
 
     elif aq == "MU":
         if unc is None:
@@ -414,7 +432,10 @@ def choose_next_candidate(
         if train_idx is None:
             train_idx = np.zeros(len(unc), dtype=bool)
 
-        aq_scores = unc
+        if hhi_scores is None:
+            hhi_scores = np.ones(len(train_idx))
+
+        aq_scores = unc.copy() * hhi_scores
 
     elif aq == "MLI":
         if unc is None or pred is None:
@@ -424,11 +445,17 @@ def choose_next_candidate(
         if train_idx is None:
             train_idx = np.zeros(len(unc), dtype=bool)
 
-        aq_scores = np.array(
-            [
-                get_overlap_score(mean, std, x2=target_max, x1=target_min)
-                for mean, std in zip(pred, unc)
-            ]
+        if hhi_scores is None:
+            hhi_scores = np.ones(len(train_idx))
+
+        aq_scores = (
+            np.array(
+                [
+                    get_overlap_score(mean, std, x2=target_max, x1=target_min)
+                    for mean, std in zip(pred, unc)
+                ]
+            )
+            * hhi_scores
         )
 
     else:
