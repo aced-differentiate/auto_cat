@@ -277,17 +277,17 @@ def simulated_sequential_learning(
 
         # select next candidate(s)
         next_candidate_idx, max_scores, aq_scores = choose_next_candidate(
-            all_training_y,
-            train_idx,
-            _preds,
-            _uncs,
-            acquisition_function,
-            bsa,
-            target_min,
-            target_max,
+            labels=all_training_y,
+            train_idx=train_idx,
+            pred=_preds,
+            unc=_uncs,
+            aq=acquisition_function,
+            num_candidates_to_pick=bsa,
+            target_min=target_min,
+            target_max=target_max,
         )
-        max_scores_history.append(max_scores)
-        aq_scores_history.append(aq_scores)
+        max_scores_history.append([int(i) for i in max_scores])
+        aq_scores_history.append(aq_scores.tolist())
 
         # add next candidates to training set
         train_idx[next_candidate_idx] = True
@@ -331,6 +331,7 @@ def simulated_sequential_learning(
 
 
 def choose_next_candidate(
+    structures: List[Atoms] = None,
     labels: Array = None,
     train_idx: Array = None,
     pred: Array = None,
@@ -339,6 +340,8 @@ def choose_next_candidate(
     num_candidates_to_pick: int = None,
     target_min: float = None,
     target_max: float = None,
+    include_hhi: bool = None,
+    hhi_type: str = "production",
 ):
     """
     Chooses the next candidate(s) from a given acquisition function
@@ -387,6 +390,12 @@ def choose_next_candidate(
     aq_scores:
         Calculated scores based on the selected `aq` for the entire training set
     """
+    if include_hhi:
+        if structures is None:
+            msg = "Structures must be provided to include HHI scores"
+            raise AutoCatSequentialLearningError(msg)
+        hhi_scores = calculate_hhi_scores(structures, hhi_type)
+
     if aq == "Random":
         if labels is None:
             msg = "For aq = 'Random', the labels must be supplied"
@@ -395,15 +404,7 @@ def choose_next_candidate(
         if train_idx is None:
             train_idx = np.zeros(len(labels), dtype=bool)
 
-        next_idx = np.random.choice(
-            len(labels[~train_idx]), size=num_candidates_to_pick, replace=False
-        )
-        if num_candidates_to_pick is None:
-            next_idx = np.array([next_idx])
-        parent_idx = np.arange(labels.shape[0])[~train_idx][next_idx]
-
-        max_scores = []
-        aq_scores = []
+        aq_scores = np.random.choice(len(labels), size=len(labels), replace=False)
 
     elif aq == "MU":
         if unc is None:
@@ -413,15 +414,6 @@ def choose_next_candidate(
         if train_idx is None:
             train_idx = np.zeros(len(unc), dtype=bool)
 
-        if num_candidates_to_pick is None:
-            next_idx = np.array([np.argmax(unc[~train_idx])])
-            max_scores = [np.max(unc[~train_idx])]
-
-        else:
-            next_idx = np.argsort(unc[~train_idx])[-num_candidates_to_pick:]
-            sorted_array = unc[~train_idx][next_idx]
-            max_scores = list(sorted_array[-num_candidates_to_pick:])
-        parent_idx = np.arange(unc.shape[0])[~train_idx][next_idx]
         aq_scores = unc
 
     elif aq == "MLI":
@@ -438,19 +430,20 @@ def choose_next_candidate(
                 for mean, std in zip(pred, unc)
             ]
         )
-        if num_candidates_to_pick is None:
-            next_idx = np.array([np.argmax(aq_scores[~train_idx])])
-            max_scores = [np.max(aq_scores[~train_idx])]
-
-        else:
-            next_idx = np.argsort(aq_scores[~train_idx])[-num_candidates_to_pick:]
-            sorted_array = aq_scores[~train_idx][next_idx]
-            max_scores = list(sorted_array[-num_candidates_to_pick:])
-        parent_idx = np.arange(aq_scores.shape[0])[~train_idx][next_idx]
 
     else:
         msg = f"Acquisition function {aq} is not supported"
         raise NotImplementedError(msg)
+
+    if num_candidates_to_pick is None:
+        next_idx = np.array([np.argmax(aq_scores[~train_idx])])
+        max_scores = [np.max(aq_scores[~train_idx])]
+
+    else:
+        next_idx = np.argsort(aq_scores[~train_idx])[-num_candidates_to_pick:]
+        sorted_array = aq_scores[~train_idx][next_idx]
+        max_scores = list(sorted_array[-num_candidates_to_pick:])
+    parent_idx = np.arange(aq_scores.shape[0])[~train_idx][next_idx]
 
     return parent_idx, max_scores, aq_scores
 
