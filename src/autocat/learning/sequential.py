@@ -96,6 +96,8 @@ def simulated_sequential_learning(
     number_of_sl_loops: int = None,
     target_min: float = None,
     target_max: float = None,
+    include_hhi: bool = False,
+    hhi_type: str = "production",
     write_to_disk: bool = False,
     write_location: str = ".",
 ):
@@ -156,6 +158,15 @@ def simulated_sequential_learning(
     target_max:
         Label value that ideal candidates should be less than
         Default: +inf
+
+    include_hhi:
+        Whether HHI scores should be used to weight aq scores
+
+    hhi_type:
+        Type of HHI index to be used for weighting
+        Options
+        - production (default)
+        - reserves
 
     write_to_disk:
         Boolean specifying whether the sl dictionary should be written to disk as a json.
@@ -285,6 +296,8 @@ def simulated_sequential_learning(
             num_candidates_to_pick=bsa,
             target_min=target_min,
             target_max=target_max,
+            include_hhi=include_hhi,
+            hhi_type=hhi_type,
         )
         max_scores_history.append([int(i) for i in max_scores])
         aq_scores_history.append(aq_scores.tolist())
