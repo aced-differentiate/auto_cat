@@ -8,11 +8,12 @@ import json
 import tempfile
 
 from scipy import stats
-
+from ase.io import read as ase_read
 from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
 from autocat.learning.predictors import AutoCatPredictor
 from autocat.learning.sequential import (
+    AutoCatDesignSpace,
     AutoCatSequentialLearningError,
     choose_next_candidate,
     get_overlap_score,
@@ -23,6 +24,67 @@ from autocat.learning.sequential import calculate_hhi_scores
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
+
+
+def test_write_design_space_as_json():
+    # Tests writing out the AutoCatDesignSpace to disk
+    sub1 = generate_surface_structures(["Pd"], facets={"Pd": ["111"]})["Pd"]["fcc111"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
+        "structure"
+    ]
+    structs = [sub1, sub2]
+    labels = np.array([0.3, 0.8])
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        acds = AutoCatDesignSpace(
+            design_space_structures=structs,
+            design_space_labels=labels,
+            write_location=_tmp_dir,
+        )
+        acds.write_json()
+        # loads back written json
+        with open(os.path.join(_tmp_dir, "acds.json"), "r") as f:
+            ds = json.load(f)
+        # collects structs by writing each json individually
+        # and reading with ase
+        written_structs = []
+        for i in range(2):
+            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
+            with open(_tmp_json, "w") as tmp:
+                json.dump(ds[i], tmp)
+            written_structs.append(ase_read(_tmp_json))
+        assert structs == written_structs
+        assert (labels == ds[-1]).all()
+
+
+def test_get_design_space_from_json():
+    # Tests generating AutoCatDesignSpace from a json
+    sub1 = generate_surface_structures(["Au"], facets={"Au": ["100"]})["Au"]["fcc100"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
+        "structure"
+    ]
+    sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    structs = [sub1, sub2, sub3]
+    labels = np.array([30.0, 900.0, np.nan])
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        acds = AutoCatDesignSpace(
+            design_space_structures=structs,
+            design_space_labels=labels,
+            write_location=_tmp_dir,
+        )
+        acds.write_json("testing.json")
+
+        tmp_json_dir = os.path.join(_tmp_dir, "testing.json")
+        acds_from_json = AutoCatDesignSpace.from_json(tmp_json_dir)
+        assert acds_from_json.design_space_structures == structs
+        assert np.array_equal(
+            acds_from_json.design_space_labels, labels, equal_nan=True
+        )
 
 
 def test_simulated_sequential_outputs():

@@ -2,12 +2,14 @@ import numpy as np
 import os
 import json
 from joblib import Parallel, delayed
-
+import tempfile
 from typing import List
 from typing import Dict
 from typing import Union
 
 from ase import Atoms
+from ase.io import write as ase_write
+from ase.io import read as ase_read
 from scipy import stats
 
 from autocat.learning.predictors import AutoCatPredictor
@@ -15,6 +17,107 @@ from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
 
 Array = List[float]
+
+
+class AutoCatDesignSpace:
+    def __init__(
+        self,
+        design_space_structures: List[Atoms],
+        design_space_labels: Array,
+        write_location: str = None,
+    ):
+        """
+        Constructor.
+
+        Parameters
+        ----------
+
+        design_space_structures:
+            List of all structures within the design space
+
+        design_space_labels:
+            Labels corresponding to all structures within the design space.
+            If label not yet known, set to np.nan
+
+        """
+        self._design_space_structures = None
+        self.design_space_structures = design_space_structures
+
+        self._design_space_labels = None
+        self.design_space_labels = design_space_labels
+
+        self._write_location = "."
+        self.write_location = write_location
+
+    @property
+    def design_space_structures(self):
+        return self._design_space_structures
+
+    @design_space_structures.setter
+    def design_space_structures(self, design_space_structures):
+        if design_space_structures is not None:
+            if all(isinstance(struct, Atoms) for struct in design_space_structures):
+                self._design_space_structures = design_space_structures
+
+    @property
+    def design_space_labels(self):
+        return self._design_space_labels
+
+    @design_space_labels.setter
+    def design_space_labels(self, design_space_labels):
+        if design_space_labels is not None:
+            self._design_space_labels = design_space_labels
+
+    @property
+    def write_location(self):
+        return self._write_location
+
+    @write_location.setter
+    def write_location(self, write_location):
+        if write_location is not None:
+            self._write_location = write_location
+
+    def write_json(self, json_name: str = None):
+        with tempfile.TemporaryDirectory() as _tmp_dir:
+            # write out all individual structure jsons
+            for i, struct in enumerate(self.design_space_structures):
+                tmp_filename = os.path.join(_tmp_dir, f"{i}.json")
+                struct.write(tmp_filename)
+            # load individual jsons and collect in list
+            collected_jsons = []
+            for i in range(len(self.design_space_structures)):
+                tmp_filename = os.path.join(_tmp_dir, f"{i}.json")
+                with open(tmp_filename, "r") as f:
+                    collected_jsons.append(json.load(f))
+            # append labels to list of collected jsons
+            jsonified_labels = [float(x) for x in self.design_space_labels]
+            collected_jsons.append(jsonified_labels)
+            # set default json name if needed
+            if json_name is None:
+                json_name = "acds.json"
+            # write out single json
+            json_path = os.path.join(self.write_location, json_name)
+            with open(json_path, "w") as f:
+                json.dump(collected_jsons, f)
+
+    @staticmethod
+    def from_json(json_name: str, **kwargs):
+        with open(json_name, "r") as f:
+            all_data = json.load(f)
+        structures = []
+        with tempfile.TemporaryDirectory() as _tmp_dir:
+            for i in range(len(all_data) - 1):
+                # write temp json for each individual structure
+                _tmp_json = os.path.join(_tmp_dir, "tmp.json")
+                with open(_tmp_json, "w") as tmp:
+                    json.dump(all_data[i], tmp)
+                # read individual tmp json using ase
+                atoms = ase_read(_tmp_json, format="json")
+                structures.append(atoms)
+        labels = np.array(all_data[-1])
+        return AutoCatDesignSpace(
+            design_space_structures=structures, design_space_labels=labels, **kwargs
+        )
 
 
 class AutoCatSequentialLearningError(Exception):
