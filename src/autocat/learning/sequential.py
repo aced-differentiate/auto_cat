@@ -8,7 +8,6 @@ from typing import Dict
 from typing import Union
 
 from ase import Atoms
-from ase.io import write as ase_write
 from ase.io import read as ase_read
 from scipy import stats
 
@@ -17,6 +16,10 @@ from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
 
 Array = List[float]
+
+
+class AutoCatDesignSpaceError(Exception):
+    pass
 
 
 class AutoCatDesignSpace:
@@ -40,11 +43,9 @@ class AutoCatDesignSpace:
             If label not yet known, set to np.nan
 
         """
-        self._design_space_structures = None
-        self.design_space_structures = design_space_structures
+        self._design_space_structures = design_space_structures
 
-        self._design_space_labels = None
-        self.design_space_labels = design_space_labels
+        self._design_space_labels = design_space_labels
 
         self._write_location = "."
         self.write_location = write_location
@@ -55,9 +56,8 @@ class AutoCatDesignSpace:
 
     @design_space_structures.setter
     def design_space_structures(self, design_space_structures):
-        if design_space_structures is not None:
-            if all(isinstance(struct, Atoms) for struct in design_space_structures):
-                self._design_space_structures = design_space_structures
+        msg = "Please use `update` method to update the design space."
+        raise AutoCatDesignSpaceError(msg)
 
     @property
     def design_space_labels(self):
@@ -65,8 +65,8 @@ class AutoCatDesignSpace:
 
     @design_space_labels.setter
     def design_space_labels(self, design_space_labels):
-        if design_space_labels is not None:
-            self._design_space_labels = design_space_labels
+        msg = "Please use `update` method to update the design space."
+        raise AutoCatDesignSpaceError(msg)
 
     @property
     def write_location(self):
@@ -76,6 +76,35 @@ class AutoCatDesignSpace:
     def write_location(self, write_location):
         if write_location is not None:
             self._write_location = write_location
+
+    def update(self, structures: List[Atoms], labels: Array):
+        """
+        Updates design space given structures and corresponding labels.
+        If structure already in design space, the label is updated.
+
+        Parameters
+        ----------
+
+        structures:
+            List of Atoms objects structures to be added
+
+        labels:
+            Corresponding labels to `structures`
+        """
+        if (structures is not None) and (labels is not None):
+            assert len(structures) == len(labels)
+            assert all(isinstance(struct, Atoms) for struct in structures)
+            for i, struct in enumerate(structures):
+                # if structure already in design space, update label
+                if struct in self.design_space_structures:
+                    idx = self.design_space_structures.index(struct)
+                    self._design_space_labels[idx] = labels[i]
+                # otherwise extend design space
+                else:
+                    self._design_space_structures.append(struct)
+                    self._design_space_labels = np.append(
+                        self.design_space_labels, labels[i]
+                    )
 
     def write_json(self, json_name: str = None):
         with tempfile.TemporaryDirectory() as _tmp_dir:

@@ -14,6 +14,7 @@ from autocat.data.hhi import HHI_RESERVES
 from autocat.learning.predictors import AutoCatPredictor
 from autocat.learning.sequential import (
     AutoCatDesignSpace,
+    AutoCatDesignSpaceError,
     AutoCatSequentialLearningError,
     choose_next_candidate,
     get_overlap_score,
@@ -24,6 +25,42 @@ from autocat.learning.sequential import calculate_hhi_scores
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
+
+
+def test_updating_design_space():
+    sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["100"]})["Ag"]["fcc100"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["Li"], facets={"Li": ["110"]})["Li"]["bcc110"][
+        "structure"
+    ]
+    sub3 = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"]["bcc110"][
+        "structure"
+    ]
+    sub4 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    structs = [sub1, sub2, sub3]
+    labels = np.array([4.0, 5.0, 6.0])
+    acds = AutoCatDesignSpace(structs, labels)
+
+    # Test trying to update just structures
+    with pytest.raises(AutoCatDesignSpaceError):
+        acds.design_space_structures = [sub4]
+
+    # Test trying to update just labels
+    with pytest.raises(AutoCatDesignSpaceError):
+        acds.design_space_structures = np.array([4.0])
+
+    # Test updating label already in DS and extending
+    acds.update([sub1, sub4], np.array([10.0, 20.0]))
+    assert np.isclose(acds.design_space_labels[0], 10.0)
+    assert sub4 in acds.design_space_structures
+    assert np.isclose(acds.design_space_labels[-1], 20.0)
+
+    # Test trying to give structures that are not Atoms objects
+    with pytest.raises(AssertionError):
+        acds.update([sub1, np.array(20.0)], np.array([3.0, 4.0]))
 
 
 def test_write_design_space_as_json():
