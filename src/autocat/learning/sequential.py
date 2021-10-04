@@ -153,6 +153,65 @@ class AutoCatSequentialLearningError(Exception):
     pass
 
 
+class AutoCatSequentialLearner:
+    def __init__(self, design_space: AutoCatDesignSpace, **predictor_kwargs):
+        self._design_space = design_space
+        dstructs = self.design_space.design_space_structures
+        dlabels = self.design_space.design_space_labels
+
+        self.predictor = AutoCatPredictor(**predictor_kwargs)
+        mask_nans = ~np.isnan(dlabels)
+        self.predictor.fit(
+            dstructs[np.where(mask_nans)], dlabels[np.where(mask_nans)],
+        )
+
+        self._iteration_count = 0
+        preds, unc = self.predictor.predict(dstructs)
+        self._predictions = preds
+        self._uncertainties = unc
+
+    @property
+    def iteration_count(self):
+        return self._iteration_count
+
+    @iteration_count.setter
+    def iteration_count(self, num):
+        msg = "Cannot manually update iteration count value"
+        raise AutoCatSequentialLearningError(msg)
+
+    @property
+    def design_space(self):
+        return self._design_space
+
+    @property
+    def predictions(self):
+        return self._predictions
+
+    @property
+    def uncertainties(self):
+        return self._uncertainties
+
+    def compare(self, other_design_space):
+        """
+        Compare contained `AutoCatDesignSpace` object to another.
+        Returns True if they are the same, False otherwise.
+
+        Parameters
+        ----------
+
+        other_design_space:
+            `AutoCatDesignSpace` object to be compared to
+        """
+        ds = self.design_space
+        same_structs = (
+            ds.design_space_structures == other_design_space.design_space_structures
+        )
+        same_labels = np.array_equal(
+            ds.design_space_labels, other_design_space.design_space_labels
+        )
+        return same_structs and same_labels
+
+
 def multiple_simulated_sequential_learning_runs(
     number_of_runs: int = 5,
     number_parallel_jobs: int = None,
