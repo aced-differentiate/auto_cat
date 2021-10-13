@@ -16,6 +16,7 @@ from autocat.learning.sequential import (
     AutoCatDesignSpace,
     AutoCatDesignSpaceError,
     AutoCatSequentialLearningError,
+    AutoCatSequentialLearner,
     choose_next_candidate,
     get_overlap_score,
 )
@@ -25,6 +26,113 @@ from autocat.learning.sequential import calculate_hhi_scores
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
+
+
+def test_sequential_learner_compare():
+    # Tests comparison method
+    sub1 = generate_surface_structures(["Ca"], facets={"Ca": ["111"]})["Ca"]["fcc111"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "Li")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Nb"], facets={"Nb": ["110"]})["Nb"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "P")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Ta"], facets={"Ta": ["110"]})["Ta"]["bcc110"][
+        "structure"
+    ]
+    sub3 = place_adsorbate(sub3, "F")["custom"]["structure"]
+    sub4 = generate_surface_structures(["Sr"], facets={"Sr": ["110"]})["Sr"]["fcc110"][
+        "structure"
+    ]
+    sub4 = place_adsorbate(sub4, "F")["custom"]["structure"]
+    structs = [sub1, sub2, sub3]
+    labels = np.array([np.nan, 6.0, 15.0])
+    acds1 = AutoCatDesignSpace(structs, labels)
+    acsl = AutoCatSequentialLearner(acds1)
+
+    assert not acsl.check_design_space_different(acds1)
+
+    structs_reorder = [sub2, sub3, sub1]
+    labels_reorder = np.array([6.0, 15.0, np.nan])
+    acds2 = AutoCatDesignSpace(structs_reorder, labels_reorder)
+
+    assert not acsl.check_design_space_different(acds2)
+
+    structs_new_label = [sub1, sub2, sub3]
+    labels_new_label = np.array([3.0, 6.0, 15.0])
+    acds3 = AutoCatDesignSpace(structs_new_label, labels_new_label)
+
+    assert acsl.check_design_space_different(acds3)
+
+    structs_new_label_reorder = [sub1, sub3, sub2]
+    labels_new_label_reorder = np.array([3.0, 15.0, 6.0])
+    acds4 = AutoCatDesignSpace(structs_new_label_reorder, labels_new_label_reorder)
+
+    assert acsl.check_design_space_different(acds4)
+
+
+def test_sequential_learner_setup():
+    # Tests setting up an SL object
+    sub1 = generate_surface_structures(["Ir"], facets={"Ir": ["100"]})["Ir"]["fcc100"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Mo"], facets={"Mo": ["110"]})["Mo"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "H")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
+        "structure"
+    ]
+    sub3 = place_adsorbate(sub3, "O")["custom"]["structure"]
+    sub4 = generate_surface_structures(["Re"], facets={"Re": ["0001"]})["Re"][
+        "hcp0001"
+    ]["structure"]
+    sub4 = place_adsorbate(sub4, "N")["custom"]["structure"]
+    structs = [sub1, sub2, sub3, sub4]
+    labels = np.array([4.0, np.nan, 6.0, np.nan])
+    acds = AutoCatDesignSpace(structs, labels)
+    acsl = AutoCatSequentialLearner(acds)
+
+    assert acsl.design_space == acds
+    assert acsl.iteration_count == 0
+    assert (acsl.train_idx == np.array([True, False, True, False])).all()
+    assert acsl.candidate_selection_kwargs == {"aq": "Random"}
+    assert acsl.candidate_structures[0] == structs[acsl.candidate_indices[0]]
+    # test default kwargs
+    assert acsl.predictor_kwargs == {"structure_featurizer": "sine_matrix"}
+    # test specifying kwargs
+    acsl = AutoCatSequentialLearner(
+        acds,
+        predictor_kwargs={
+            "structure_featurizer": "elemental_property",
+            "elementalproperty_preset": "pymatgen",
+            "adsorbate_featurizer": "soap",
+            "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
+            "species_list": ["Ir", "O", "H", "Mo", "Fe", "N", "Re"],
+        },
+        candidate_selection_kwargs={"aq": "MU"},
+    )
+    # test passing predictor kwargs
+    assert acsl.predictor_kwargs == {
+        "structure_featurizer": "elemental_property",
+        "elementalproperty_preset": "pymatgen",
+        "adsorbate_featurizer": "soap",
+        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
+        "species_list": ["Ir", "O", "H", "Mo", "Fe", "N", "Re"],
+    }
+    assert acsl.predictor.structure_featurizer == "elemental_property"
+    assert acsl.predictor.elementalproperty_preset == "pymatgen"
+    assert acsl.predictor.adsorbate_featurizer == "soap"
+    assert acsl.predictor.adsorbate_featurization_kwargs == {
+        "rcut": 5.0,
+        "nmax": 8,
+        "lmax": 6,
+    }
+
+    # test passing candidate selection kwargs
+    assert acsl.candidate_selection_kwargs == {"aq": "MU"}
 
 
 def test_updating_design_space():
