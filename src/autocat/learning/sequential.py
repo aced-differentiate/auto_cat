@@ -236,10 +236,12 @@ class AutoCatSequentialLearner:
     def train_idx(self):
         return self._train_idx
 
-    def compare(self, other_design_space):
+    def check_design_space_different(self, other_design_space):
         """
         Compare contained `AutoCatDesignSpace` object to another.
-        Returns True if they are the same, False otherwise.
+        The other design space must be of the same size to the
+        one that is contained.
+        Returns True if they are different, False otherwise.
 
         Parameters
         ----------
@@ -248,13 +250,26 @@ class AutoCatSequentialLearner:
             `AutoCatDesignSpace` object to be compared to
         """
         ds = self.design_space
-        same_structs = (
-            ds.design_space_structures == other_design_space.design_space_structures
+        assert len(ds.design_space_structures) == len(
+            other_design_space.design_space_structures
         )
-        same_labels = np.array_equal(
-            ds.design_space_labels, other_design_space.design_space_labels
-        )
-        return same_structs and same_labels
+        for idx, struct in enumerate(ds.design_space_structures):
+            # check same structures
+            if struct not in other_design_space.design_space_structures:
+                return True
+            o_idx = other_design_space.design_space_structures.index(struct)
+            # check if both nans
+            if np.isnan(ds.design_space_labels[idx]) and np.isnan(
+                other_design_space.design_space_labels[o_idx]
+            ):
+                continue
+            # check same labels
+            if (
+                ds.design_space_labels[idx]
+                != other_design_space.design_space_labels[o_idx]
+            ):
+                return True
+        return False
 
     def iterate(self, other_design_space):
         """
@@ -271,7 +286,7 @@ class AutoCatSequentialLearner:
         other_design_space:
             `AutoCatDesignSpace` object to be compared to
         """
-        if self.compare(other_design_space):
+        if self.check_design_space_different(other_design_space):
             self._iteration_count += 1
             self._design_space = other_design_space
 
