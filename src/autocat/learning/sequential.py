@@ -154,30 +154,49 @@ class AutoCatSequentialLearningError(Exception):
 
 
 class AutoCatSequentialLearner:
-    def __init__(self, design_space: AutoCatDesignSpace, **predictor_kwargs):
+    def __init__(
+        self,
+        design_space: AutoCatDesignSpace,
+        predictor_kwargs: Dict[str, Union[str, float]] = None,
+        candidate_selection_kwargs: Dict[str, Union[str, float]] = None,
+    ):
+        self._predictor_kwargs = predictor_kwargs or {
+            "structure_featurizer": "sine_matrix"
+        }
+        self._candidate_selection_kwargs = candidate_selection_kwargs or {
+            "aq": "Random"
+        }
+
         self._design_space = design_space
         dstructs = self.design_space.design_space_structures
         dlabels = self.design_space.design_space_labels
-
-        self.predictor = AutoCatPredictor(**predictor_kwargs)
         mask_nans = ~np.isnan(dlabels)
-        self.predictor.fit(
-            dstructs[np.where(mask_nans)], dlabels[np.where(mask_nans)],
-        )
+
+        train_idx = np.zeros(len(dlabels), dtype=bool)
+        train_idx[np.where(mask_nans)] = 1
+        self._train_idx = train_idx
+
+        masked_structs = [struct for i, struct in enumerate(dstructs) if mask_nans[i]]
+        masked_labels = dlabels[np.where(mask_nans)]
+
+        self.predictor = AutoCatPredictor(**self.predictor_kwargs)
+        self.predictor.fit(masked_structs, masked_labels)
 
         self._iteration_count = 0
         preds, unc = self.predictor.predict(dstructs)
         self._predictions = preds
         self._uncertainties = unc
 
+        candidate_idx, _, aq_scores = choose_next_candidate(
+            dstructs, dlabels, train_idx, preds, unc, **self.candidate_selection_kwargs,
+        )
+
+        self._candidate_indices = candidate_idx
+        self._acquisition_scores = aq_scores
+
     @property
     def iteration_count(self):
         return self._iteration_count
-
-    @iteration_count.setter
-    def iteration_count(self, num):
-        msg = "Cannot manually update iteration count value"
-        raise AutoCatSequentialLearningError(msg)
 
     @property
     def design_space(self):
@@ -190,6 +209,32 @@ class AutoCatSequentialLearner:
     @property
     def uncertainties(self):
         return self._uncertainties
+
+    @property
+    def candidate_indices(self):
+        return self._candidate_indices
+
+    @property
+    def acquisition_scores(self):
+        return self._acquisition_scores
+
+    @property
+    def candidate_structures(self):
+        idxs = self.candidate_indices
+        structs = self.design_space.design_space_structures
+        return [structs[i] for i in idxs]
+
+    @property
+    def predictor_kwargs(self):
+        return self._predictor_kwargs
+
+    @property
+    def candidate_selection_kwargs(self):
+        return self._candidate_selection_kwargs
+
+    @property
+    def train_idx(self):
+        return self._train_idx
 
     def compare(self, other_design_space):
         """
@@ -210,6 +255,55 @@ class AutoCatSequentialLearner:
             ds.design_space_labels, other_design_space.design_space_labels
         )
         return same_structs and same_labels
+
+    def iterate(self, other_design_space):
+        """
+        Iterates the SL loop if the proposed design space is different than the
+        contained one.
+        This consists of:
+        - retraining the predictor
+        - obtaining new acquisition scores
+        - selecting next batch of candidates
+
+        Parameters
+        ----------
+
+        other_design_space:
+            `AutoCatDesignSpace` object to be compared to
+        """
+        if self.compare(other_design_space):
+            self._iteration_count += 1
+            self._design_space = other_design_space
+
+            dstructs = self.design_space.design_space_structures
+            dlabels = self.design_space.design_space_labels
+
+            mask_nans = ~np.isnan(dlabels)
+            masked_structs = [
+                struct for i, struct in enumerate(dstructs) if mask_nans[i]
+            ]
+            masked_labels = dlabels[np.where(mask_nans)]
+
+            self.predictor.fit(masked_structs, masked_labels)
+            train_idx = np.zeros(len(dlabels), dtype=bool)
+            train_idx[np.where(mask_nans)] = 1
+            self._train_idx = train_idx
+
+            preds, unc = self.predictor.predict(dstructs)
+            self._predictions = preds
+            self._uncertainties = unc
+
+            candidate_idx, _, aq_scores = choose_next_candidate(
+                dstructs,
+                dlabels,
+                train_idx,
+                preds,
+                unc,
+                **self.candidate_selection_kwargs or {},
+            )
+
+            self._candidate_indices = candidate_idx
+            self._acquisition_scores = aq_scores
 
 
 def multiple_simulated_sequential_learning_runs(
