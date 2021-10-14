@@ -216,13 +216,19 @@ class AutoCatSequentialLearner:
 
     @property
     def acquisition_scores(self):
-        return self._acquisition_scores
+        if self.candidate_indices is not None:
+            return self._acquisition_scores
+        else:
+            print("Design space fully explored, no more candidates")
 
     @property
     def candidate_structures(self):
         idxs = self.candidate_indices
-        structs = self.design_space.design_space_structures
-        return [structs[i] for i in idxs]
+        if idxs is not None:
+            structs = self.design_space.design_space_structures
+            return [structs[i] for i in idxs]
+        else:
+            print("Design space fully explored, no more candidates")
 
     @property
     def predictor_kwargs(self):
@@ -277,8 +283,8 @@ class AutoCatSequentialLearner:
         contained one.
         This consists of:
         - retraining the predictor
-        - obtaining new acquisition scores
-        - selecting next batch of candidates
+        - obtaining new acquisition scores (if fully explored returns None)
+        - selecting next batch of candidates (if fully explored returns None)
 
         Parameters
         ----------
@@ -308,14 +314,21 @@ class AutoCatSequentialLearner:
             self._predictions = preds
             self._uncertainties = unc
 
-            candidate_idx, _, aq_scores = choose_next_candidate(
-                dstructs,
-                dlabels,
-                train_idx,
-                preds,
-                unc,
-                **self.candidate_selection_kwargs or {},
-            )
+            # make sure haven't fully searched design space
+            if True in [np.isnan(l) for l in dlabels]:
+                candidate_idx, _, aq_scores = choose_next_candidate(
+                    dstructs,
+                    dlabels,
+                    train_idx,
+                    preds,
+                    unc,
+                    **self.candidate_selection_kwargs or {},
+                )
+
+            # if fully searched, no more candidate structures
+            else:
+                candidate_idx = None
+                aq_scores = None
 
             self._candidate_indices = candidate_idx
             self._acquisition_scores = aq_scores
