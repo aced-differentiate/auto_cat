@@ -28,6 +28,61 @@ from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
 
 
+def test_sequential_learner_iterate():
+    # Tests iterate method
+    sub1 = generate_surface_structures(["Ca"], facets={"Ca": ["111"]})["Ca"]["fcc111"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "Na")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Nb"], facets={"Nb": ["110"]})["Nb"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "K")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Ta"], facets={"Ta": ["110"]})["Ta"]["bcc110"][
+        "structure"
+    ]
+    sub3 = place_adsorbate(sub3, "H")["custom"]["structure"]
+    sub4 = generate_surface_structures(["Sr"], facets={"Sr": ["110"]})["Sr"]["fcc110"][
+        "structure"
+    ]
+    sub4 = place_adsorbate(sub4, "Fe")["custom"]["structure"]
+    structs = [sub1, sub2, sub3, sub4]
+    labels = np.array([11.0, 25.0, np.nan, np.nan])
+    acds = AutoCatDesignSpace(structs, labels)
+    acsl = AutoCatSequentialLearner(acds)
+
+    old_candidate_structures = acsl.candidate_structures
+    assert acsl.iteration_count == 0
+
+    # make sure doesn't iterate if no changes to design space
+    acsl.iterate(acds)
+    assert acsl.iteration_count == 0
+    assert acsl.design_space is acds
+    assert acsl.candidate_structures == old_candidate_structures
+
+    # check updates for first iteration
+    new_labels = np.array([11.0, 25.0, 13.0, np.nan])
+    new_acds = AutoCatDesignSpace(structs, new_labels)
+
+    acsl.iterate(new_acds)
+
+    assert acsl.iteration_count == 1
+    assert acsl.design_space is new_acds
+    assert acsl.candidate_structures[0] == sub4
+
+    new_labels2 = np.array([11.0, 25.0, 13.0, 30.0])
+    new_acds2 = AutoCatDesignSpace(structs, new_labels2)
+
+    # checks being iterated a second time to fully explore the design space
+    acsl.iterate(new_acds2)
+
+    assert acsl.iteration_count == 2
+    assert acsl.design_space is new_acds2
+    assert acsl.candidate_structures is None
+    assert acsl.candidate_indices is None
+    assert acsl.acquisition_scores is None
+
+
 def test_sequential_learner_compare():
     # Tests comparison method
     sub1 = generate_surface_structures(["Ca"], facets={"Ca": ["111"]})["Ca"]["fcc111"][
@@ -42,10 +97,6 @@ def test_sequential_learner_compare():
         "structure"
     ]
     sub3 = place_adsorbate(sub3, "F")["custom"]["structure"]
-    sub4 = generate_surface_structures(["Sr"], facets={"Sr": ["110"]})["Sr"]["fcc110"][
-        "structure"
-    ]
-    sub4 = place_adsorbate(sub4, "F")["custom"]["structure"]
     structs = [sub1, sub2, sub3]
     labels = np.array([np.nan, 6.0, 15.0])
     acds1 = AutoCatDesignSpace(structs, labels)
@@ -112,7 +163,7 @@ def test_sequential_learner_setup():
             "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
             "species_list": ["Ir", "O", "H", "Mo", "Fe", "N", "Re"],
         },
-        candidate_selection_kwargs={"aq": "MU"},
+        candidate_selection_kwargs={"aq": "MU", "num_candidates_to_pick": 2},
     )
     # test passing predictor kwargs
     assert acsl.predictor_kwargs == {
@@ -132,7 +183,9 @@ def test_sequential_learner_setup():
     }
 
     # test passing candidate selection kwargs
-    assert acsl.candidate_selection_kwargs == {"aq": "MU"}
+    assert acsl.candidate_selection_kwargs == {"aq": "MU", "num_candidates_to_pick": 2}
+    assert len(acsl.candidate_indices) == 2
+    assert len(acsl.candidate_structures) == 2
 
 
 def test_updating_design_space():
