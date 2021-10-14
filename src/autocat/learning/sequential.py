@@ -24,10 +24,7 @@ class AutoCatDesignSpaceError(Exception):
 
 class AutoCatDesignSpace:
     def __init__(
-        self,
-        design_space_structures: List[Atoms],
-        design_space_labels: Array,
-        write_location: str = None,
+        self, design_space_structures: List[Atoms], design_space_labels: Array,
     ):
         """
         Constructor.
@@ -47,9 +44,6 @@ class AutoCatDesignSpace:
 
         self._design_space_labels = design_space_labels
 
-        self._write_location = "."
-        self.write_location = write_location
-
     @property
     def design_space_structures(self):
         return self._design_space_structures
@@ -67,15 +61,6 @@ class AutoCatDesignSpace:
     def design_space_labels(self, design_space_labels):
         msg = "Please use `update` method to update the design space."
         raise AutoCatDesignSpaceError(msg)
-
-    @property
-    def write_location(self):
-        return self._write_location
-
-    @write_location.setter
-    def write_location(self, write_location):
-        if write_location is not None:
-            self._write_location = write_location
 
     def update(self, structures: List[Atoms], labels: Array):
         """
@@ -106,7 +91,13 @@ class AutoCatDesignSpace:
                         self.design_space_labels, labels[i]
                     )
 
-    def write_json(self, json_name: str = None):
+    def write_json(
+        self,
+        json_name: str = None,
+        write_location: str = ".",
+        write_to_disk: bool = True,
+        return_jsonified_list: bool = False,
+    ):
         with tempfile.TemporaryDirectory() as _tmp_dir:
             # write out all individual structure jsons
             for i, struct in enumerate(self.design_space_structures):
@@ -125,9 +116,13 @@ class AutoCatDesignSpace:
             if json_name is None:
                 json_name = "acds.json"
             # write out single json
-            json_path = os.path.join(self.write_location, json_name)
-            with open(json_path, "w") as f:
-                json.dump(collected_jsons, f)
+            if write_to_disk:
+                json_path = os.path.join(write_location, json_name)
+                with open(json_path, "w") as f:
+                    json.dump(collected_jsons, f)
+            # write to jsonified list to memory
+            if return_jsonified_list:
+                return collected_jsons
 
     @staticmethod
     def from_json(json_name: str, **kwargs):
@@ -160,6 +155,7 @@ class AutoCatSequentialLearner:
         predictor_kwargs: Dict[str, Union[str, float]] = None,
         candidate_selection_kwargs: Dict[str, Union[str, float]] = None,
     ):
+
         self._predictor_kwargs = predictor_kwargs or {
             "structure_featurizer": "sine_matrix"
         }
@@ -187,9 +183,18 @@ class AutoCatSequentialLearner:
         self._predictions = preds
         self._uncertainties = unc
 
-        candidate_idx, _, aq_scores = choose_next_candidate(
-            dstructs, dlabels, train_idx, preds, unc, **self.candidate_selection_kwargs,
-        )
+        if False in mask_nans:
+            candidate_idx, _, aq_scores = choose_next_candidate(
+                dstructs,
+                dlabels,
+                train_idx,
+                preds,
+                unc,
+                **self.candidate_selection_kwargs,
+            )
+        else:
+            candidate_idx = None
+            aq_scores = None
 
         self._candidate_indices = candidate_idx
         self._acquisition_scores = aq_scores
@@ -332,6 +337,27 @@ class AutoCatSequentialLearner:
 
             self._candidate_indices = candidate_idx
             self._acquisition_scores = aq_scores
+
+    def write_json(self, write_location: str = ".", json_name: str = None):
+        """
+        Writes `AutocatSequentialLearner` to disk as a json
+        """
+        jsonified_list = self.design_space.write_json(
+            write_to_disk=False, return_jsonified_list=True
+        )
+
+        # append kwargs for predictor
+        jsonified_list.append(self.predictor_kwargs)
+        # append kwargs for candidate selection
+        jsonified_list.append(self.candidate_selection_kwargs)
+
+        if json_name is None:
+            json_name = "acsl.json"
+
+        json_path = os.path.join(write_location, json_name)
+
+        with open(json_path, "w") as f:
+            json.dump(jsonified_list, f)
 
 
 def multiple_simulated_sequential_learning_runs(

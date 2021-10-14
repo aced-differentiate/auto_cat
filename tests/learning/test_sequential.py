@@ -28,6 +28,78 @@ from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
 
 
+def test_sequential_learner_write_json():
+    # Tests writing a AutoCatSequentialLearner to disk as a json
+    sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "B")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "Al")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Ti"], facets={"Ti": ["0001"]})["Ti"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, "H")["custom"]["structure"]
+    structs = [sub1, sub2, sub3]
+    labels = np.array([0.1, 0.2, 0.3])
+    predictor_kwargs = {
+        "structure_featurizer": "sine_matrix",
+        "elementalproperty_preset": "deml",
+        "adsorbate_featurizer": "soap",
+        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
+        "species_list": ["Ag", "Li", "Al", "B", "Ti", "H"],
+    }
+
+    candidate_selection_kwargs = {"aq": "MU", "num_candidates_to_pick": 2}
+    acds = AutoCatDesignSpace(structs, labels)
+    acsl = AutoCatSequentialLearner(
+        acds,
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
+    )
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        acsl.write_json(_tmp_dir)
+        with open(os.path.join(_tmp_dir, "acsl.json"), "r") as f:
+            sl = json.load(f)
+        # collects structs by writing each json individually
+        # and reading with ase
+        written_structs = []
+        for i in range(3):
+            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
+            with open(_tmp_json, "w") as tmp:
+                json.dump(sl[i], tmp)
+            written_structs.append(ase_read(_tmp_json))
+        assert structs == written_structs
+        assert (labels == sl[3]).all()
+        # check predictor kwargs kept
+        assert predictor_kwargs == sl[4]
+        # check candidate selection kwargs kept
+        assert candidate_selection_kwargs == sl[-1]
+
+    # test writing when no kwargs given
+    acsl = AutoCatSequentialLearner(acds)
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        acsl.write_json(_tmp_dir)
+        with open(os.path.join(_tmp_dir, "acsl.json"), "r") as f:
+            sl = json.load(f)
+        # collects structs by writing each json individually
+        # and reading with ase
+        written_structs = []
+        for i in range(3):
+            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
+            with open(_tmp_json, "w") as tmp:
+                json.dump(sl[i], tmp)
+            written_structs.append(ase_read(_tmp_json))
+        assert structs == written_structs
+        assert (labels == sl[3]).all()
+        # check default predictor kwargs kept
+        assert sl[4] == {"structure_featurizer": "sine_matrix"}
+        # check default candidate selection kwargs kept
+        assert sl[-1] == {"aq": "Random"}
+
+
 def test_sequential_learner_iterate():
     # Tests iterate method
     sub1 = generate_surface_structures(["Ca"], facets={"Ca": ["111"]})["Ca"]["fcc111"][
@@ -162,6 +234,7 @@ def test_sequential_learner_setup():
             "adsorbate_featurizer": "soap",
             "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
             "species_list": ["Ir", "O", "H", "Mo", "Fe", "N", "Re"],
+            "model_kwargs": {"n_restarts_optimizer": 9},
         },
         candidate_selection_kwargs={"aq": "MU", "num_candidates_to_pick": 2},
     )
@@ -172,6 +245,7 @@ def test_sequential_learner_setup():
         "adsorbate_featurizer": "soap",
         "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
         "species_list": ["Ir", "O", "H", "Mo", "Fe", "N", "Re"],
+        "model_kwargs": {"n_restarts_optimizer": 9},
     }
     assert acsl.predictor.structure_featurizer == "elemental_property"
     assert acsl.predictor.elementalproperty_preset == "pymatgen"
@@ -236,11 +310,9 @@ def test_write_design_space_as_json():
     labels = np.array([0.3, 0.8])
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acds = AutoCatDesignSpace(
-            design_space_structures=structs,
-            design_space_labels=labels,
-            write_location=_tmp_dir,
+            design_space_structures=structs, design_space_labels=labels,
         )
-        acds.write_json()
+        acds.write_json(write_location=_tmp_dir)
         # loads back written json
         with open(os.path.join(_tmp_dir, "acds.json"), "r") as f:
             ds = json.load(f)
@@ -271,11 +343,9 @@ def test_get_design_space_from_json():
     labels = np.array([30.0, 900.0, np.nan])
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acds = AutoCatDesignSpace(
-            design_space_structures=structs,
-            design_space_labels=labels,
-            write_location=_tmp_dir,
+            design_space_structures=structs, design_space_labels=labels,
         )
-        acds.write_json("testing.json")
+        acds.write_json("testing.json", write_location=_tmp_dir)
 
         tmp_json_dir = os.path.join(_tmp_dir, "testing.json")
         acds_from_json = AutoCatDesignSpace.from_json(tmp_json_dir)
