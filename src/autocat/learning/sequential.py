@@ -125,7 +125,7 @@ class AutoCatDesignSpace:
                 return collected_jsons
 
     @staticmethod
-    def from_json(json_name: str, **kwargs):
+    def from_json(json_name: str):
         with open(json_name, "r") as f:
             all_data = json.load(f)
         structures = []
@@ -140,7 +140,7 @@ class AutoCatDesignSpace:
                 structures.append(atoms)
         labels = np.array(all_data[-1])
         return AutoCatDesignSpace(
-            design_space_structures=structures, design_space_labels=labels, **kwargs
+            design_space_structures=structures, design_space_labels=labels,
         )
 
 
@@ -358,6 +358,32 @@ class AutoCatSequentialLearner:
 
         with open(json_path, "w") as f:
             json.dump(jsonified_list, f)
+
+    @staticmethod
+    def from_json(json_name: str):
+        with open(json_name, "r") as f:
+            all_data = json.load(f)
+        structures = []
+        with tempfile.TemporaryDirectory() as _tmp_dir:
+            for i in range(len(all_data) - 3):
+                # write temp json for each individual structure
+                _tmp_json = os.path.join(_tmp_dir, "tmp.json")
+                with open(_tmp_json, "w") as tmp:
+                    json.dump(all_data[i], tmp)
+                # read individual tmp json using ase
+                atoms = ase_read(_tmp_json, format="json")
+                structures.append(atoms)
+        labels = np.array(all_data[-3])
+        acds = AutoCatDesignSpace(
+            design_space_structures=structures, design_space_labels=labels,
+        )
+        predictor_kwargs = all_data[-2]
+        candidate_selection_kwargs = all_data[-1]
+        return AutoCatSequentialLearner(
+            design_space=acds,
+            predictor_kwargs=predictor_kwargs,
+            candidate_selection_kwargs=candidate_selection_kwargs,
+        )
 
 
 def multiple_simulated_sequential_learning_runs(

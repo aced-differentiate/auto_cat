@@ -28,6 +28,46 @@ from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
 
 
+def test_sequential_learner_from_json():
+    # Tests generation of an AutoCatSequentialLearner from a json
+    sub1 = generate_surface_structures(["Au"], facets={"Au": ["110"]})["Au"]["fcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "C")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "Mg")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, "N")["custom"]["structure"]
+    structs = [sub1, sub2, sub3]
+    labels = np.array([0.1, 0.2, 0.3])
+    predictor_kwargs = {
+        "structure_featurizer": "coulomb_matrix",
+        "elementalproperty_preset": "megnet_el",
+        "adsorbate_featurizer": "soap",
+        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
+        "species_list": ["Au", "Li", "Mg", "C", "Ru", "N"],
+    }
+
+    candidate_selection_kwargs = {"aq": "Random", "num_candidates_to_pick": 3}
+    acds = AutoCatDesignSpace(structs, labels)
+    acsl = AutoCatSequentialLearner(
+        acds,
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
+    )
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        acsl.write_json(_tmp_dir, "testing_acsl.json")
+        json_path = os.path.join(_tmp_dir, "testing_acsl.json")
+        written_acsl = AutoCatSequentialLearner.from_json(json_path)
+        assert not written_acsl.check_design_space_different(acds)
+        assert written_acsl.predictor_kwargs == predictor_kwargs
+        assert written_acsl.candidate_selection_kwargs == candidate_selection_kwargs
+
+
 def test_sequential_learner_write_json():
     # Tests writing a AutoCatSequentialLearner to disk as a json
     sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
@@ -60,8 +100,8 @@ def test_sequential_learner_write_json():
         candidate_selection_kwargs=candidate_selection_kwargs,
     )
     with tempfile.TemporaryDirectory() as _tmp_dir:
-        acsl.write_json(_tmp_dir)
-        with open(os.path.join(_tmp_dir, "acsl.json"), "r") as f:
+        acsl.write_json(_tmp_dir, "testing_acsl.json")
+        with open(os.path.join(_tmp_dir, "testing_acsl.json"), "r") as f:
             sl = json.load(f)
         # collects structs by writing each json individually
         # and reading with ase
