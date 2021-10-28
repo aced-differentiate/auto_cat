@@ -312,10 +312,13 @@ def test_design_space_setup():
         "structure"
     ]
     sub2 = place_adsorbate(sub2, "F")["custom"]["structure"]
+    structs = [sub1, sub2]
     labels = np.array([3.0, 7.0])
-    acds = AutoCatDesignSpace([sub1, sub2], labels)
+    acds = AutoCatDesignSpace(structs, labels)
     assert acds.design_space_structures == [sub1, sub2]
+    assert acds.design_space_structures is not structs
     assert np.array_equal(acds.design_space_labels, labels)
+    assert acds.design_space_labels is not labels
     assert len(acds) == 2
     # test different number of structures and labels
     with pytest.raises(AutoCatDesignSpaceError):

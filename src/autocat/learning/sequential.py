@@ -44,9 +44,8 @@ class AutoCatDesignSpace:
             msg = f"Number of structures ({len(design_space_structures)}) and labels ({design_space_labels.shape[0]}) must match"
             raise AutoCatDesignSpaceError(msg)
 
-        self._design_space_structures = design_space_structures
-
-        self._design_space_labels = design_space_labels
+        self._design_space_structures = design_space_structures.copy()
+        self._design_space_labels = design_space_labels.copy()
 
     def __len__(self):
         return len(self.design_space_structures)
