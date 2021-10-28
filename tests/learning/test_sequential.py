@@ -302,6 +302,26 @@ def test_sequential_learner_setup():
     assert len(acsl.candidate_structures) == 2
 
 
+def test_design_space_setup():
+    # test setting up an AutoCatDesignSpace
+    sub1 = generate_surface_structures(
+        ["Pt"], supercell_dim=[2, 2, 5], facets={"Pt": ["100"]}
+    )["Pt"]["fcc100"]["structure"]
+    sub1 = place_adsorbate(sub1, "H2")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "F")["custom"]["structure"]
+    labels = np.array([3.0, 7.0])
+    acds = AutoCatDesignSpace([sub1, sub2], labels)
+    assert acds.design_space_structures == [sub1, sub2]
+    assert np.array_equal(acds.design_space_labels, labels)
+    assert len(acds) == 2
+    # test different number of structures and labels
+    with pytest.raises(AutoCatDesignSpaceError):
+        acds = AutoCatDesignSpace([sub1], labels)
+
+
 def test_updating_design_space():
     sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["100"]})["Ag"]["fcc100"][
         "structure"
