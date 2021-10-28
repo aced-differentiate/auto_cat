@@ -50,6 +50,21 @@ class AutoCatDesignSpace:
     def __len__(self):
         return len(self.design_space_structures)
 
+    def __delitem__(self, i):
+        """
+        Deletes systems from the design space. If mask provided, deletes wherever True
+        """
+        if isinstance(i, list):
+            i = np.array(i)
+        elif isinstance(i, int):
+            i = [i]
+        mask = np.ones(len(self), dtype=bool)
+        mask[i] = 0
+        self._design_space_labels = self.design_space_labels[mask]
+        structs = self.design_space_structures
+        masked_structs = [structs[j] for j in range(len(self)) if mask[j]]
+        self._design_space_structures = masked_structs
+
     @property
     def design_space_structures(self):
         return self._design_space_structures

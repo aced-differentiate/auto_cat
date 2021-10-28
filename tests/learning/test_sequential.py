@@ -325,6 +325,62 @@ def test_design_space_setup():
         acds = AutoCatDesignSpace([sub1], labels)
 
 
+def test_delitem_design_space():
+    # tests deleting items from the design space
+    sub0 = generate_surface_structures(["Pd"], facets={"Pd": ["100"]})["Pd"]["fcc100"][
+        "structure"
+    ]
+    sub0 = place_adsorbate(sub0, "O")["custom"]["structure"]
+    sub1 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "H")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "S")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, "P")["custom"]["structure"]
+    structs = [sub0, sub1, sub2]
+    labels = np.array([-2.5, np.nan, 600.0])
+    # test deleting by single idx
+    acds = AutoCatDesignSpace(structs, labels)
+    del acds[1]
+    assert len(acds) == 2
+    assert np.array_equal(acds.design_space_labels, np.array([-2.5, 600.0]))
+    assert acds.design_space_structures == [sub0, sub2]
+    # test deleting using a mask
+    acds = AutoCatDesignSpace(structs, labels)
+    mask = np.zeros(len(acds), bool)
+    mask[0] = 1
+    mask[1] = 1
+    # n.b. deletes wherever mask is True
+    del acds[mask]
+    assert len(acds) == 1
+    assert acds.design_space_structures == [sub2]
+    assert np.array_equal(acds.design_space_labels, np.array([600.0]))
+    # test deleting by providing list of idx
+    structs = [sub0, sub1, sub2, sub3]
+    labels = np.array([-20, 8, np.nan, 0.3])
+    acds = AutoCatDesignSpace(structs, labels)
+    del acds[[1, 3]]
+    assert len(acds) == 2
+    assert np.array_equal(
+        acds.design_space_labels, np.array([-20, np.nan]), equal_nan=True
+    )
+    assert acds.design_space_structures == [sub0, sub2]
+    # test deleting by providing list with a single idx
+    acds = AutoCatDesignSpace(structs, labels)
+    del acds[[0]]
+    assert len(acds) == 3
+    assert np.array_equal(
+        acds._design_space_labels, np.array([8, np.nan, 0.3]), equal_nan=True
+    )
+    assert acds.design_space_structures == [sub1, sub2, sub3]
+
+
 def test_updating_design_space():
     sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["100"]})["Ag"]["fcc100"][
         "structure"
