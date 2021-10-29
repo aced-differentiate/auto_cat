@@ -187,6 +187,7 @@ def get_X(
             ase_struct,
             structure_featurizer=structure_featurizer,
             adsorbate_featurizer=adsorbate_featurizer,
+            elementalproperty_preset=elementalproperty_preset,
             maximum_structure_size=maximum_structure_size,
             maximum_adsorbate_size=maximum_adsorbate_size,
             species_list=species_list,

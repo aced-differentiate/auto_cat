@@ -29,6 +29,7 @@ class AutoCatPredictor:
         adsorbate_featurizer: str = None,
         maximum_structure_size: int = None,
         maximum_adsorbate_size: int = None,
+        elementalproperty_preset: str = None,
         species_list: List[str] = None,
         refine_structures: bool = None,
         structure_featurization_kwargs: Dict = None,
@@ -106,6 +107,9 @@ class AutoCatPredictor:
 
         self._maximum_structure_size = None
         self.maximum_structure_size = maximum_structure_size
+
+        self._elementalproperty_preset = "magpie"
+        self.elementalproperty_preset = elementalproperty_preset
 
         self._maximum_adsorbate_size = None
         self.maximum_adsorbate_size = maximum_adsorbate_size
@@ -194,6 +198,19 @@ class AutoCatPredictor:
             assert isinstance(structure_featurization_kwargs, dict)
             if self._structure_featurization_kwargs is not None:
                 self._structure_featurization_kwargs = structure_featurization_kwargs
+            if self.is_fit:
+                self.is_fit = False
+                self.X_ = None
+                self.y_ = None
+
+    @property
+    def elementalproperty_preset(self):
+        return self._elementalproperty_preset
+
+    @elementalproperty_preset.setter
+    def elementalproperty_preset(self, elementalproperty_preset):
+        if elementalproperty_preset is not None:
+            self._elementalproperty_preset = elementalproperty_preset
             if self.is_fit:
                 self.is_fit = False
                 self.X_ = None

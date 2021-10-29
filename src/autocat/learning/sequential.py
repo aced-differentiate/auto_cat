@@ -24,10 +24,7 @@ class AutoCatDesignSpaceError(Exception):
 
 class AutoCatDesignSpace:
     def __init__(
-        self,
-        design_space_structures: List[Atoms],
-        design_space_labels: Array,
-        write_location: str = None,
+        self, design_space_structures: List[Atoms], design_space_labels: Array,
     ):
         """
         Constructor.
@@ -43,12 +40,30 @@ class AutoCatDesignSpace:
             If label not yet known, set to np.nan
 
         """
-        self._design_space_structures = design_space_structures
+        if len(design_space_structures) != design_space_labels.shape[0]:
+            msg = f"Number of structures ({len(design_space_structures)}) and labels ({design_space_labels.shape[0]}) must match"
+            raise AutoCatDesignSpaceError(msg)
 
-        self._design_space_labels = design_space_labels
+        self._design_space_structures = design_space_structures.copy()
+        self._design_space_labels = design_space_labels.copy()
 
-        self._write_location = "."
-        self.write_location = write_location
+    def __len__(self):
+        return len(self.design_space_structures)
+
+    def __delitem__(self, i):
+        """
+        Deletes systems from the design space. If mask provided, deletes wherever True
+        """
+        if isinstance(i, list):
+            i = np.array(i)
+        elif isinstance(i, int):
+            i = [i]
+        mask = np.ones(len(self), dtype=bool)
+        mask[i] = 0
+        self._design_space_labels = self.design_space_labels[mask]
+        structs = self.design_space_structures
+        masked_structs = [structs[j] for j in range(len(self)) if mask[j]]
+        self._design_space_structures = masked_structs
 
     @property
     def design_space_structures(self):
@@ -67,15 +82,6 @@ class AutoCatDesignSpace:
     def design_space_labels(self, design_space_labels):
         msg = "Please use `update` method to update the design space."
         raise AutoCatDesignSpaceError(msg)
-
-    @property
-    def write_location(self):
-        return self._write_location
-
-    @write_location.setter
-    def write_location(self, write_location):
-        if write_location is not None:
-            self._write_location = write_location
 
     def update(self, structures: List[Atoms], labels: Array):
         """
@@ -106,7 +112,13 @@ class AutoCatDesignSpace:
                         self.design_space_labels, labels[i]
                     )
 
-    def write_json(self, json_name: str = None):
+    def write_json(
+        self,
+        json_name: str = None,
+        write_location: str = ".",
+        write_to_disk: bool = True,
+        return_jsonified_list: bool = False,
+    ):
         with tempfile.TemporaryDirectory() as _tmp_dir:
             # write out all individual structure jsons
             for i, struct in enumerate(self.design_space_structures):
@@ -125,12 +137,16 @@ class AutoCatDesignSpace:
             if json_name is None:
                 json_name = "acds.json"
             # write out single json
-            json_path = os.path.join(self.write_location, json_name)
-            with open(json_path, "w") as f:
-                json.dump(collected_jsons, f)
+            if write_to_disk:
+                json_path = os.path.join(write_location, json_name)
+                with open(json_path, "w") as f:
+                    json.dump(collected_jsons, f)
+            # write to jsonified list to memory
+            if return_jsonified_list:
+                return collected_jsons
 
     @staticmethod
-    def from_json(json_name: str, **kwargs):
+    def from_json(json_name: str):
         with open(json_name, "r") as f:
             all_data = json.load(f)
         structures = []
@@ -145,7 +161,7 @@ class AutoCatDesignSpace:
                 structures.append(atoms)
         labels = np.array(all_data[-1])
         return AutoCatDesignSpace(
-            design_space_structures=structures, design_space_labels=labels, **kwargs
+            design_space_structures=structures, design_space_labels=labels,
         )
 
 
@@ -154,30 +170,59 @@ class AutoCatSequentialLearningError(Exception):
 
 
 class AutoCatSequentialLearner:
-    def __init__(self, design_space: AutoCatDesignSpace, **predictor_kwargs):
+    def __init__(
+        self,
+        design_space: AutoCatDesignSpace,
+        predictor_kwargs: Dict[str, Union[str, float]] = None,
+        candidate_selection_kwargs: Dict[str, Union[str, float]] = None,
+    ):
+
+        self._predictor_kwargs = predictor_kwargs or {
+            "structure_featurizer": "sine_matrix"
+        }
+        self._candidate_selection_kwargs = candidate_selection_kwargs or {
+            "aq": "Random"
+        }
+
         self._design_space = design_space
         dstructs = self.design_space.design_space_structures
         dlabels = self.design_space.design_space_labels
-
-        self.predictor = AutoCatPredictor(**predictor_kwargs)
         mask_nans = ~np.isnan(dlabels)
-        self.predictor.fit(
-            dstructs[np.where(mask_nans)], dlabels[np.where(mask_nans)],
-        )
+
+        train_idx = np.zeros(len(dlabels), dtype=bool)
+        train_idx[np.where(mask_nans)] = 1
+        self._train_idx = train_idx
+
+        masked_structs = [struct for i, struct in enumerate(dstructs) if mask_nans[i]]
+        masked_labels = dlabels[np.where(mask_nans)]
+
+        self.predictor = AutoCatPredictor(**self.predictor_kwargs)
+        self.predictor.fit(masked_structs, masked_labels)
 
         self._iteration_count = 0
         preds, unc = self.predictor.predict(dstructs)
         self._predictions = preds
         self._uncertainties = unc
 
+        if False in mask_nans:
+            candidate_idx, _, aq_scores = choose_next_candidate(
+                dstructs,
+                dlabels,
+                train_idx,
+                preds,
+                unc,
+                **self.candidate_selection_kwargs,
+            )
+        else:
+            candidate_idx = None
+            aq_scores = None
+
+        self._candidate_indices = candidate_idx
+        self._acquisition_scores = aq_scores
+
     @property
     def iteration_count(self):
         return self._iteration_count
-
-    @iteration_count.setter
-    def iteration_count(self, num):
-        msg = "Cannot manually update iteration count value"
-        raise AutoCatSequentialLearningError(msg)
 
     @property
     def design_space(self):
@@ -191,10 +236,44 @@ class AutoCatSequentialLearner:
     def uncertainties(self):
         return self._uncertainties
 
-    def compare(self, other_design_space):
+    @property
+    def candidate_indices(self):
+        return self._candidate_indices
+
+    @property
+    def acquisition_scores(self):
+        if self.candidate_indices is not None:
+            return self._acquisition_scores
+        else:
+            print("Design space fully explored, no more candidates")
+
+    @property
+    def candidate_structures(self):
+        idxs = self.candidate_indices
+        if idxs is not None:
+            structs = self.design_space.design_space_structures
+            return [structs[i] for i in idxs]
+        else:
+            print("Design space fully explored, no more candidates")
+
+    @property
+    def predictor_kwargs(self):
+        return self._predictor_kwargs
+
+    @property
+    def candidate_selection_kwargs(self):
+        return self._candidate_selection_kwargs
+
+    @property
+    def train_idx(self):
+        return self._train_idx
+
+    def check_design_space_different(self, other_design_space):
         """
         Compare contained `AutoCatDesignSpace` object to another.
-        Returns True if they are the same, False otherwise.
+        The other design space must be of the same size to the
+        one that is contained.
+        Returns True if they are different, False otherwise.
 
         Parameters
         ----------
@@ -203,13 +282,129 @@ class AutoCatSequentialLearner:
             `AutoCatDesignSpace` object to be compared to
         """
         ds = self.design_space
-        same_structs = (
-            ds.design_space_structures == other_design_space.design_space_structures
+        assert len(ds.design_space_structures) == len(
+            other_design_space.design_space_structures
         )
-        same_labels = np.array_equal(
-            ds.design_space_labels, other_design_space.design_space_labels
+        for idx, struct in enumerate(ds.design_space_structures):
+            # check same structures
+            if struct not in other_design_space.design_space_structures:
+                return True
+            o_idx = other_design_space.design_space_structures.index(struct)
+            # check if both nans
+            if np.isnan(ds.design_space_labels[idx]) and np.isnan(
+                other_design_space.design_space_labels[o_idx]
+            ):
+                continue
+            # check same labels
+            if (
+                ds.design_space_labels[idx]
+                != other_design_space.design_space_labels[o_idx]
+            ):
+                return True
+        return False
+
+    def iterate(self, other_design_space):
+        """
+        Iterates the SL loop if the proposed design space is different than the
+        contained one.
+        This consists of:
+        - retraining the predictor
+        - obtaining new acquisition scores (if fully explored returns None)
+        - selecting next batch of candidates (if fully explored returns None)
+
+        Parameters
+        ----------
+
+        other_design_space:
+            `AutoCatDesignSpace` object to be compared to
+        """
+        if self.check_design_space_different(other_design_space):
+            self._iteration_count += 1
+            self._design_space = other_design_space
+
+            dstructs = self.design_space.design_space_structures
+            dlabels = self.design_space.design_space_labels
+
+            mask_nans = ~np.isnan(dlabels)
+            masked_structs = [
+                struct for i, struct in enumerate(dstructs) if mask_nans[i]
+            ]
+            masked_labels = dlabels[np.where(mask_nans)]
+
+            self.predictor.fit(masked_structs, masked_labels)
+            train_idx = np.zeros(len(dlabels), dtype=bool)
+            train_idx[np.where(mask_nans)] = 1
+            self._train_idx = train_idx
+
+            preds, unc = self.predictor.predict(dstructs)
+            self._predictions = preds
+            self._uncertainties = unc
+
+            # make sure haven't fully searched design space
+            if True in [np.isnan(l) for l in dlabels]:
+                candidate_idx, _, aq_scores = choose_next_candidate(
+                    dstructs,
+                    dlabels,
+                    train_idx,
+                    preds,
+                    unc,
+                    **self.candidate_selection_kwargs or {},
+                )
+
+            # if fully searched, no more candidate structures
+            else:
+                candidate_idx = None
+                aq_scores = None
+
+            self._candidate_indices = candidate_idx
+            self._acquisition_scores = aq_scores
+
+    def write_json(self, write_location: str = ".", json_name: str = None):
+        """
+        Writes `AutocatSequentialLearner` to disk as a json
+        """
+        jsonified_list = self.design_space.write_json(
+            write_to_disk=False, return_jsonified_list=True
         )
-        return same_structs and same_labels
+
+        # append kwargs for predictor
+        jsonified_list.append(self.predictor_kwargs)
+        # append kwargs for candidate selection
+        jsonified_list.append(self.candidate_selection_kwargs)
+
+        if json_name is None:
+            json_name = "acsl.json"
+
+        json_path = os.path.join(write_location, json_name)
+
+        with open(json_path, "w") as f:
+            json.dump(jsonified_list, f)
+
+    @staticmethod
+    def from_json(json_name: str):
+        with open(json_name, "r") as f:
+            all_data = json.load(f)
+        structures = []
+        with tempfile.TemporaryDirectory() as _tmp_dir:
+            for i in range(len(all_data) - 3):
+                # write temp json for each individual structure
+                _tmp_json = os.path.join(_tmp_dir, "tmp.json")
+                with open(_tmp_json, "w") as tmp:
+                    json.dump(all_data[i], tmp)
+                # read individual tmp json using ase
+                atoms = ase_read(_tmp_json, format="json")
+                structures.append(atoms)
+        labels = np.array(all_data[-3])
+        acds = AutoCatDesignSpace(
+            design_space_structures=structures, design_space_labels=labels,
+        )
+        predictor_kwargs = all_data[-2]
+        candidate_selection_kwargs = all_data[-1]
+        return AutoCatSequentialLearner(
+            design_space=acds,
+            predictor_kwargs=predictor_kwargs,
+            candidate_selection_kwargs=candidate_selection_kwargs,
+        )
 
 
 def multiple_simulated_sequential_learning_runs(

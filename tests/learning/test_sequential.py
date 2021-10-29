@@ -16,6 +16,7 @@ from autocat.learning.sequential import (
     AutoCatDesignSpace,
     AutoCatDesignSpaceError,
     AutoCatSequentialLearningError,
+    AutoCatSequentialLearner,
     choose_next_candidate,
     get_overlap_score,
 )
@@ -25,6 +26,359 @@ from autocat.learning.sequential import calculate_hhi_scores
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
+
+
+def test_sequential_learner_from_json():
+    # Tests generation of an AutoCatSequentialLearner from a json
+    sub1 = generate_surface_structures(["Au"], facets={"Au": ["110"]})["Au"]["fcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "C")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "Mg")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, "N")["custom"]["structure"]
+    structs = [sub1, sub2, sub3]
+    labels = np.array([0.1, 0.2, 0.3])
+    predictor_kwargs = {
+        "structure_featurizer": "coulomb_matrix",
+        "elementalproperty_preset": "megnet_el",
+        "adsorbate_featurizer": "soap",
+        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
+        "species_list": ["Au", "Li", "Mg", "C", "Ru", "N"],
+    }
+
+    candidate_selection_kwargs = {"aq": "Random", "num_candidates_to_pick": 3}
+    acds = AutoCatDesignSpace(structs, labels)
+    acsl = AutoCatSequentialLearner(
+        acds,
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
+    )
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        acsl.write_json(_tmp_dir, "testing_acsl.json")
+        json_path = os.path.join(_tmp_dir, "testing_acsl.json")
+        written_acsl = AutoCatSequentialLearner.from_json(json_path)
+        assert not written_acsl.check_design_space_different(acds)
+        assert written_acsl.predictor_kwargs == predictor_kwargs
+        assert written_acsl.candidate_selection_kwargs == candidate_selection_kwargs
+
+
+def test_sequential_learner_write_json():
+    # Tests writing a AutoCatSequentialLearner to disk as a json
+    sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "B")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "Al")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Ti"], facets={"Ti": ["0001"]})["Ti"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, "H")["custom"]["structure"]
+    structs = [sub1, sub2, sub3]
+    labels = np.array([0.1, 0.2, 0.3])
+    predictor_kwargs = {
+        "structure_featurizer": "sine_matrix",
+        "elementalproperty_preset": "deml",
+        "adsorbate_featurizer": "soap",
+        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
+        "species_list": ["Ag", "Li", "Al", "B", "Ti", "H"],
+    }
+
+    candidate_selection_kwargs = {"aq": "MU", "num_candidates_to_pick": 2}
+    acds = AutoCatDesignSpace(structs, labels)
+    acsl = AutoCatSequentialLearner(
+        acds,
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
+    )
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        acsl.write_json(_tmp_dir, "testing_acsl.json")
+        with open(os.path.join(_tmp_dir, "testing_acsl.json"), "r") as f:
+            sl = json.load(f)
+        # collects structs by writing each json individually
+        # and reading with ase
+        written_structs = []
+        for i in range(3):
+            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
+            with open(_tmp_json, "w") as tmp:
+                json.dump(sl[i], tmp)
+            written_structs.append(ase_read(_tmp_json))
+        assert structs == written_structs
+        assert (labels == sl[3]).all()
+        # check predictor kwargs kept
+        assert predictor_kwargs == sl[4]
+        # check candidate selection kwargs kept
+        assert candidate_selection_kwargs == sl[-1]
+
+    # test writing when no kwargs given
+    acsl = AutoCatSequentialLearner(acds)
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        acsl.write_json(_tmp_dir)
+        with open(os.path.join(_tmp_dir, "acsl.json"), "r") as f:
+            sl = json.load(f)
+        # collects structs by writing each json individually
+        # and reading with ase
+        written_structs = []
+        for i in range(3):
+            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
+            with open(_tmp_json, "w") as tmp:
+                json.dump(sl[i], tmp)
+            written_structs.append(ase_read(_tmp_json))
+        assert structs == written_structs
+        assert (labels == sl[3]).all()
+        # check default predictor kwargs kept
+        assert sl[4] == {"structure_featurizer": "sine_matrix"}
+        # check default candidate selection kwargs kept
+        assert sl[-1] == {"aq": "Random"}
+
+
+def test_sequential_learner_iterate():
+    # Tests iterate method
+    sub1 = generate_surface_structures(["Ca"], facets={"Ca": ["111"]})["Ca"]["fcc111"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "Na")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Nb"], facets={"Nb": ["110"]})["Nb"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "K")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Ta"], facets={"Ta": ["110"]})["Ta"]["bcc110"][
+        "structure"
+    ]
+    sub3 = place_adsorbate(sub3, "H")["custom"]["structure"]
+    sub4 = generate_surface_structures(["Sr"], facets={"Sr": ["110"]})["Sr"]["fcc110"][
+        "structure"
+    ]
+    sub4 = place_adsorbate(sub4, "Fe")["custom"]["structure"]
+    structs = [sub1, sub2, sub3, sub4]
+    labels = np.array([11.0, 25.0, np.nan, np.nan])
+    acds = AutoCatDesignSpace(structs, labels)
+    acsl = AutoCatSequentialLearner(acds)
+
+    old_candidate_structures = acsl.candidate_structures
+    assert acsl.iteration_count == 0
+
+    # make sure doesn't iterate if no changes to design space
+    acsl.iterate(acds)
+    assert acsl.iteration_count == 0
+    assert acsl.design_space is acds
+    assert acsl.candidate_structures == old_candidate_structures
+
+    # check updates for first iteration
+    new_labels = np.array([11.0, 25.0, 13.0, np.nan])
+    new_acds = AutoCatDesignSpace(structs, new_labels)
+
+    acsl.iterate(new_acds)
+
+    assert acsl.iteration_count == 1
+    assert acsl.design_space is new_acds
+    assert acsl.candidate_structures[0] == sub4
+
+    new_labels2 = np.array([11.0, 25.0, 13.0, 30.0])
+    new_acds2 = AutoCatDesignSpace(structs, new_labels2)
+
+    # checks being iterated a second time to fully explore the design space
+    acsl.iterate(new_acds2)
+
+    assert acsl.iteration_count == 2
+    assert acsl.design_space is new_acds2
+    assert acsl.candidate_structures is None
+    assert acsl.candidate_indices is None
+    assert acsl.acquisition_scores is None
+
+
+def test_sequential_learner_compare():
+    # Tests comparison method
+    sub1 = generate_surface_structures(["Ca"], facets={"Ca": ["111"]})["Ca"]["fcc111"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "Li")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Nb"], facets={"Nb": ["110"]})["Nb"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "P")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Ta"], facets={"Ta": ["110"]})["Ta"]["bcc110"][
+        "structure"
+    ]
+    sub3 = place_adsorbate(sub3, "F")["custom"]["structure"]
+    structs = [sub1, sub2, sub3]
+    labels = np.array([np.nan, 6.0, 15.0])
+    acds1 = AutoCatDesignSpace(structs, labels)
+    acsl = AutoCatSequentialLearner(acds1)
+
+    assert not acsl.check_design_space_different(acds1)
+
+    structs_reorder = [sub2, sub3, sub1]
+    labels_reorder = np.array([6.0, 15.0, np.nan])
+    acds2 = AutoCatDesignSpace(structs_reorder, labels_reorder)
+
+    assert not acsl.check_design_space_different(acds2)
+
+    structs_new_label = [sub1, sub2, sub3]
+    labels_new_label = np.array([3.0, 6.0, 15.0])
+    acds3 = AutoCatDesignSpace(structs_new_label, labels_new_label)
+
+    assert acsl.check_design_space_different(acds3)
+
+    structs_new_label_reorder = [sub1, sub3, sub2]
+    labels_new_label_reorder = np.array([3.0, 15.0, 6.0])
+    acds4 = AutoCatDesignSpace(structs_new_label_reorder, labels_new_label_reorder)
+
+    assert acsl.check_design_space_different(acds4)
+
+
+def test_sequential_learner_setup():
+    # Tests setting up an SL object
+    sub1 = generate_surface_structures(["Ir"], facets={"Ir": ["100"]})["Ir"]["fcc100"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Mo"], facets={"Mo": ["110"]})["Mo"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "H")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
+        "structure"
+    ]
+    sub3 = place_adsorbate(sub3, "O")["custom"]["structure"]
+    sub4 = generate_surface_structures(["Re"], facets={"Re": ["0001"]})["Re"][
+        "hcp0001"
+    ]["structure"]
+    sub4 = place_adsorbate(sub4, "N")["custom"]["structure"]
+    structs = [sub1, sub2, sub3, sub4]
+    labels = np.array([4.0, np.nan, 6.0, np.nan])
+    acds = AutoCatDesignSpace(structs, labels)
+    acsl = AutoCatSequentialLearner(acds)
+
+    assert acsl.design_space == acds
+    assert acsl.iteration_count == 0
+    assert (acsl.train_idx == np.array([True, False, True, False])).all()
+    assert acsl.candidate_selection_kwargs == {"aq": "Random"}
+    assert acsl.candidate_structures[0] == structs[acsl.candidate_indices[0]]
+    # test default kwargs
+    assert acsl.predictor_kwargs == {"structure_featurizer": "sine_matrix"}
+    # test specifying kwargs
+    acsl = AutoCatSequentialLearner(
+        acds,
+        predictor_kwargs={
+            "structure_featurizer": "elemental_property",
+            "elementalproperty_preset": "pymatgen",
+            "adsorbate_featurizer": "soap",
+            "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
+            "species_list": ["Ir", "O", "H", "Mo", "Fe", "N", "Re"],
+            "model_kwargs": {"n_restarts_optimizer": 9},
+        },
+        candidate_selection_kwargs={"aq": "MU", "num_candidates_to_pick": 2},
+    )
+    # test passing predictor kwargs
+    assert acsl.predictor_kwargs == {
+        "structure_featurizer": "elemental_property",
+        "elementalproperty_preset": "pymatgen",
+        "adsorbate_featurizer": "soap",
+        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
+        "species_list": ["Ir", "O", "H", "Mo", "Fe", "N", "Re"],
+        "model_kwargs": {"n_restarts_optimizer": 9},
+    }
+    assert acsl.predictor.structure_featurizer == "elemental_property"
+    assert acsl.predictor.elementalproperty_preset == "pymatgen"
+    assert acsl.predictor.adsorbate_featurizer == "soap"
+    assert acsl.predictor.adsorbate_featurization_kwargs == {
+        "rcut": 5.0,
+        "nmax": 8,
+        "lmax": 6,
+    }
+
+    # test passing candidate selection kwargs
+    assert acsl.candidate_selection_kwargs == {"aq": "MU", "num_candidates_to_pick": 2}
+    assert len(acsl.candidate_indices) == 2
+    assert len(acsl.candidate_structures) == 2
+
+
+def test_design_space_setup():
+    # test setting up an AutoCatDesignSpace
+    sub1 = generate_surface_structures(
+        ["Pt"], supercell_dim=[2, 2, 5], facets={"Pt": ["100"]}
+    )["Pt"]["fcc100"]["structure"]
+    sub1 = place_adsorbate(sub1, "H2")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "F")["custom"]["structure"]
+    structs = [sub1, sub2]
+    labels = np.array([3.0, 7.0])
+    acds = AutoCatDesignSpace(structs, labels)
+    assert acds.design_space_structures == [sub1, sub2]
+    assert acds.design_space_structures is not structs
+    assert np.array_equal(acds.design_space_labels, labels)
+    assert acds.design_space_labels is not labels
+    assert len(acds) == 2
+    # test different number of structures and labels
+    with pytest.raises(AutoCatDesignSpaceError):
+        acds = AutoCatDesignSpace([sub1], labels)
+
+
+def test_delitem_design_space():
+    # tests deleting items from the design space
+    sub0 = generate_surface_structures(["Pd"], facets={"Pd": ["100"]})["Pd"]["fcc100"][
+        "structure"
+    ]
+    sub0 = place_adsorbate(sub0, "O")["custom"]["structure"]
+    sub1 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "H")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "S")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, "P")["custom"]["structure"]
+    structs = [sub0, sub1, sub2]
+    labels = np.array([-2.5, np.nan, 600.0])
+    # test deleting by single idx
+    acds = AutoCatDesignSpace(structs, labels)
+    del acds[1]
+    assert len(acds) == 2
+    assert np.array_equal(acds.design_space_labels, np.array([-2.5, 600.0]))
+    assert acds.design_space_structures == [sub0, sub2]
+    # test deleting using a mask
+    acds = AutoCatDesignSpace(structs, labels)
+    mask = np.zeros(len(acds), bool)
+    mask[0] = 1
+    mask[1] = 1
+    # n.b. deletes wherever mask is True
+    del acds[mask]
+    assert len(acds) == 1
+    assert acds.design_space_structures == [sub2]
+    assert np.array_equal(acds.design_space_labels, np.array([600.0]))
+    # test deleting by providing list of idx
+    structs = [sub0, sub1, sub2, sub3]
+    labels = np.array([-20, 8, np.nan, 0.3])
+    acds = AutoCatDesignSpace(structs, labels)
+    del acds[[1, 3]]
+    assert len(acds) == 2
+    assert np.array_equal(
+        acds.design_space_labels, np.array([-20, np.nan]), equal_nan=True
+    )
+    assert acds.design_space_structures == [sub0, sub2]
+    # test deleting by providing list with a single idx
+    acds = AutoCatDesignSpace(structs, labels)
+    del acds[[0]]
+    assert len(acds) == 3
+    assert np.array_equal(
+        acds._design_space_labels, np.array([8, np.nan, 0.3]), equal_nan=True
+    )
+    assert acds.design_space_structures == [sub1, sub2, sub3]
 
 
 def test_updating_design_space():
@@ -75,11 +429,9 @@ def test_write_design_space_as_json():
     labels = np.array([0.3, 0.8])
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acds = AutoCatDesignSpace(
-            design_space_structures=structs,
-            design_space_labels=labels,
-            write_location=_tmp_dir,
+            design_space_structures=structs, design_space_labels=labels,
         )
-        acds.write_json()
+        acds.write_json(write_location=_tmp_dir)
         # loads back written json
         with open(os.path.join(_tmp_dir, "acds.json"), "r") as f:
             ds = json.load(f)
@@ -110,11 +462,9 @@ def test_get_design_space_from_json():
     labels = np.array([30.0, 900.0, np.nan])
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acds = AutoCatDesignSpace(
-            design_space_structures=structs,
-            design_space_labels=labels,
-            write_location=_tmp_dir,
+            design_space_structures=structs, design_space_labels=labels,
         )
-        acds.write_json("testing.json")
+        acds.write_json("testing.json", write_location=_tmp_dir)
 
         tmp_json_dir = os.path.join(_tmp_dir, "testing.json")
         acds_from_json = AutoCatDesignSpace.from_json(tmp_json_dir)
