@@ -11,12 +11,14 @@ from scipy import stats
 from ase.io import read as ase_read
 from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
+from autocat.data.segregation_energies import SEGREGATION_ENERGIES
 from autocat.learning.predictors import AutoCatPredictor
 from autocat.learning.sequential import (
     AutoCatDesignSpace,
     AutoCatDesignSpaceError,
     AutoCatSequentialLearningError,
     AutoCatSequentialLearner,
+    calculate_segregation_energy_scores,
     choose_next_candidate,
     get_overlap_score,
 )
@@ -26,6 +28,7 @@ from autocat.learning.sequential import calculate_hhi_scores
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
+from autocat.utils import extract_structures
 
 
 def test_sequential_learner_from_json():
@@ -778,7 +781,11 @@ def test_choose_next_candidate_hhi_weighting():
         "fcc111"
     ]["structure"]
     parent_idx, _, aq_scores = choose_next_candidate(
-        [y_struct, ni_struct], unc=unc, include_hhi=True, aq="MU"
+        [y_struct, ni_struct],
+        unc=unc,
+        include_hhi=True,
+        aq="MU",
+        include_seg_ener=False,
     )
     assert parent_idx[0] == 1
     assert aq_scores[0] < aq_scores[1]
@@ -798,6 +805,32 @@ def test_choose_next_candidate_hhi_weighting():
         target_max=5,
         include_hhi=True,
         hhi_type="reserves",
+        include_seg_ener=False,
+    )
+    assert parent_idx[0] == 0
+    assert aq_scores[0] > aq_scores[1]
+
+
+def test_choose_next_candidate_segregation_energy_weighting():
+    # Tests that the segregation energy weighting is properly applied
+    unc = np.array([0.3, 0.3])
+    pred = np.array([2.0, 2.0])
+    structs = extract_structures(
+        generate_saa_structures(["Cr"], ["Rh"], facets={"Cr": ["110"]})
+    )
+    structs.extend(
+        extract_structures(
+            generate_saa_structures(["Co"], ["Re"], facets={"Co": ["0001"]})
+        )
+    )
+    parent_idx, _, aq_scores = choose_next_candidate(
+        structs,
+        unc=unc,
+        pred=pred,
+        target_min=0,
+        target_max=4,
+        include_hhi=False,
+        include_seg_ener=True,
     )
     assert parent_idx[0] == 0
     assert aq_scores[0] > aq_scores[1]
@@ -877,3 +910,30 @@ def test_calculate_hhi_scores():
     # check normalized
     assert (hhi_res_scores <= 1.0).all()
     assert (hhi_res_scores >= 0.0).all()
+
+
+def test_calculate_segregation_energy_scores():
+    # Tests calculating segregation energy scores
+    saa_structs = extract_structures(
+        generate_saa_structures(
+            ["Ag", "Ni"], ["Pt"], facets={"Ag": ["111"], "Ni": ["111"]},
+        )
+    )
+    saa_structs.extend(
+        extract_structures(
+            generate_saa_structures(["Pd"], ["W"], facets={"Pd": ["111"]})
+        )
+    )
+    # saa_structs = [saa_dict[host]["Pt"]["fcc111"]["structure"] for host in saa_dict]
+    se_scores = calculate_segregation_energy_scores(saa_structs)
+    assert np.isclose(se_scores[-1], 0.0)
+    min_seg = SEGREGATION_ENERGIES["Fe_100"]["Ag"]
+    max_seg = SEGREGATION_ENERGIES["Pd"]["W"]
+    assert np.isclose(
+        se_scores[0],
+        1.0 - (SEGREGATION_ENERGIES["Ag"]["Pt"] - min_seg) / (max_seg - min_seg),
+    )
+    assert np.isclose(
+        se_scores[1],
+        1.0 - (SEGREGATION_ENERGIES["Ni"]["Pt"] - min_seg) / (max_seg - min_seg),
+    )

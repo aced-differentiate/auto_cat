@@ -14,6 +14,7 @@ from scipy import stats
 from autocat.learning.predictors import AutoCatPredictor
 from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
+from autocat.data.segregation_energies import SEGREGATION_ENERGIES
 
 Array = List[float]
 
@@ -741,6 +742,7 @@ def choose_next_candidate(
     target_max: float = None,
     include_hhi: bool = False,
     hhi_type: str = "production",
+    include_seg_ener: bool = False,
 ):
     """
     Chooses the next candidate(s) from a given acquisition function
@@ -789,6 +791,9 @@ def choose_next_candidate(
         - production (default)
         - reserves
 
+    include_seg_ener:
+        Whether segregation energies should be used to weight aq scores
+
     Returns
     -------
 
@@ -808,6 +813,13 @@ def choose_next_candidate(
             raise AutoCatSequentialLearningError(msg)
         hhi_scores = calculate_hhi_scores(structures, hhi_type)
 
+    segreg_energy_scores = None
+    if include_seg_ener:
+        if structures is None:
+            msg = "Structures must be provided to include segregation energy scores"
+            raise AutoCatSequentialLearningError(msg)
+        segreg_energy_scores = calculate_segregation_energy_scores(structures)
+
     if aq == "Random":
         if labels is None:
             msg = "For aq = 'Random', the labels must be supplied"
@@ -819,8 +831,13 @@ def choose_next_candidate(
         if hhi_scores is None:
             hhi_scores = np.ones(len(train_idx))
 
+        if segreg_energy_scores is None:
+            segreg_energy_scores = np.ones(len(train_idx))
+
         aq_scores = (
-            np.random.choice(len(labels), size=len(labels), replace=False) * hhi_scores
+            np.random.choice(len(labels), size=len(labels), replace=False)
+            * hhi_scores
+            * segreg_energy_scores
         )
 
     elif aq == "MU":
@@ -834,7 +851,10 @@ def choose_next_candidate(
         if hhi_scores is None:
             hhi_scores = np.ones(len(train_idx))
 
-        aq_scores = unc.copy() * hhi_scores
+        if segreg_energy_scores is None:
+            segreg_energy_scores = np.ones(len(train_idx))
+
+        aq_scores = unc.copy() * hhi_scores * segreg_energy_scores
 
     elif aq == "MLI":
         if unc is None or pred is None:
@@ -847,6 +867,9 @@ def choose_next_candidate(
         if hhi_scores is None:
             hhi_scores = np.ones(len(train_idx))
 
+        if segreg_energy_scores is None:
+            segreg_energy_scores = np.ones(len(train_idx))
+
         aq_scores = (
             np.array(
                 [
@@ -855,6 +878,7 @@ def choose_next_candidate(
                 ]
             )
             * hhi_scores
+            * segreg_energy_scores
         )
 
     else:
@@ -938,3 +962,57 @@ def calculate_hhi_scores(structures: List[Atoms], hhi_type: str = "production"):
             hhi += norm_hhi_data[el] * el_counts[el] / tot_size
         hhi_scores[idx] = hhi
     return hhi_scores
+
+
+def calculate_segregation_energy_scores(structures: List[Atoms]):
+    """
+    Calculates HHI scores for structures weighted by their composition.
+    The scores are normalized and inverted such that these should
+    be maximized in the interest of finding a low cost system
+
+    Parameters
+    ----------
+
+    structures:
+        List of Atoms objects for which to calculate the scores
+
+    hhi_type:
+        Type of HHI index to be used for the score
+        Options
+        - production (default)
+        - reserves
+
+    Returns
+    -------
+
+    hhi_scores:
+        Scores corresponding to each of the provided structures
+
+    """
+    if structures is None:
+        msg = "To include segregation energies, the structures must be provided"
+        raise AutoCatSequentialLearningError(msg)
+
+    # won't consider surface energies (ie. dop == host) for normalization
+    max_seg_ener = SEGREGATION_ENERGIES["Pd"]["W"]
+    min_seg_ener = SEGREGATION_ENERGIES["Fe_100"]["Ag"]
+    # normalize and invert (so that this score is to be maximized)
+    norm_seg_ener_data = {}
+    for hsp in SEGREGATION_ENERGIES:
+        norm_seg_ener_data[hsp] = {}
+        for dsp in SEGREGATION_ENERGIES[hsp]:
+            norm_seg_ener_data[hsp][dsp] = 1.0 - (
+                SEGREGATION_ENERGIES[hsp][dsp] - min_seg_ener
+            ) / (max_seg_ener - min_seg_ener)
+
+    seg_ener_scores = np.zeros(len(structures))
+    for idx, struct in enumerate(structures):
+        el_counts = struct.symbols.formula.count()
+        assert len(el_counts) == 2
+        for el in el_counts:
+            if el_counts[el] == 1:
+                dsp = el
+            else:
+                hsp = el
+        seg_ener_scores[idx] = norm_seg_ener_data[hsp][dsp]
+    return seg_ener_scores
