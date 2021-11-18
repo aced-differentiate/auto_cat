@@ -479,7 +479,7 @@ def full_structure_featurization(
         Options:
         - sine_matrix (default)
         - coulomb_matrix (N.B.: does not support periodicity)
-        - element property
+        - elemental_property
 
     permutation:
         String specifying how ordering is handled. This is fed into
