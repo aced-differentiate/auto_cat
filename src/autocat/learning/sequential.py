@@ -303,61 +303,50 @@ class AutoCatSequentialLearner:
                 return True
         return False
 
-    def iterate(self, other_design_space):
+    def iterate(self):
         """
-        Iterates the SL loop if the proposed design space is different than the
-        contained one.
+        Iterates the SL loop.
         This consists of:
         - retraining the predictor
         - obtaining new acquisition scores (if fully explored returns None)
         - selecting next batch of candidates (if fully explored returns None)
-
-        Parameters
-        ----------
-
-        other_design_space:
-            `AutoCatDesignSpace` object to be compared to
         """
-        if self.check_design_space_different(other_design_space):
-            self._iteration_count += 1
-            self._design_space = other_design_space
+        self._iteration_count += 1
 
-            dstructs = self.design_space.design_space_structures
-            dlabels = self.design_space.design_space_labels
+        dstructs = self.design_space.design_space_structures
+        dlabels = self.design_space.design_space_labels
 
-            mask_nans = ~np.isnan(dlabels)
-            masked_structs = [
-                struct for i, struct in enumerate(dstructs) if mask_nans[i]
-            ]
-            masked_labels = dlabels[np.where(mask_nans)]
+        mask_nans = ~np.isnan(dlabels)
+        masked_structs = [struct for i, struct in enumerate(dstructs) if mask_nans[i]]
+        masked_labels = dlabels[np.where(mask_nans)]
 
-            self.predictor.fit(masked_structs, masked_labels)
-            train_idx = np.zeros(len(dlabels), dtype=bool)
-            train_idx[np.where(mask_nans)] = 1
-            self._train_idx = train_idx
+        self.predictor.fit(masked_structs, masked_labels)
+        train_idx = np.zeros(len(dlabels), dtype=bool)
+        train_idx[np.where(mask_nans)] = 1
+        self._train_idx = train_idx
 
-            preds, unc = self.predictor.predict(dstructs)
-            self._predictions = preds
-            self._uncertainties = unc
+        preds, unc = self.predictor.predict(dstructs)
+        self._predictions = preds
+        self._uncertainties = unc
 
-            # make sure haven't fully searched design space
-            if True in [np.isnan(l) for l in dlabels]:
-                candidate_idx, _, aq_scores = choose_next_candidate(
-                    dstructs,
-                    dlabels,
-                    train_idx,
-                    preds,
-                    unc,
-                    **self.candidate_selection_kwargs or {},
-                )
+        # make sure haven't fully searched design space
+        if True in [np.isnan(l) for l in dlabels]:
+            candidate_idx, _, aq_scores = choose_next_candidate(
+                dstructs,
+                dlabels,
+                train_idx,
+                preds,
+                unc,
+                **self.candidate_selection_kwargs or {},
+            )
 
-            # if fully searched, no more candidate structures
-            else:
-                candidate_idx = None
-                aq_scores = None
+        # if fully searched, no more candidate structures
+        else:
+            candidate_idx = None
+            aq_scores = None
 
-            self._candidate_indices = candidate_idx
-            self._acquisition_scores = aq_scores
+        self._candidate_indices = candidate_idx
+        self._acquisition_scores = aq_scores
 
     def write_json(self, write_location: str = ".", json_name: str = None):
         """
