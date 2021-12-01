@@ -1,0 +1,36 @@
+site_name: AutoCat Documentation
+theme:
+    name: material
+    features:
+        - navigation.tabs
+        - navigation.tabs.sticky
+        - navigation.sections
+        - navigation.top
+        - toc.integrate
+    logo: img/autocat_logo.png
+markdown_extensions:
+    - pymdownx.highlight
+
+plugins:
+    - search
+    - mkdocstrings:
+        default_handler: python
+        handlers:
+            python:
+                selection:
+                    docstring_style: "numpy"
+                rendering:
+                    show_source: true
+
+nav:
+    - HOME:
+        - index.md
+    - API:
+        - Structure Generation:
+            - API/Structure_Generation/surface.md
+            - API/Structure_Generation/saa.md
+            - API/Structure_Generation/adsorption.md
+        - Learning:
+            - API/Learning/featurizers.md
+            - API/Learning/predictors.md
+            - API/Learning/sequential.md
