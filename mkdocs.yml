@@ -7,9 +7,17 @@ theme:
         - navigation.sections
         - navigation.top
         - toc.integrate
-    logo: img/autocat_logo.png
+    logo: img/autocat_icon.png
 markdown_extensions:
     - pymdownx.highlight
+    - pymdownx.superfences  
+    - pymdownx.inlinehilite
+    - pymdownx.arithmatex:
+        generic: true
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 plugins:
     - search
@@ -24,13 +32,24 @@ plugins:
 
 nav:
     - HOME:
-        - index.md
+        - README.md
+    - User Guide:
+        - Structure Generation:
+            - Bulk: User_Guide/Structure_Generation/bulk.md
+            - Surfaces: User_Guide/Structure_Generation/surface.md
+            - Single Atom Alloys: User_Guide/Structure_Generation/saa.md
+            - Adsorption: User_Guide/Structure_Generation/adsorption.md
+        - Sequential Learning:
+            - Featurizers: User_Guide/Learning/featurizers.md
+            - Predictors: User_Guide/Learning/predictors.md
+            - Sequential: User_Guide/Learning/sequential.md
     - API:
         - Structure Generation:
-            - API/Structure_Generation/surface.md
-            - API/Structure_Generation/saa.md
-            - API/Structure_Generation/adsorption.md
-        - Learning:
-            - API/Learning/featurizers.md
-            - API/Learning/predictors.md
-            - API/Learning/sequential.md
+            - autocat.bulk: API/Structure_Generation/bulk.md
+            - autocat.surface: API/Structure_Generation/surface.md
+            - autocat.saa: API/Structure_Generation/saa.md
+            - autocat.adsorption: API/Structure_Generation/adsorption.md
+        - Sequential Learning:
+            - autocat.learning.featurizers: API/Learning/featurizers.md
+            - autocat.learning.predictors: API/Learning/predictors.md
+            - autocat.learning.sequential: API/Learning/sequential.md
