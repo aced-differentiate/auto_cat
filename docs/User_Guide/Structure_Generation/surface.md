@@ -1,10 +1,13 @@
 It is crucial for many heterogeneous catalysis studies to be
 able to model a catalyst surface where the desired reaction
-can take place. `autocat.surface` provides tools for generating
+can take place. 
+[`autocat.surface`](../../API/Structure_Generation/surface.md) 
+provides tools for generating
 low miller index surfaces for mono-element surfaces with a vacuum
 in the $z$-direction.
 
-The core function of this module is `generate_surface_structures`
+The core function of this module is 
+[`generate_surface_structures`](../../API/Structure_Generation/surface.md#autocat.surface.generate_surface_structures) 
 where multiple slabs can be generated at once.
 
 ```py
@@ -16,7 +19,7 @@ where multiple slabs can be generated at once.
 ... n_fixed_layers=2,
 ... default_lat_param_lib="beefvdw_fd",
 ... write_to_disk=True,
-)
+... )
 Li_bcc110 structure written to ./Li/bcc110/substrate/input.traj
 Cu_fcc100 structure written to ./Cu/fcc100/substrate/input.traj
 Cu_fcc111 structure written to ./Cu/fcc111/substrate/input.traj
@@ -40,8 +43,9 @@ Here we generated surface slabs for Cu and Li under the following conditions:
 - the supercell dimensions of the slabs are 5 $\times$ 5 $\times$ 4
 - the bottom 2 layers are held fixed
 - for structures where the lattice parameter is not explicitly specified,
-their default values are pulled from the `ase.data.lattice_parameters`
-library that used a `BEEF-vdW` XC and finite difference basis set
+their default values are pulled from the 
+[`autocat.data.lattice_parameters`](../Data/lattice_parameters.md) 
+library that used a BEEF-vdW XC and finite difference basis set
 
 When using the `write_to_disk` functionality the structures
 will be written into the following directory structure:

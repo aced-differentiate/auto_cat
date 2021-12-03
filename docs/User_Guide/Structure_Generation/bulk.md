@@ -1,9 +1,11 @@
-`autocat.bulk` provides tools to automatically generate mono-element
+[`autocat.bulk`](../../API/Structure_Generation/bulk.md) 
+provides tools to automatically generate mono-element
 bulk structures. These are structures containing only a single
 chemical species with no vacuum and 3D periodicity.
 
 Multiple of these systems can be generated and written to
-disk via a single call of `generate_bulk_structures`.
+disk via a single call of 
+[`generate_bulk_structures`](../../API/Structure_Generation/bulk.md#autocat.bulk.generate_bulk_structures).
 
 ``` py
 >>> from autocat.bulk import generate_bulk_structures
@@ -22,7 +24,7 @@ Ru_bulk_hcp structure written to ./Ru_bulk_hcp/input.traj
 
 In general the following structure of the resulting dict is generated:
 
-`{SPECIES_bulk_BRAVAISLATTICE: {"crystal_structure": Atoms, "traj_file_path": TRAJFILEPATH}}`
+`{SPECIES: {"crystal_structure": Atoms, "traj_file_path": TRAJFILEPATH}}`
 
 If writing to disk structures to disk via 
 `#!python write_to_disk=True`,
