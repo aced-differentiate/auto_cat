@@ -1,3 +1,4 @@
+![Surface Figure](../../img/struct_gen_figs/surface.png){ align=right }
 It is crucial for many heterogeneous catalysis studies to be
 able to model a catalyst surface where the desired reaction
 can take place. 
@@ -25,13 +26,13 @@ Cu_fcc100 structure written to ./Cu/fcc100/substrate/input.traj
 Cu_fcc111 structure written to ./Cu/fcc111/substrate/input.traj
 Cu_fcc110 structure written to ./Cu/fcc110/substrate/input.traj
 >>> surf_dict
-{'Li': {'bcc110': {'structure': Atoms(symbols='Li100', pbc=[True, True, False], ...),
+{'Li': {'bcc110': {'structure': Atoms(...),
                    'traj_file_path': './Li/bcc110/substrate/input.traj'}},
- 'Cu': {'fcc100': {'structure': Atoms(symbols='Cu100', pbc=[True, True, False], ...),
+ 'Cu': {'fcc100': {'structure': Atoms(...),
                    'traj_file_path': './Cu/fcc100/substrate/input.traj'},
-        'fcc111': {'structure': Atoms(symbols='Cu100', pbc=[True, True, False], ...),
+        'fcc111': {'structure': Atoms(...),
                    'traj_file_path': './Cu/fcc111/substrate/input.traj'},
-        'fcc110': {'structure': Atoms(symbols='Cu100', pbc=[True, True, False], ...),
+        'fcc110': {'structure': Atoms(...),
                    'traj_file_path': './Cu/fcc110/substrate/input.traj'}}}
 ```
 Here we generated surface slabs for Cu and Li under the following conditions:
@@ -67,3 +68,4 @@ will be written into the following directory structure:
 │       └── substrate
 │           └── input.traj
 ```
+**N.B.** by default, initial magnetic moments are given to Fe, Ni and Co

@@ -1,3 +1,4 @@
+![SAA Figure](../../img/struct_gen_figs/saa.png){ align=right }
 Single atom alloys (SAA) consist of a transition-metal host 
 with lone dopant atoms embedded at the surface. This 
 dispersion leads to unique electronic properties.
@@ -23,13 +24,13 @@ Au1/Fe(bcc110) structure written to ./Fe/Au/bcc110/substrate/input.traj
 Pt1/Cu(fcc111) structure written to ./Cu/Pt/fcc111/substrate/input.traj
 Au1/Cu(fcc111) structure written to ./Cu/Au/fcc111/substrate/input.traj
 >>> saa_dict
-{'Fe': {'Pt': {'bcc110': {'structure': Atoms(symbols='Fe27PtFe8', initial_magmoms=..., ...),
+{'Fe': {'Pt': {'bcc110': {'structure': Atoms(...),
                           'traj_file_path': './Fe/Pt/bcc110/substrate/input.traj'}},
-        'Au': {'bcc110': {'structure': Atoms(symbols='Fe27AuFe8', initial_magmoms=..., ...),
+        'Au': {'bcc110': {'structure': Atoms(...),
                           'traj_file_path': './Fe/Au/bcc110/substrate/input.traj'}}},
- 'Cu': {'Pt': {'fcc111': {'structure': Atoms(symbols='Cu27PtCu8', initial_magmoms=..., ...),
+ 'Cu': {'Pt': {'fcc111': {'structure': Atoms(...),
                           'traj_file_path': './Cu/Pt/fcc111/substrate/input.traj'}},
-        'Au': {'fcc111': {'structure': Atoms(symbols='Cu27AuCu8', initial_magmoms=..., ...),
+        'Au': {'fcc111': {'structure': Atoms(...),
                           'traj_file_path': './Cu/Au/fcc111/substrate/input.traj'}}}}
 ```
 Here we generated SAA slabs with Fe and Cu as hosts and Pt and Au dopants under the following conditions:
