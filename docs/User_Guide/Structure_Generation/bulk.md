@@ -14,11 +14,11 @@ Pt_bulk_fcc structure written to ./Pt_bulk_fcc/input.traj
 Fe_bulk_bcc structure written to ./Fe_bulk_bcc/input.traj
 Ru_bulk_hcp structure written to ./Ru_bulk_hcp/input.traj
 >>> bulk_dict
-{'Pt': {'crystal_structure': Atoms(symbols='Pt', pbc=True, ...),
+{'Pt': {'crystal_structure': Atoms(...),
         'traj_file_path': './Pt_bulk_fcc/input.traj'},
- 'Fe': {'crystal_structure': Atoms(symbols='Fe', pbc=True, initial_magmoms=..., ...),
+ 'Fe': {'crystal_structure': Atoms(...),
         'traj_file_path': './Fe_bulk_bcc/input.traj'},
- 'Ru': {'crystal_structure': Atoms(symbols='Ru2', pbc=True, ...),
+ 'Ru': {'crystal_structure': Atoms(...),
         'traj_file_path': './Ru_bulk_hcp/input.traj'}}
 ```
 

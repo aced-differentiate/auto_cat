@@ -1,3 +1,4 @@
+![Adsorption Figure](../../img/struct_gen_figs/adsorption.png){ align=right }
 Tools within 
 [`autocat.adsorption`](../../API/Structure_Generation/adsorption.md) 
 are geared towards generating structures with adsorbates placed on
