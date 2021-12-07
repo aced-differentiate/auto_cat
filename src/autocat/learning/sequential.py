@@ -176,36 +176,137 @@ class AutoCatSequentialLearner:
         design_space: AutoCatDesignSpace,
         predictor_kwargs: Dict[str, Union[str, float]] = None,
         candidate_selection_kwargs: Dict[str, Union[str, float]] = None,
+        sl_kwargs: Dict[str, int] = None,
     ):
+        # TODO: move predefined attributes (train_idx, candidate_idxs) to a
+        # different container (not kwargs)
 
-        self._predictor_kwargs = predictor_kwargs or {
-            "structure_featurizer": "sine_matrix"
-        }
-        self._candidate_selection_kwargs = candidate_selection_kwargs or {
-            "aq": "Random"
-        }
+        self._design_space = None
+        self.design_space = design_space
 
+        # predictor arguments to use throughout the SL process
+        if not predictor_kwargs:
+            predictor_kwargs = {"structure_featurizer": "sine_matrix"}
+        self._predictor_kwargs = None
+        self.predictor_kwargs = predictor_kwargs
+        self._predictor = AutoCatPredictor(**predictor_kwargs)
+
+        # acquisition function arguments to use for candidate selection
+        if not candidate_selection_kwargs:
+            candidate_selection_kwargs = {"aq": "random"}
+        self._candidate_selection_kwargs = None
+        self.candidate_selection_kwargs = candidate_selection_kwargs
+
+        # other miscellaneous kw arguments
+        self.sl_kwargs = sl_kwargs if sl_kwargs else {}
+
+        # variables that need to be propagated through the SL process
+        if "iteration_count" not in self.sl_kwargs:
+            self.sl_kwargs.update({"iteration_count": 0})
+        if "train_idx" not in self.sl_kwargs:
+            self.sl_kwargs.update({"train_idx": None})
+        if "predictions" not in self.sl_kwargs:
+            self.sl_kwargs.update({"predictions": None})
+        if "uncertainties" not in self.sl_kwargs:
+            self.sl_kwargs.update({"uncertainties": None})
+        if "candidate_indices" not in self.sl_kwargs:
+            self.sl_kwargs.update({"candidate_indices": None})
+        if "aq_scores" not in self.sl_kwargs:
+            self.sl_kwargs.update({"aq_scores": None})
+
+    @property
+    def design_space(self):
+        return self._design_space
+
+    @design_space.setter
+    def design_space(self, design_space):
         self._design_space = design_space
+
+    @property
+    def predictor_kwargs(self):
+        return self._predictor_kwargs
+
+    @predictor_kwargs.setter
+    def predictor_kwargs(self, predictor_kwargs):
+        if not predictor_kwargs:
+            predictor_kwargs = {}
+        self._predictor_kwargs = predictor_kwargs
+        self._predictor = AutoCatPredictor(**predictor_kwargs)
+
+    @property
+    def predictor(self):
+        return self._predictor
+
+    @property
+    def candidate_selection_kwargs(self):
+        return self._candidate_selection_kwargs
+
+    @candidate_selection_kwargs.setter
+    def candidate_selection_kwargs(self, candidate_selection_kwargs):
+        if not candidate_selection_kwargs:
+            candidate_selection_kwargs = {}
+        self._candidate_selection_kwargs = candidate_selection_kwargs
+
+    @property
+    def iteration_count(self):
+        return self.sl_kwargs.get("iteration_count", 0)
+
+    @property
+    def train_idx(self):
+        return self.sl_kwargs.get("train_idx")
+
+    @property
+    def predictions(self):
+        return self.sl_kwargs.get("predictions")
+
+    @property
+    def uncertainties(self):
+        return self.sl_kwargs.get("uncertainties")
+
+    @property
+    def candidate_indices(self):
+        return self.sl_kwargs.get("candidate_indices")
+
+    @property
+    def acquisition_scores(self):
+        return self.sl_kwargs.get("acquisition_scores", None)
+
+    @property
+    def candidate_structures(self):
+        idxs = self.candidate_indices
+        if idxs is not None:
+            return [self.design_space.design_space_structures[i] for i in idxs]
+
+    def iterate(self):
+        """Runs the next iteration of sequential learning.
+
+        This process consists of:
+        - retraining the predictor
+        - predicting candidate properties and calculating candidate scores (if
+        fully explored returns None)
+        - selecting the next batch of candidates for objective evaluation (if
+        fully explored returns None)
+        """
+
         dstructs = self.design_space.design_space_structures
         dlabels = self.design_space.design_space_labels
+
         mask_nans = ~np.isnan(dlabels)
-
-        train_idx = np.zeros(len(dlabels), dtype=bool)
-        train_idx[np.where(mask_nans)] = 1
-        self._train_idx = train_idx
-
         masked_structs = [struct for i, struct in enumerate(dstructs) if mask_nans[i]]
         masked_labels = dlabels[np.where(mask_nans)]
 
-        self.predictor = AutoCatPredictor(**self.predictor_kwargs)
         self.predictor.fit(masked_structs, masked_labels)
 
-        self._iteration_count = 0
-        preds, unc = self.predictor.predict(dstructs)
-        self._predictions = preds
-        self._uncertainties = unc
+        train_idx = np.zeros(len(dlabels), dtype=bool)
+        train_idx[np.where(mask_nans)] = 1
+        self.sl_kwargs.update({"train_idx": train_idx})
 
-        if False in mask_nans:
+        preds, unc = self.predictor.predict(dstructs)
+        self.sl_kwargs.update({"predictions": preds})
+        self.sl_kwargs.update({"uncertainties": unc})
+
+        # make sure haven't fully searched design space
+        if any([np.isnan(label) for label in dlabels]):
             candidate_idx, _, aq_scores = choose_next_candidate(
                 dstructs,
                 dlabels,
@@ -214,140 +315,16 @@ class AutoCatSequentialLearner:
                 unc,
                 **self.candidate_selection_kwargs,
             )
-        else:
-            candidate_idx = None
-            aq_scores = None
-
-        self._candidate_indices = candidate_idx
-        self._acquisition_scores = aq_scores
-
-    @property
-    def iteration_count(self):
-        return self._iteration_count
-
-    @property
-    def design_space(self):
-        return self._design_space
-
-    @property
-    def predictions(self):
-        return self._predictions
-
-    @property
-    def uncertainties(self):
-        return self._uncertainties
-
-    @property
-    def candidate_indices(self):
-        return self._candidate_indices
-
-    @property
-    def acquisition_scores(self):
-        if self.candidate_indices is not None:
-            return self._acquisition_scores
-        else:
-            print("Design space fully explored, no more candidates")
-
-    @property
-    def candidate_structures(self):
-        idxs = self.candidate_indices
-        if idxs is not None:
-            structs = self.design_space.design_space_structures
-            return [structs[i] for i in idxs]
-        else:
-            print("Design space fully explored, no more candidates")
-
-    @property
-    def predictor_kwargs(self):
-        return self._predictor_kwargs
-
-    @property
-    def candidate_selection_kwargs(self):
-        return self._candidate_selection_kwargs
-
-    @property
-    def train_idx(self):
-        return self._train_idx
-
-    def check_design_space_different(self, other_design_space):
-        """
-        Compare contained `AutoCatDesignSpace` object to another.
-        The other design space must be of the same size to the
-        one that is contained.
-        Returns True if they are different, False otherwise.
-
-        Parameters
-        ----------
-
-        other_design_space:
-            `AutoCatDesignSpace` object to be compared to
-        """
-        ds = self.design_space
-        assert len(ds.design_space_structures) == len(
-            other_design_space.design_space_structures
-        )
-        for idx, struct in enumerate(ds.design_space_structures):
-            # check same structures
-            if struct not in other_design_space.design_space_structures:
-                return True
-            o_idx = other_design_space.design_space_structures.index(struct)
-            # check if both nans
-            if np.isnan(ds.design_space_labels[idx]) and np.isnan(
-                other_design_space.design_space_labels[o_idx]
-            ):
-                continue
-            # check same labels
-            if (
-                ds.design_space_labels[idx]
-                != other_design_space.design_space_labels[o_idx]
-            ):
-                return True
-        return False
-
-    def iterate(self):
-        """
-        Iterates the SL loop.
-        This consists of:
-        - retraining the predictor
-        - obtaining new acquisition scores (if fully explored returns None)
-        - selecting next batch of candidates (if fully explored returns None)
-        """
-        self._iteration_count += 1
-
-        dstructs = self.design_space.design_space_structures
-        dlabels = self.design_space.design_space_labels
-
-        mask_nans = ~np.isnan(dlabels)
-        masked_structs = [struct for i, struct in enumerate(dstructs) if mask_nans[i]]
-        masked_labels = dlabels[np.where(mask_nans)]
-
-        self.predictor.fit(masked_structs, masked_labels)
-        train_idx = np.zeros(len(dlabels), dtype=bool)
-        train_idx[np.where(mask_nans)] = 1
-        self._train_idx = train_idx
-
-        preds, unc = self.predictor.predict(dstructs)
-        self._predictions = preds
-        self._uncertainties = unc
-
-        # make sure haven't fully searched design space
-        if True in [np.isnan(l) for l in dlabels]:
-            candidate_idx, _, aq_scores = choose_next_candidate(
-                dstructs,
-                dlabels,
-                train_idx,
-                preds,
-                unc,
-                **self.candidate_selection_kwargs or {},
-            )
-
         # if fully searched, no more candidate structures
         else:
             candidate_idx = None
             aq_scores = None
+        self.sl_kwargs.update({"candidate_indices": candidate_idx})
+        self.sl_kwargs.update({"acquisition_scores": aq_scores})
 
-        self._candidate_indices = candidate_idx
-        self._acquisition_scores = aq_scores
+        # update the SL iteration count
+        itc = self.sl_kwargs.get("iteration_count", 0)
+        self.sl_kwargs.update({"iteration_count": itc + 1})
 
     def write_json(self, write_location: str = ".", json_name: str = None):
         """
@@ -361,6 +338,8 @@ class AutoCatSequentialLearner:
         jsonified_list.append(self.predictor_kwargs)
         # append kwargs for candidate selection
         jsonified_list.append(self.candidate_selection_kwargs)
+        # append the acsl kwargs
+        jsonified_list.append(self.sl_kwargs)
 
         if json_name is None:
             json_name = "acsl.json"
@@ -376,7 +355,7 @@ class AutoCatSequentialLearner:
             all_data = json.load(f)
         structures = []
         with tempfile.TemporaryDirectory() as _tmp_dir:
-            for i in range(len(all_data) - 3):
+            for i in range(len(all_data) - 4):
                 # write temp json for each individual structure
                 _tmp_json = os.path.join(_tmp_dir, "tmp.json")
                 with open(_tmp_json, "w") as tmp:
@@ -384,16 +363,18 @@ class AutoCatSequentialLearner:
                 # read individual tmp json using ase
                 atoms = ase_read(_tmp_json, format="json")
                 structures.append(atoms)
-        labels = np.array(all_data[-3])
+        labels = np.array(all_data[-4])
         acds = AutoCatDesignSpace(
             design_space_structures=structures, design_space_labels=labels,
         )
-        predictor_kwargs = all_data[-2]
-        candidate_selection_kwargs = all_data[-1]
+        predictor_kwargs = all_data[-3]
+        candidate_selection_kwargs = all_data[-2]
+        sl_kwargs = all_data[-1]
         return AutoCatSequentialLearner(
             design_space=acds,
             predictor_kwargs=predictor_kwargs,
             candidate_selection_kwargs=candidate_selection_kwargs,
+            sl_kwargs=sl_kwargs,
         )
 
 
@@ -629,7 +610,7 @@ def simulated_sequential_learning(
         # get scores on test perturbations
         if testing_structures is not None:
             if testing_y is None:
-                msg = f"Labels for the test structures must be provided"
+                msg = "Labels for the test structures must be provided"
                 raise AutoCatSequentialLearningError(msg)
 
             mae_test_score, test_preds, test_unc = predictor.score(
