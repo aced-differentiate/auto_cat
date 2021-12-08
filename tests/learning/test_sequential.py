@@ -66,7 +66,13 @@ def test_sequential_learner_from_json():
         acsl.write_json(_tmp_dir, "testing_acsl.json")
         json_path = os.path.join(_tmp_dir, "testing_acsl.json")
         written_acsl = AutoCatSequentialLearner.from_json(json_path)
-        assert not written_acsl.check_design_space_different(acds)
+        assert np.array_equal(
+            written_acsl.design_space.design_space_labels, acds.design_space_labels
+        )
+        assert (
+            written_acsl.design_space.design_space_structures
+            == acds.design_space_structures
+        )
         assert written_acsl.predictor_kwargs == predictor_kwargs
         assert written_acsl.candidate_selection_kwargs == candidate_selection_kwargs
 
@@ -119,7 +125,15 @@ def test_sequential_learner_write_json():
         # check predictor kwargs kept
         assert predictor_kwargs == sl[4]
         # check candidate selection kwargs kept
-        assert candidate_selection_kwargs == sl[-1]
+        assert candidate_selection_kwargs == sl[-2]
+        assert sl[-1] == {
+            "iteration_count": 0,
+            "train_idx": None,
+            "predictions": None,
+            "uncertainties": None,
+            "candidate_indices": None,
+            "aq_scores": None,
+        }
 
     # test writing when no kwargs given
     acsl = AutoCatSequentialLearner(acds)
@@ -140,7 +154,7 @@ def test_sequential_learner_write_json():
         # check default predictor kwargs kept
         assert sl[4] == {"structure_featurizer": "sine_matrix"}
         # check default candidate selection kwargs kept
-        assert sl[-1] == {"aq": "Random"}
+        assert sl[-2] == {"aq": "Random"}
 
 
 def test_sequential_learner_iterate():
@@ -166,76 +180,29 @@ def test_sequential_learner_iterate():
     acds = AutoCatDesignSpace(structs, labels)
     acsl = AutoCatSequentialLearner(acds)
 
-    old_candidate_structures = acsl.candidate_structures
     assert acsl.iteration_count == 0
 
-    # make sure doesn't iterate if no changes to design space
-    acsl.iterate(acds)
-    assert acsl.iteration_count == 0
-    assert acsl.design_space is acds
-    assert acsl.candidate_structures == old_candidate_structures
-
-    # check updates for first iteration
-    new_labels = np.array([11.0, 25.0, 13.0, np.nan])
-    new_acds = AutoCatDesignSpace(structs, new_labels)
-
-    acsl.iterate(new_acds)
-
+    acsl.iterate()
     assert acsl.iteration_count == 1
-    assert acsl.design_space is new_acds
-    assert acsl.candidate_structures[0] == sub4
+    assert acsl.predictions is not None
+    assert acsl.uncertainties is not None
+    assert acsl.candidate_indices is not None
 
-    new_labels2 = np.array([11.0, 25.0, 13.0, 30.0])
-    new_acds2 = AutoCatDesignSpace(structs, new_labels2)
+    cand_ind1 = acsl.candidate_indices[0]
+    acsl.design_space.update([structs[cand_ind1]], np.array([13.0]))
+
+    acsl.iterate()
+    assert acsl.iteration_count == 2
 
     # checks being iterated a second time to fully explore the design space
-    acsl.iterate(new_acds2)
+    cand_ind2 = acsl.candidate_indices[0]
+    assert cand_ind1 != cand_ind2
+    acsl.design_space.update([structs[cand_ind2]], np.array([17.0]))
+    acsl.iterate()
 
-    assert acsl.iteration_count == 2
-    assert acsl.design_space is new_acds2
+    assert acsl.iteration_count == 3
     assert acsl.candidate_structures is None
     assert acsl.candidate_indices is None
-    assert acsl.acquisition_scores is None
-
-
-def test_sequential_learner_compare():
-    # Tests comparison method
-    sub1 = generate_surface_structures(["Ca"], facets={"Ca": ["111"]})["Ca"]["fcc111"][
-        "structure"
-    ]
-    sub1 = place_adsorbate(sub1, "Li")["custom"]["structure"]
-    sub2 = generate_surface_structures(["Nb"], facets={"Nb": ["110"]})["Nb"]["bcc110"][
-        "structure"
-    ]
-    sub2 = place_adsorbate(sub2, "P")["custom"]["structure"]
-    sub3 = generate_surface_structures(["Ta"], facets={"Ta": ["110"]})["Ta"]["bcc110"][
-        "structure"
-    ]
-    sub3 = place_adsorbate(sub3, "F")["custom"]["structure"]
-    structs = [sub1, sub2, sub3]
-    labels = np.array([np.nan, 6.0, 15.0])
-    acds1 = AutoCatDesignSpace(structs, labels)
-    acsl = AutoCatSequentialLearner(acds1)
-
-    assert not acsl.check_design_space_different(acds1)
-
-    structs_reorder = [sub2, sub3, sub1]
-    labels_reorder = np.array([6.0, 15.0, np.nan])
-    acds2 = AutoCatDesignSpace(structs_reorder, labels_reorder)
-
-    assert not acsl.check_design_space_different(acds2)
-
-    structs_new_label = [sub1, sub2, sub3]
-    labels_new_label = np.array([3.0, 6.0, 15.0])
-    acds3 = AutoCatDesignSpace(structs_new_label, labels_new_label)
-
-    assert acsl.check_design_space_different(acds3)
-
-    structs_new_label_reorder = [sub1, sub3, sub2]
-    labels_new_label_reorder = np.array([3.0, 15.0, 6.0])
-    acds4 = AutoCatDesignSpace(structs_new_label_reorder, labels_new_label_reorder)
-
-    assert acsl.check_design_space_different(acds4)
 
 
 def test_sequential_learner_setup():
@@ -263,9 +230,9 @@ def test_sequential_learner_setup():
 
     assert acsl.design_space == acds
     assert acsl.iteration_count == 0
-    assert (acsl.train_idx == np.array([True, False, True, False])).all()
+    assert acsl.predictions == None
+    assert acsl.candidate_indices == None
     assert acsl.candidate_selection_kwargs == {"aq": "Random"}
-    assert acsl.candidate_structures[0] == structs[acsl.candidate_indices[0]]
     # test default kwargs
     assert acsl.predictor_kwargs == {"structure_featurizer": "sine_matrix"}
     # test specifying kwargs
@@ -301,8 +268,6 @@ def test_sequential_learner_setup():
 
     # test passing candidate selection kwargs
     assert acsl.candidate_selection_kwargs == {"aq": "MU", "num_candidates_to_pick": 2}
-    assert len(acsl.candidate_indices) == 2
-    assert len(acsl.candidate_structures) == 2
 
 
 def test_design_space_setup():
