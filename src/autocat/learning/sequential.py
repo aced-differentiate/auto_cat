@@ -193,7 +193,7 @@ class AutoCatSequentialLearner:
 
         # acquisition function arguments to use for candidate selection
         if not candidate_selection_kwargs:
-            candidate_selection_kwargs = {"aq": "random"}
+            candidate_selection_kwargs = {"aq": "Random"}
         self._candidate_selection_kwargs = None
         self.candidate_selection_kwargs = candidate_selection_kwargs
 
