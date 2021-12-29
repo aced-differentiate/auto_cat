@@ -211,6 +211,8 @@ class AutoCatSequentialLearner:
             self.sl_kwargs.update({"uncertainties": None})
         if "candidate_indices" not in self.sl_kwargs:
             self.sl_kwargs.update({"candidate_indices": None})
+        if "candidate_index_history" not in self.sl_kwargs:
+            self.sl_kwargs.update({"candidate_index_history": None})
         if "aq_scores" not in self.sl_kwargs:
             self.sl_kwargs.update({"aq_scores": None})
 
@@ -277,6 +279,10 @@ class AutoCatSequentialLearner:
         if idxs is not None:
             return [self.design_space.design_space_structures[i] for i in idxs]
 
+    @property
+    def candidate_index_history(self):
+        return self.sl_kwargs.get("candidate_index_history", None)
+
     def iterate(self):
         """Runs the next iteration of sequential learning.
 
@@ -321,6 +327,14 @@ class AutoCatSequentialLearner:
             aq_scores = None
         self.sl_kwargs.update({"candidate_indices": candidate_idx})
         self.sl_kwargs.update({"acquisition_scores": aq_scores})
+
+        # update the candidate index history if new candidate
+        if candidate_idx is not None:
+            cand_idx_hist = self.sl_kwargs.get("candidate_index_history")
+            if cand_idx_hist is None:
+                cand_idx_hist = []
+            cand_idx_hist.append(candidate_idx)
+            self.sl_kwargs.update({"candidate_index_history": cand_idx_hist})
 
         # update the SL iteration count
         itc = self.sl_kwargs.get("iteration_count", 0)

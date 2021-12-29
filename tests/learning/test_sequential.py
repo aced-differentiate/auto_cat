@@ -187,6 +187,8 @@ def test_sequential_learner_iterate():
     assert acsl.predictions is not None
     assert acsl.uncertainties is not None
     assert acsl.candidate_indices is not None
+    assert acsl.candidate_index_history is not None
+    assert acsl.candidate_index_history == [acsl.candidate_indices]
 
     cand_ind1 = acsl.candidate_indices[0]
     acsl.design_space.update([structs[cand_ind1]], np.array([13.0]))
@@ -197,12 +199,15 @@ def test_sequential_learner_iterate():
     # checks being iterated a second time to fully explore the design space
     cand_ind2 = acsl.candidate_indices[0]
     assert cand_ind1 != cand_ind2
+    assert acsl.candidate_index_history == [[cand_ind1], [cand_ind2]]
+
     acsl.design_space.update([structs[cand_ind2]], np.array([17.0]))
     acsl.iterate()
 
     assert acsl.iteration_count == 3
     assert acsl.candidate_structures is None
     assert acsl.candidate_indices is None
+    assert acsl.candidate_index_history == [[cand_ind1], [cand_ind2]]
 
 
 def test_sequential_learner_setup():
