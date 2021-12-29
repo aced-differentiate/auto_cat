@@ -454,10 +454,18 @@ def test_simulated_sequential_outputs():
     base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
     base_struct3 = place_adsorbate(sub2, "H")["custom"]["structure"]
     acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    ds_structs = [
+        base_struct1,
+        base_struct2,
+        base_struct3,
+        sub1,
+        sub2,
+    ]
+    ds_labels = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    acds = AutoCatDesignSpace(ds_structs, ds_labels)
     sl_dict = simulated_sequential_learning(
-        acsc,
-        [base_struct1, base_struct2, base_struct3, sub1, sub2,],
-        np.array([0.0, 1.0, 2.0, 3.0, 4.0]),
+        predictor=acsc,
+        design_space=acds,
         init_training_size=1,
         batch_size_to_add=2,
         number_of_sl_loops=2,
@@ -498,10 +506,12 @@ def test_simulated_sequential_batch_added():
     acsc = AutoCatPredictor(structure_featurizer="elemental_property")
     bsta = 2
     num_loops = 2
+    ds_structs = [base_struct1, base_struct2, sub1, sub2]
+    ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
+    acds = AutoCatDesignSpace(ds_structs, ds_labels)
     sl_dict = simulated_sequential_learning(
-        acsc,
-        [base_struct1, base_struct2, sub1, sub2],
-        np.array([5.0, 6.0, 7.0, 8.0]),
+        predictor=acsc,
+        design_space=acds,
         batch_size_to_add=bsta,
         number_of_sl_loops=num_loops,
         acquisition_function="Random",
@@ -528,12 +538,14 @@ def test_simulated_sequential_num_loops():
     base_struct1 = place_adsorbate(sub1, "H")["custom"]["structure"]
     base_struct2 = place_adsorbate(sub2, "N")["custom"]["structure"]
     acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    ds_structs = [base_struct1, base_struct2, sub1, sub2]
+    ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
+    acds = AutoCatDesignSpace(ds_structs, ds_labels)
     # Test default number of loops
     bsta = 3
     sl_dict = simulated_sequential_learning(
-        acsc,
-        [base_struct1, base_struct2, sub1, sub2],
-        np.array([5.0, 6.0, 7.0, 8.0]),
+        predictor=acsc,
+        design_space=acds,
         batch_size_to_add=bsta,
         acquisition_function="Random",
         init_training_size=1,
@@ -543,19 +555,21 @@ def test_simulated_sequential_num_loops():
     # Test catches maximum number of loops
     with pytest.raises(AutoCatSequentialLearningError):
         sl_dict = simulated_sequential_learning(
-            acsc,
-            [base_struct1, base_struct2, sub1, sub2],
-            np.array([5.0, 6.0, 7.0, 8.0]),
+            predictor=acsc,
+            design_space=acds,
             batch_size_to_add=bsta,
             acquisition_function="Random",
             init_training_size=1,
             number_of_sl_loops=3,
         )
 
+    ds_structs = [base_struct1, base_struct2, sub2]
+    ds_labels = np.array([5.0, 6.0, 7.0])
+    acds = AutoCatDesignSpace(ds_structs, ds_labels)
+
     sl_dict = simulated_sequential_learning(
-        acsc,
-        [base_struct1, base_struct2, sub2],
-        np.array([5.0, 6.0, 7.0]),
+        predictor=acsc,
+        design_space=acds,
         acquisition_function="Random",
         init_training_size=1,
     )
@@ -574,10 +588,12 @@ def test_simulated_sequential_outputs_testing():
     base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
     base_struct3 = place_adsorbate(sub2, "H")["custom"]["structure"]
     acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    ds_structs = [base_struct1, base_struct2, sub1]
+    ds_labels = np.array([0.0, 2.0, 4.0])
+    acds = AutoCatDesignSpace(ds_structs, ds_labels)
     sl_dict = simulated_sequential_learning(
-        acsc,
-        [base_struct1, base_struct2, sub1],
-        np.array([0.0, 2.0, 4.0]),
+        predictor=acsc,
+        design_space=acds,
         init_training_size=1,
         testing_structures=[base_struct3, sub2],
         testing_y=np.array([8.0, 10.0]),
@@ -612,10 +628,12 @@ def test_simulated_sequential_write_to_disk():
     base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
     base_struct3 = place_adsorbate(sub2, "N")["custom"]["structure"]
     acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    ds_structs = [base_struct1, base_struct2, base_struct3]
+    ds_labels = np.array([0, 1, 2])
+    acds = AutoCatDesignSpace(ds_structs, ds_labels)
     sl_dict = simulated_sequential_learning(
-        acsc,
-        [base_struct1, base_struct2, base_struct3],
-        np.array([0, 1, 2]),
+        predictor=acsc,
+        design_space=acds,
         init_training_size=2,
         testing_structures=[base_struct3],
         testing_y=np.array([2]),
@@ -631,6 +649,34 @@ def test_simulated_sequential_write_to_disk():
         assert sl_dict == sl_written
 
 
+def test_simulated_sequential_learning_fully_explored():
+    # Checks that catches if ds not fully explored
+    sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
+        "structure"
+    ]
+    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
+    base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
+    base_struct3 = place_adsorbate(sub2, "H")["custom"]["structure"]
+    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    ds_structs = [base_struct1, base_struct2, sub2]
+    ds_labels = np.array([0.0, np.nan, 4.0])
+    acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    with pytest.raises(AutoCatSequentialLearningError):
+        sl_dict = simulated_sequential_learning(
+            predictor=acsc,
+            design_space=acds,
+            init_training_size=1,
+            testing_structures=[base_struct3, sub2],
+            testing_y=np.array([8.0, 10.0]),
+            batch_size_to_add=1,
+            number_of_sl_loops=2,
+            acquisition_function="MU",
+        )
+
+
 def test_multiple_sequential_learning_serial():
     # Tests serial implementation
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
@@ -638,12 +684,14 @@ def test_multiple_sequential_learning_serial():
     ]
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
     acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    ds_structs = [base_struct1, sub1]
+    ds_labels = np.array([0.0, 0.0])
+    acds = AutoCatDesignSpace(ds_structs, ds_labels)
     runs_history = multiple_simulated_sequential_learning_runs(
         number_of_runs=3,
         sl_kwargs={
             "predictor": acsc,
-            "all_training_structures": [base_struct1, sub1],
-            "all_training_y": np.array([0.0, 0.0]),
+            "design_space": acds,
             "number_of_sl_loops": 1,
             "acquisition_function": "MU",
             "init_training_size": 1,
@@ -661,13 +709,15 @@ def test_multiple_sequential_learning_parallel():
     ]
     base_struct1 = place_adsorbate(sub1, "Li")["custom"]["structure"]
     acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    ds_structs = [base_struct1, sub1]
+    ds_labels = np.array([0.0, 0.0])
+    acds = AutoCatDesignSpace(ds_structs, ds_labels)
     runs_history = multiple_simulated_sequential_learning_runs(
         number_of_runs=3,
         number_parallel_jobs=2,
         sl_kwargs={
             "predictor": acsc,
-            "all_training_structures": [base_struct1, sub1],
-            "all_training_y": np.array([0.0, 0.0]),
+            "design_space": acds,
             "number_of_sl_loops": 1,
             "acquisition_function": "Random",
             "init_training_size": 1,
@@ -686,6 +736,9 @@ def test_multiple_sequential_learning_write_to_disk():
     ]
     base_struct1 = place_adsorbate(sub1, "N")["custom"]["structure"]
     acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    ds_structs = [base_struct1, sub1]
+    ds_labels = np.array([0.0, 0.0])
+    acds = AutoCatDesignSpace(ds_structs, ds_labels)
     runs_history = multiple_simulated_sequential_learning_runs(
         number_of_runs=3,
         number_parallel_jobs=2,
@@ -693,8 +746,7 @@ def test_multiple_sequential_learning_write_to_disk():
         write_location=_tmp_dir,
         sl_kwargs={
             "predictor": acsc,
-            "all_training_structures": [base_struct1, sub1],
-            "all_training_y": np.array([0.0, 0.0]),
+            "design_space": acds,
             "number_of_sl_loops": 1,
             "acquisition_function": "Random",
             "init_training_size": 1,

@@ -443,8 +443,7 @@ def multiple_simulated_sequential_learning_runs(
 
 def simulated_sequential_learning(
     predictor: AutoCatPredictor,
-    all_training_structures: List[Atoms],
-    all_training_y: np.ndarray,
+    design_space: AutoCatDesignSpace,
     init_training_size: int = 10,
     testing_structures: List[Atoms] = None,
     testing_y: np.ndarray = None,
@@ -470,14 +469,9 @@ def simulated_sequential_learning(
     predictor:
         AutoCatPredictor object to be used for fitting and prediction
 
-    all_training_structures:
-        List of all Atoms objects that make up the design space
-        to be considered
-
-    all_training_y:
-        Labels corresponding to each structure in the design
-        space to be explored (ie. correspond to
-        `all_training_structures`)
+    design_space:
+        AutoCatDesignSpace of the design space to be explored.
+        Must have labels for the entire space.
 
     init_training_size:
         Size of the initial training set to be selected from
@@ -551,6 +545,14 @@ def simulated_sequential_learning(
         - test_prediction_history: predictions on testing set
         - test_uncertainty_history: uncertainties on predicting on test set
     """
+
+    all_training_structures = design_space.design_space_structures
+    all_training_y = design_space.design_space_labels
+
+    if True in np.isnan(all_training_y):
+        missing_label_idx = np.where(np.isnan(all_training_y))[0]
+        msg = f"Design space must be fully explored. Missing labels at indices: {missing_label_idx}"
+        raise AutoCatSequentialLearningError(msg)
 
     if init_training_size > len(all_training_structures):
         msg = f"Initial training size ({init_training_size}) larger than design space ({len(all_training_structures)})"
