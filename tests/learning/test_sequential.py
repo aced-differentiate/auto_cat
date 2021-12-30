@@ -129,6 +129,7 @@ def test_sequential_learner_write_json():
         assert sl[-1] == {
             "iteration_count": 0,
             "train_idx": None,
+            "train_idx_history": None,
             "predictions": None,
             "predictions_history": None,
             "uncertainties": None,
@@ -196,6 +197,8 @@ def test_sequential_learner_iterate():
     assert acsl.candidate_indices is not None
     assert acsl.candidate_index_history is not None
     assert acsl.candidate_index_history == [acsl.candidate_indices]
+    assert len(acsl.train_idx_history) == 1
+    assert np.count_nonzero(acsl.train_idx_history[-1]) == 2
 
     cand_ind1 = acsl.candidate_indices[0]
     acsl.design_space.update([structs[cand_ind1]], np.array([13.0]))
@@ -209,6 +212,8 @@ def test_sequential_learner_iterate():
     assert acsl.candidate_index_history == [[cand_ind1], [cand_ind2]]
     assert len(acsl.uncertainties_history) == 2
     assert len(acsl.predictions_history) == 2
+    assert len(acsl.train_idx_history) == 2
+    assert np.count_nonzero(acsl.train_idx_history[-1]) == 3
 
     acsl.design_space.update([structs[cand_ind2]], np.array([17.0]))
     acsl.iterate()
@@ -219,6 +224,8 @@ def test_sequential_learner_iterate():
     assert acsl.candidate_index_history == [[cand_ind1], [cand_ind2]]
     assert len(acsl.uncertainties_history) == 3
     assert len(acsl.predictions_history) == 3
+    assert len(acsl.train_idx_history) == 3
+    assert np.count_nonzero(acsl.train_idx_history[-1]) == 4
 
 
 def test_sequential_learner_setup():

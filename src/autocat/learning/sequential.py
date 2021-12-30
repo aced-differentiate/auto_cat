@@ -205,6 +205,8 @@ class AutoCatSequentialLearner:
             self.sl_kwargs.update({"iteration_count": 0})
         if "train_idx" not in self.sl_kwargs:
             self.sl_kwargs.update({"train_idx": None})
+        if "train_idx_history" not in self.sl_kwargs:
+            self.sl_kwargs.update({"train_idx_history": None})
         if "predictions" not in self.sl_kwargs:
             self.sl_kwargs.update({"predictions": None})
         if "predictions_history" not in self.sl_kwargs:
@@ -260,6 +262,10 @@ class AutoCatSequentialLearner:
     @property
     def train_idx(self):
         return self.sl_kwargs.get("train_idx")
+
+    @property
+    def train_idx_history(self):
+        return self.sl_kwargs.get("train_idx_history", None)
 
     @property
     def predictions(self):
@@ -318,6 +324,11 @@ class AutoCatSequentialLearner:
         train_idx = np.zeros(len(dlabels), dtype=bool)
         train_idx[np.where(mask_nans)] = 1
         self.sl_kwargs.update({"train_idx": train_idx})
+        train_idx_hist = self.sl_kwargs.get("train_idx_history")
+        if train_idx_hist is None:
+            train_idx_hist = []
+        train_idx_hist.append(train_idx)
+        self.sl_kwargs.update({"train_idx_history": train_idx_hist})
 
         preds, unc = self.predictor.predict(dstructs)
 
