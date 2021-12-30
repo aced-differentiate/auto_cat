@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 
 from typing import List
@@ -268,6 +269,34 @@ class AutoCatPredictor:
                 self.is_fit = False
                 self.X_ = None
                 self.y_ = None
+
+    def copy(self):
+        """
+        Returns a copy
+        """
+        acp = self.__class__(
+            model_class=self.model_class,
+            multiple_separate_models=self.multiple_separate_models,
+            structure_featurizer=self.structure_featurizer,
+            adsorbate_featurizer=self.adsorbate_featurizer,
+            maximum_structure_size=self.maximum_structure_size,
+            maximum_adsorbate_size=self.maximum_adsorbate_size,
+            elementalproperty_preset=self.elementalproperty_preset,
+            refine_structures=self.refine_structures,
+        )
+        acp.regressor = copy.deepcopy(self.regressor)
+        acp.is_fit = self.is_fit
+        acp.structure_featurization_kwargs = copy.deepcopy(
+            self.structure_featurization_kwargs
+        )
+        acp.adsorbate_featurization_kwargs = copy.deepcopy(
+            self.adsorbate_featurization_kwargs
+        )
+        acp.model_kwargs = copy.deepcopy(self.model_kwargs)
+        if self.species_list is not None:
+            acp.species_list = self.species_list.copy()
+
+        return acp
 
     def get_total_number_of_features(self):
         # get specified kwargs for featurizers
