@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import os
 import json
@@ -194,7 +195,7 @@ class AutoCatSequentialLearner:
         # different container (not kwargs)
 
         self._design_space = None
-        self.design_space = design_space
+        self.design_space = design_space.copy()
 
         # predictor arguments to use throughout the SL process
         if not predictor_kwargs:
@@ -312,6 +313,15 @@ class AutoCatSequentialLearner:
     @property
     def uncertainties_history(self):
         return self.sl_kwargs.get("uncertainties_history", None)
+
+    def copy(self):
+        """
+        Returns a copy
+        """
+        acsl = self.__class__(design_space=self.design_space,)
+        acsl.predictor_kwargs = copy.deepcopy(self.predictor_kwargs)
+        acsl.sl_kwargs = copy.deepcopy(self.sl_kwargs)
+        return acsl
 
     def iterate(self):
         """Runs the next iteration of sequential learning.

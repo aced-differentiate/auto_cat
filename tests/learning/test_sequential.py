@@ -251,7 +251,10 @@ def test_sequential_learner_setup():
     acds = AutoCatDesignSpace(structs, labels)
     acsl = AutoCatSequentialLearner(acds)
 
-    assert acsl.design_space == acds
+    assert acsl.design_space.design_space_structures == acds.design_space_structures
+    assert np.array_equal(
+        acsl.design_space.design_space_labels, acds.design_space_labels, equal_nan=True
+    )
     assert acsl.iteration_count == 0
     assert acsl.predictions == None
     assert acsl.candidate_indices == None
