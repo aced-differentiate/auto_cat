@@ -207,8 +207,12 @@ class AutoCatSequentialLearner:
             self.sl_kwargs.update({"train_idx": None})
         if "predictions" not in self.sl_kwargs:
             self.sl_kwargs.update({"predictions": None})
+        if "predictions_history" not in self.sl_kwargs:
+            self.sl_kwargs.update({"predictions_history": None})
         if "uncertainties" not in self.sl_kwargs:
             self.sl_kwargs.update({"uncertainties": None})
+        if "uncertainties_history" not in self.sl_kwargs:
+            self.sl_kwargs.update({"uncertainties_history": None})
         if "candidate_indices" not in self.sl_kwargs:
             self.sl_kwargs.update({"candidate_indices": None})
         if "candidate_index_history" not in self.sl_kwargs:
@@ -283,6 +287,14 @@ class AutoCatSequentialLearner:
     def candidate_index_history(self):
         return self.sl_kwargs.get("candidate_index_history", None)
 
+    @property
+    def predictions_history(self):
+        return self.sl_kwargs.get("predictions_history", None)
+
+    @property
+    def uncertainties_history(self):
+        return self.sl_kwargs.get("uncertainties_history", None)
+
     def iterate(self):
         """Runs the next iteration of sequential learning.
 
@@ -308,8 +320,22 @@ class AutoCatSequentialLearner:
         self.sl_kwargs.update({"train_idx": train_idx})
 
         preds, unc = self.predictor.predict(dstructs)
+
+        # update predictions and store in history
         self.sl_kwargs.update({"predictions": preds})
+        pred_hist = self.sl_kwargs.get("predictions_history")
+        if pred_hist is None:
+            pred_hist = []
+        pred_hist.append(preds)
+        self.sl_kwargs.update({"predictions_history": pred_hist})
+
+        # update uncertainties and store in history
         self.sl_kwargs.update({"uncertainties": unc})
+        unc_hist = self.sl_kwargs.get("uncertainties_history")
+        if unc_hist is None:
+            unc_hist = []
+        unc_hist.append(unc)
+        self.sl_kwargs.update({"uncertainties_history": unc_hist})
 
         # make sure haven't fully searched design space
         if any([np.isnan(label) for label in dlabels]):
