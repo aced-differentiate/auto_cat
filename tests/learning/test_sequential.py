@@ -46,7 +46,7 @@ def test_sequential_learner_from_json():
     ]["structure"]
     sub3 = place_adsorbate(sub3, "N")["custom"]["structure"]
     structs = [sub1, sub2, sub3]
-    labels = np.array([0.1, 0.2, 0.3])
+    labels = np.array([0.1, np.nan, 0.3])
     predictor_kwargs = {
         "structure_featurizer": "coulomb_matrix",
         "elementalproperty_preset": "megnet_el",
@@ -62,19 +62,41 @@ def test_sequential_learner_from_json():
         predictor_kwargs=predictor_kwargs,
         candidate_selection_kwargs=candidate_selection_kwargs,
     )
+    acsl.iterate()
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acsl.write_json(_tmp_dir, "testing_acsl.json")
         json_path = os.path.join(_tmp_dir, "testing_acsl.json")
         written_acsl = AutoCatSequentialLearner.from_json(json_path)
         assert np.array_equal(
-            written_acsl.design_space.design_space_labels, acds.design_space_labels
+            written_acsl.design_space.design_space_labels,
+            acds.design_space_labels,
+            equal_nan=True,
         )
-        assert (
-            written_acsl.design_space.design_space_structures
-            == acds.design_space_structures
-        )
+        assert False not in [
+            written_acsl.design_space.design_space_structures[j]
+            == acds.design_space_structures[j]
+            for j in range(len(acds))
+        ]
         assert written_acsl.predictor_kwargs == predictor_kwargs
         assert written_acsl.candidate_selection_kwargs == candidate_selection_kwargs
+        assert written_acsl.iteration_count == 1
+        assert np.array_equal(written_acsl.train_idx, acsl.train_idx)
+        assert written_acsl.train_idx[0] in [True, False]
+        assert np.array_equal(written_acsl.train_idx_history, acsl.train_idx_history)
+        assert written_acsl.train_idx_history[0][0] in [True, False]
+        assert np.array_equal(written_acsl.predictions, acsl.predictions)
+        assert np.array_equal(
+            written_acsl.predictions_history, acsl.predictions_history
+        )
+        assert np.array_equal(written_acsl.uncertainties, acsl.uncertainties)
+        assert np.array_equal(
+            written_acsl.uncertainties_history, acsl.uncertainties_history
+        )
+        assert np.array_equal(written_acsl.candidate_indices, acsl.candidate_indices)
+        assert np.array_equal(
+            written_acsl.candidate_index_history, acsl.candidate_index_history
+        )
+        assert np.array_equal(written_acsl.acquisition_scores, acsl.acquisition_scores)
 
 
 def test_sequential_learner_write_json():
@@ -92,7 +114,7 @@ def test_sequential_learner_write_json():
     ]["structure"]
     sub3 = place_adsorbate(sub3, "H")["custom"]["structure"]
     structs = [sub1, sub2, sub3]
-    labels = np.array([0.1, 0.2, 0.3])
+    labels = np.array([0.1, 0.2, np.nan])
     predictor_kwargs = {
         "structure_featurizer": "sine_matrix",
         "elementalproperty_preset": "deml",
@@ -121,7 +143,7 @@ def test_sequential_learner_write_json():
                 json.dump(sl[i], tmp)
             written_structs.append(ase_read(_tmp_json))
         assert structs == written_structs
-        assert (labels == sl[3]).all()
+        assert np.array_equal(labels, sl[3], equal_nan=True)
         # check predictor kwargs kept
         assert predictor_kwargs == sl[4]
         # check candidate selection kwargs kept
@@ -154,11 +176,51 @@ def test_sequential_learner_write_json():
                 json.dump(sl[i], tmp)
             written_structs.append(ase_read(_tmp_json))
         assert structs == written_structs
-        assert (labels == sl[3]).all()
+        assert np.array_equal(labels, sl[3], equal_nan=True)
         # check default predictor kwargs kept
         assert sl[4] == {"structure_featurizer": "sine_matrix"}
         # check default candidate selection kwargs kept
         assert sl[-2] == {"aq": "Random"}
+
+    # test after iteration
+    acsl.iterate()
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        acsl.write_json(_tmp_dir, "testing_acsl.json")
+        with open(os.path.join(_tmp_dir, "testing_acsl.json"), "r") as f:
+            sl = json.load(f)
+        # collects structs by writing each json individually
+        # and reading with ase
+        written_structs = []
+        for i in range(3):
+            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
+            with open(_tmp_json, "w") as tmp:
+                json.dump(sl[i], tmp)
+            written_structs.append(ase_read(_tmp_json))
+        assert structs == written_structs
+        assert np.array_equal(labels, sl[3], equal_nan=True)
+        # check predictor kwargs kept
+        assert sl[4] == {"structure_featurizer": "sine_matrix"}
+        # check candidate selection kwargs kept
+        assert sl[-2] == {"aq": "Random"}
+        assert sl[-1].get("iteration_count") == 1
+        assert sl[-1].get("train_idx") == acsl.train_idx.tolist()
+        assert sl[-1].get("train_idx_history") == [
+            ti.tolist() for ti in acsl.train_idx_history
+        ]
+        assert isinstance(sl[-1].get("train_idx_history")[0][0], bool)
+        assert sl[-1].get("predictions") == acsl.predictions.tolist()
+        assert sl[-1].get("predictions_history") == [
+            p.tolist() for p in acsl.predictions_history
+        ]
+        assert sl[-1].get("uncertainties") == acsl.uncertainties.tolist()
+        assert sl[-1].get("uncertainties_history") == [
+            u.tolist() for u in acsl.uncertainties_history
+        ]
+        assert sl[-1].get("candidate_indices") == acsl.candidate_indices.tolist()
+        assert sl[-1].get("candidate_index_history") == [
+            c.tolist() for c in acsl.candidate_index_history
+        ]
+        assert sl[-1].get("acquisition_scores") == acsl.acquisition_scores.tolist()
 
 
 def test_sequential_learner_iterate():
@@ -468,8 +530,8 @@ def test_get_design_space_from_json():
         )
 
 
-def test_simulated_sequential_outputs():
-    # Test outputs without any testing structures
+def test_simulated_sequential_histories():
+    # Test output sl has appropriate histories
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
     ]
@@ -479,7 +541,6 @@ def test_simulated_sequential_outputs():
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
     base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
     base_struct3 = place_adsorbate(sub2, "H")["custom"]["structure"]
-    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
     ds_structs = [
         base_struct1,
         base_struct2,
@@ -489,34 +550,33 @@ def test_simulated_sequential_outputs():
     ]
     ds_labels = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
     acds = AutoCatDesignSpace(ds_structs, ds_labels)
-    sl_dict = simulated_sequential_learning(
-        predictor=acsc,
-        design_space=acds,
+    candidate_selection_kwargs = {
+        "target_min": 0.9,
+        "target_max": 2.1,
+        "aq": "MLI",
+        "num_candidates_to_pick": 2,
+    }
+    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    sl = simulated_sequential_learning(
+        full_design_space=acds,
         init_training_size=1,
-        batch_size_to_add=2,
         number_of_sl_loops=2,
-        acquisition_function="MLI",
-        target_min=0.9,
-        target_max=2.1,
+        candidate_selection_kwargs=candidate_selection_kwargs,
+        predictor_kwargs=predictor_kwargs,
     )
 
-    # Test number of train histories equals number of sl loops + 1
-    assert len(sl_dict["training_history"]) == 3
+    # Test number of sl loops
+    assert sl.iteration_count == 3
 
     # Test initial training size
-    assert len([a for a in sl_dict["training_history"][0] if a]) == 1
+    assert sl.train_idx_history[0].sum() == 1
 
-    # Test keeping track of history
-    assert sl_dict["training_history"][0] != sl_dict["training_history"][1]
-
-    # Test that number of max uncertainties equals number of sl loops + 1
-    assert len(sl_dict["uncertainty_history"]) == 3
-    # Test the number of total uncertainties collected
-    assert len(sl_dict["uncertainty_history"][-1]) == 5
-
-    # check all mae and rmse training scores collected
-    assert len(sl_dict["mae_train_history"]) == 3
-    assert len(sl_dict["rmse_train_history"]) == 3
+    # Test keeping track of pred and unc history
+    assert len(sl.uncertainties_history) == 3
+    assert len(sl.uncertainties_history[0]) == len(acds)
+    assert len(sl.predictions_history) == 3
+    assert len(sl.predictions_history[-1]) == len(acds)
+    assert len(sl.candidate_index_history) == 2
 
 
 def test_simulated_sequential_batch_added():
@@ -529,28 +589,23 @@ def test_simulated_sequential_batch_added():
     ]
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
     base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
-    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
-    bsta = 2
+    candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
+    predictor_kwargs = {"structure_featurizer": "elemental_property"}
     num_loops = 2
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
     acds = AutoCatDesignSpace(ds_structs, ds_labels)
-    sl_dict = simulated_sequential_learning(
-        predictor=acsc,
-        design_space=acds,
-        batch_size_to_add=bsta,
+    sl = simulated_sequential_learning(
+        full_design_space=acds,
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
         number_of_sl_loops=num_loops,
-        acquisition_function="Random",
         init_training_size=1,
     )
-    assert len(sl_dict["training_history"]) == num_loops + 1
-    num_in_tr_set0 = len([a for a in sl_dict["training_history"][0] if a])
-    num_in_tr_set1 = len([a for a in sl_dict["training_history"][1] if a])
-    num_in_tr_set2 = len([a for a in sl_dict["training_history"][2] if a])
     # should add 2 candidates on first loop
-    assert num_in_tr_set1 - num_in_tr_set0 == bsta
+    assert len(sl.candidate_index_history[0]) == 2
     # since only 1 left, should add it on the next
-    assert num_in_tr_set2 - num_in_tr_set1 == 1
+    assert len(sl.candidate_index_history[1]) == 1
 
 
 def test_simulated_sequential_num_loops():
@@ -563,116 +618,97 @@ def test_simulated_sequential_num_loops():
     ]
     base_struct1 = place_adsorbate(sub1, "H")["custom"]["structure"]
     base_struct2 = place_adsorbate(sub2, "N")["custom"]["structure"]
-    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    candidate_selection_kwargs = {"num_candidates_to_pick": 3, "aq": "Random"}
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
     acds = AutoCatDesignSpace(ds_structs, ds_labels)
     # Test default number of loops
-    bsta = 3
-    sl_dict = simulated_sequential_learning(
-        predictor=acsc,
-        design_space=acds,
-        batch_size_to_add=bsta,
-        acquisition_function="Random",
+    sl = simulated_sequential_learning(
+        full_design_space=acds,
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
         init_training_size=1,
     )
-    assert len(sl_dict["training_history"]) == 2
+    assert len(sl.predictions_history) == 2
+    assert sl.iteration_count == 2
 
     # Test catches maximum number of loops
     with pytest.raises(AutoCatSequentialLearningError):
-        sl_dict = simulated_sequential_learning(
-            predictor=acsc,
-            design_space=acds,
-            batch_size_to_add=bsta,
-            acquisition_function="Random",
+        sl = simulated_sequential_learning(
+            full_design_space=acds,
+            predictor_kwargs=predictor_kwargs,
+            candidate_selection_kwargs=candidate_selection_kwargs,
             init_training_size=1,
             number_of_sl_loops=3,
         )
 
+    # Test with default num loops and default num candidates
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0])
     acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    candidate_selection_kwargs.update({"num_candidates_to_pick": 1})
 
-    sl_dict = simulated_sequential_learning(
-        predictor=acsc,
-        design_space=acds,
-        acquisition_function="Random",
+    sl = simulated_sequential_learning(
+        full_design_space=acds,
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
         init_training_size=1,
     )
-    assert len(sl_dict["training_history"]) == 3
-
-
-def test_simulated_sequential_outputs_testing():
-    # Test with testing structures given
-    sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
-        "structure"
-    ]
-    sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
-        "structure"
-    ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
-    base_struct3 = place_adsorbate(sub2, "H")["custom"]["structure"]
-    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
-    ds_structs = [base_struct1, base_struct2, sub1]
-    ds_labels = np.array([0.0, 2.0, 4.0])
-    acds = AutoCatDesignSpace(ds_structs, ds_labels)
-    sl_dict = simulated_sequential_learning(
-        predictor=acsc,
-        design_space=acds,
-        init_training_size=1,
-        testing_structures=[base_struct3, sub2],
-        testing_y=np.array([8.0, 10.0]),
-        batch_size_to_add=1,
-        number_of_sl_loops=2,
-        acquisition_function="MU",
-    )
-    # Check length of testing scores
-    assert len(sl_dict["training_history"]) == 3
-    assert len(sl_dict["aq_scores_history"]) == 2
-    assert len(sl_dict["max_scores_history"]) == 2
-    assert len(sl_dict["mae_test_history"]) == 3
-    assert len(sl_dict["rmse_train_history"]) == 3
-    assert len(sl_dict["mae_train_history"]) == 3
-    assert len(sl_dict["test_prediction_history"]) == 3
-    assert len(sl_dict["test_prediction_history"][0]) == 2
-    assert len(sl_dict["test_uncertainty_history"]) == 3
-    assert len(sl_dict["test_uncertainty_history"][0]) == 2
-    assert sl_dict["mae_test_history"] != sl_dict["mae_train_history"]
+    assert len(sl.uncertainties_history) == 3
+    assert sl.iteration_count == 3
 
 
 def test_simulated_sequential_write_to_disk():
     # Test writing out sl dict
-    _tmp_dir = tempfile.TemporaryDirectory().name
-    sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
-        "structure"
-    ]
-    sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
-        "structure"
-    ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
-    base_struct3 = place_adsorbate(sub2, "N")["custom"]["structure"]
-    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
-    ds_structs = [base_struct1, base_struct2, base_struct3]
-    ds_labels = np.array([0, 1, 2])
-    acds = AutoCatDesignSpace(ds_structs, ds_labels)
-    sl_dict = simulated_sequential_learning(
-        predictor=acsc,
-        design_space=acds,
-        init_training_size=2,
-        testing_structures=[base_struct3],
-        testing_y=np.array([2]),
-        batch_size_to_add=2,
-        number_of_sl_loops=1,
-        write_to_disk=True,
-        write_location=_tmp_dir,
-        acquisition_function="Random",
-    )
-    # check data written as json
-    with open(os.path.join(_tmp_dir, "sl_dict.json"), "r") as f:
-        sl_written = json.load(f)
-        assert sl_dict == sl_written
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"][
+            "fcc111"
+        ]["structure"]
+        sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"][
+            "fcc100"
+        ]["structure"]
+        base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
+        base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
+        base_struct3 = place_adsorbate(sub2, "N")["custom"]["structure"]
+        predictor_kwargs = {"structure_featurizer": "elemental_property"}
+        candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
+        ds_structs = [base_struct1, base_struct2, base_struct3]
+        ds_labels = np.array([0, 1, 2])
+        acds = AutoCatDesignSpace(ds_structs, ds_labels)
+        sl = simulated_sequential_learning(
+            full_design_space=acds,
+            init_training_size=2,
+            number_of_sl_loops=1,
+            predictor_kwargs=predictor_kwargs,
+            candidate_selection_kwargs=candidate_selection_kwargs,
+            write_to_disk=True,
+            write_location=_tmp_dir,
+        )
+        # check data written as json
+        json_path = os.path.join(_tmp_dir, "acsl.json")
+        sl_written = AutoCatSequentialLearner.from_json(json_path)
+        assert sl.iteration_count == sl_written.iteration_count
+        assert np.array_equal(sl.predictions_history, sl_written.predictions_history)
+        assert np.array_equal(
+            sl.uncertainties_history, sl_written.uncertainties_history
+        )
+        assert np.array_equal(
+            sl.candidate_index_history, sl_written.candidate_index_history
+        )
+        assert np.array_equal(sl.candidate_indices, sl_written.candidate_indices)
+        assert np.array_equal(sl.predictions, sl_written.predictions)
+        assert np.array_equal(sl.uncertainties, sl_written.uncertainties)
+        assert np.array_equal(sl.predictor_kwargs, sl_written.predictor_kwargs)
+        assert sl.candidate_selection_kwargs == sl_written.candidate_selection_kwargs
+        assert (
+            sl.design_space.design_space_structures
+            == sl_written.design_space.design_space_structures
+        )
+        assert np.array_equal(
+            sl.design_space.design_space_labels,
+            sl_written.design_space.design_space_labels,
+        )
 
 
 def test_simulated_sequential_learning_fully_explored():
@@ -685,21 +721,18 @@ def test_simulated_sequential_learning_fully_explored():
     ]
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
     base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
-    base_struct3 = place_adsorbate(sub2, "H")["custom"]["structure"]
-    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    predictor_kwargs = {"structure_featurizer": "elemental_property"}
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([0.0, np.nan, 4.0])
     acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    candidate_selection_kwargs = {"aq": "MU"}
     with pytest.raises(AutoCatSequentialLearningError):
-        sl_dict = simulated_sequential_learning(
-            predictor=acsc,
-            design_space=acds,
+        sl = simulated_sequential_learning(
+            full_design_space=acds,
             init_training_size=1,
-            testing_structures=[base_struct3, sub2],
-            testing_y=np.array([8.0, 10.0]),
-            batch_size_to_add=1,
             number_of_sl_loops=2,
-            acquisition_function="MU",
+            predictor_kwargs=predictor_kwargs,
+            candidate_selection_kwargs=candidate_selection_kwargs,
         )
 
 
