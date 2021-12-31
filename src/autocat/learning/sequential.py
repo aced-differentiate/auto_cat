@@ -155,7 +155,7 @@ class AutoCatDesignSpace:
                 json_path = os.path.join(write_location, json_name)
                 with open(json_path, "w") as f:
                     json.dump(collected_jsons, f)
-            # write to jsonified list to memory
+            # write jsonified list to memory
             if return_jsonified_list:
                 return collected_jsons
 
@@ -484,64 +484,110 @@ class AutoCatSequentialLearner:
 
 
 def multiple_simulated_sequential_learning_runs(
+    full_design_space: AutoCatDesignSpace,
     number_of_runs: int = 5,
     number_parallel_jobs: int = None,
+    predictor_kwargs: Dict[str, Union[str, float]] = None,
+    candidate_selection_kwargs: Dict[str, Union[str, float]] = None,
+    init_training_size: int = 10,
+    number_of_sl_loops: int = None,
     write_to_disk: bool = False,
     write_location: str = ".",
-    sl_kwargs=None,
-):
+    json_name_prefix: str = None,
+) -> List[AutoCatSequentialLearner]:
     """
     Conducts multiple simulated sequential learning runs
 
     Parameters
     ----------
 
+    full_design_space:
+        Fully labelled AutoCatDesignSpace to simulate
+        being searched over
+
+    predictor_kwargs:
+        Kwargs to be used in setting up the predictor.
+        This is where model class, model hyperparameters, etc.
+        are specified.
+
+    candidate_selection_kwargs:
+        Kwargs that specify that settings for candidate selection.
+        This is where acquisition function, targets, etc. are
+        specified.
+
+    init_training_size:
+        Size of the initial training set to be selected from
+        the full space.
+        Default: 10
+
+    number_of_sl_loops:
+        Integer specifying the number of sequential learning loops to be conducted.
+        This value cannot be greater than
+        `(DESIGN_SPACE_SIZE - init_training_size)/batch_size_to_add`
+        Default: maximum number of sl loops calculated above
+
     number_of_runs:
         Integer of number of runs to be done
+        Default: 5
 
     number_parallel_jobs:
         Integer giving the number of cores to be paralellized across
         using `joblib`
+        Default: None (ie. will run in serial)
 
     write_to_disk:
-        Boolean specifying whether runs history should be written to disk as a json.
-        Defaults to False.
+        Boolean specifying whether runs history should be written to disk as jsons.
+        Default: False
 
     write_location:
-        String with the location where runs history should be written to disk.
+        String with the location where runs history jsons should be written to disk.
+        Default: current directory
 
-    sl_kwargs:
-        Mapping of keywords for `simulated_sequential_learning`.
-        Note: Do not use the `write_to_disk` keyword here
+    json_name_prefix:
+        Prefix used when writing out each simulated run as a json
+        The naming convention is `{json_name_prefix}_{run #}.json`
+        Default: acsl_run
 
     Returns
     -------
 
-    run_history:
-        List of dictionaries generated for each run containing info
-        about that run such as mae history, rmse history, etc..
+    runs_history:
+        List of AutoCatSequentialLearner objects for each simulated run
     """
-    if sl_kwargs is None:
-        sl_kwargs = {}
 
     if number_parallel_jobs is not None:
         runs_history = Parallel(n_jobs=number_parallel_jobs)(
-            delayed(simulated_sequential_learning)(**sl_kwargs,)
+            delayed(simulated_sequential_learning)(
+                full_design_space=full_design_space,
+                predictor_kwargs=predictor_kwargs,
+                candidate_selection_kwargs=candidate_selection_kwargs,
+                number_of_sl_loops=number_of_sl_loops,
+                init_training_size=init_training_size,
+            )
             for i in range(number_of_runs)
         )
 
     else:
         runs_history = [
-            simulated_sequential_learning(**sl_kwargs,) for i in range(number_of_runs)
+            simulated_sequential_learning(
+                full_design_space=full_design_space,
+                predictor_kwargs=predictor_kwargs,
+                candidate_selection_kwargs=candidate_selection_kwargs,
+                number_of_sl_loops=number_of_sl_loops,
+                init_training_size=init_training_size,
+            )
+            for i in range(number_of_runs)
         ]
 
     if write_to_disk:
         if not os.path.isdir(write_location):
             os.makedirs(write_location)
-        json_write_path = os.path.join(write_location, "sl_runs_history.json")
-        with open(json_write_path, "w") as f:
-            json.dump(runs_history, f)
-        print(f"SL histories written to {json_write_path}")
+        if json_name_prefix is None:
+            json_name_prefix = "acsl_run"
+        for i, run in enumerate(runs_history):
+            name = json_name_prefix + "_" + str(i) + ".json"
+            run.write_json(write_location=write_location, json_name=name)
+        print(f"SL histories written to {write_location}")
 
     return runs_history
 

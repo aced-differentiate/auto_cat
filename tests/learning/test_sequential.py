@@ -742,23 +742,22 @@ def test_multiple_sequential_learning_serial():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    predictor_kwargs = {"structure_featurizer": "elemental_property"}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    candidate_selection_kwargs = {"aq": "MU"}
     runs_history = multiple_simulated_sequential_learning_runs(
+        full_design_space=acds,
         number_of_runs=3,
-        sl_kwargs={
-            "predictor": acsc,
-            "design_space": acds,
-            "number_of_sl_loops": 1,
-            "acquisition_function": "MU",
-            "init_training_size": 1,
-        },
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
+        number_of_sl_loops=1,
+        init_training_size=1,
     )
     assert len(runs_history) == 3
-    assert isinstance(runs_history[0], dict)
-    assert "mae_train_history" in runs_history[1]
+    assert isinstance(runs_history[0], AutoCatSequentialLearner)
+    assert len(runs_history[1].predictions_history) == 2
 
 
 def test_multiple_sequential_learning_parallel():
@@ -767,24 +766,23 @@ def test_multiple_sequential_learning_parallel():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, "Li")["custom"]["structure"]
-    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    predictor_kwargs = {"structure_featurizer": "elemental_property"}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    candidate_selection_kwargs = {"aq": "Random"}
     runs_history = multiple_simulated_sequential_learning_runs(
+        full_design_space=acds,
         number_of_runs=3,
         number_parallel_jobs=2,
-        sl_kwargs={
-            "predictor": acsc,
-            "design_space": acds,
-            "number_of_sl_loops": 1,
-            "acquisition_function": "Random",
-            "init_training_size": 1,
-        },
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
+        number_of_sl_loops=1,
+        init_training_size=1,
     )
     assert len(runs_history) == 3
-    assert isinstance(runs_history[2], dict)
-    assert "rmse_train_history" in runs_history[0]
+    assert isinstance(runs_history[2], AutoCatSequentialLearner)
+    assert len(runs_history[1].uncertainties_history) == 2
 
 
 def test_multiple_sequential_learning_write_to_disk():
@@ -794,29 +792,56 @@ def test_multiple_sequential_learning_write_to_disk():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, "N")["custom"]["structure"]
-    acsc = AutoCatPredictor(structure_featurizer="elemental_property")
+    predictor_kwargs = {"structure_featurizer": "elemental_property"}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
     runs_history = multiple_simulated_sequential_learning_runs(
+        full_design_space=acds,
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
         number_of_runs=3,
         number_parallel_jobs=2,
+        init_training_size=1,
+        number_of_sl_loops=1,
         write_to_disk=True,
         write_location=_tmp_dir,
-        sl_kwargs={
-            "predictor": acsc,
-            "design_space": acds,
-            "number_of_sl_loops": 1,
-            "acquisition_function": "Random",
-            "init_training_size": 1,
-            "batch_size_to_add": 2,
-        },
+        json_name_prefix="test_multi",
     )
 
-    # check data history
-    with open(os.path.join(_tmp_dir, "sl_runs_history.json"), "r") as f:
-        runs_history_written = json.load(f)
-        assert runs_history == runs_history_written
+    # check data history in each run
+    for i in range(3):
+        written_run = AutoCatSequentialLearner.from_json(
+            os.path.join(_tmp_dir, f"test_multi_{i}.json")
+        )
+        written_ds = written_run.design_space
+        assert False not in [written_ds.design_space_structures == ds_structs]
+        assert np.array_equal(written_ds.design_space_labels, ds_labels)
+        assert written_run.iteration_count == runs_history[i].iteration_count
+        assert np.array_equal(written_run.predictions, runs_history[i].predictions)
+        assert np.array_equal(
+            written_run.predictions_history, runs_history[i].predictions_history
+        )
+        assert np.array_equal(written_run.uncertainties, runs_history[i].uncertainties)
+        assert np.array_equal(
+            written_run.uncertainties_history, runs_history[i].uncertainties_history
+        )
+        assert np.array_equal(
+            written_run.train_idx_history, runs_history[i].train_idx_history
+        )
+        assert np.array_equal(written_run.train_idx, runs_history[i].train_idx)
+        assert np.array_equal(
+            written_run.candidate_indices, runs_history[i].candidate_indices
+        )
+        assert np.array_equal(
+            written_run.candidate_index_history, runs_history[i].candidate_index_history
+        )
+        assert written_run.predictor_kwargs == runs_history[i].predictor_kwargs
+        assert (
+            written_run.candidate_selection_kwargs
+            == runs_history[i].candidate_selection_kwargs
+        )
 
 
 def test_choose_next_candidate_input_minimums():
