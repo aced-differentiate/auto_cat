@@ -455,25 +455,28 @@ class AutoCatSequentialLearner:
         raw_sl_kwargs = all_data[-1]
         sl_kwargs = {}
         for k in raw_sl_kwargs:
-            if k in [
-                "predictions",
-                "uncertainties",
-                "acquisition_scores",
-                "candidate_indices",
-            ]:
-                sl_kwargs[k] = np.array(raw_sl_kwargs[k])
-            elif k in [
-                "predictions_history",
-                "uncertainties_history",
-                "candidate_index_history",
-            ]:
-                sl_kwargs[k] = [np.array(i) for i in raw_sl_kwargs[k]]
-            elif k == "iteration_count":
-                sl_kwargs[k] = raw_sl_kwargs[k]
-            elif k == "train_idx":
-                sl_kwargs[k] = np.array(raw_sl_kwargs[k], dtype=bool)
-            elif k == "train_idx_history":
-                sl_kwargs[k] = [np.array(i, dtype=bool) for i in raw_sl_kwargs[k]]
+            if raw_sl_kwargs[k] is not None:
+                if k in [
+                    "predictions",
+                    "uncertainties",
+                    "acquisition_scores",
+                    "candidate_indices",
+                ]:
+                    sl_kwargs[k] = np.array(raw_sl_kwargs[k])
+                elif k in [
+                    "predictions_history",
+                    "uncertainties_history",
+                    "candidate_index_history",
+                ]:
+                    sl_kwargs[k] = [np.array(i) for i in raw_sl_kwargs[k]]
+                elif k == "iteration_count":
+                    sl_kwargs[k] = raw_sl_kwargs[k]
+                elif k == "train_idx":
+                    sl_kwargs[k] = np.array(raw_sl_kwargs[k], dtype=bool)
+                elif k == "train_idx_history":
+                    sl_kwargs[k] = [np.array(i, dtype=bool) for i in raw_sl_kwargs[k]]
+            else:
+                sl_kwargs[k] = None
 
         return AutoCatSequentialLearner(
             design_space=acds,
