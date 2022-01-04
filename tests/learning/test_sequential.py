@@ -72,11 +72,10 @@ def test_sequential_learner_from_json():
             acds.design_space_labels,
             equal_nan=True,
         )
-        assert False not in [
-            written_acsl.design_space.design_space_structures[j]
-            == acds.design_space_structures[j]
-            for j in range(len(acds))
-        ]
+        assert (
+            written_acsl.design_space.design_space_structures
+            == acds.design_space_structures
+        )
         assert written_acsl.predictor_kwargs == predictor_kwargs
         assert written_acsl.candidate_selection_kwargs == candidate_selection_kwargs
         assert written_acsl.iteration_count == 1
@@ -435,6 +434,47 @@ def test_delitem_design_space():
         acds._design_space_labels, np.array([8, np.nan, 0.3]), equal_nan=True
     )
     assert acds.design_space_structures == [sub1, sub2, sub3]
+
+
+def test_eq_design_space():
+    # test comparing design spaces
+    sub0 = generate_surface_structures(["Pd"], facets={"Pd": ["100"]})["Pd"]["fcc100"][
+        "structure"
+    ]
+    sub0 = place_adsorbate(sub0, "O")["custom"]["structure"]
+    sub1 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, "H")["custom"]["structure"]
+    sub2 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, "S")["custom"]["structure"]
+    sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, "P")["custom"]["structure"]
+    structs = [sub0, sub1, sub2]
+    labels = np.array([-2.5, np.nan, 600.0])
+
+    # test trivial case
+    acds = AutoCatDesignSpace(structs, labels)
+    acds0 = AutoCatDesignSpace(structs, labels)
+    assert acds == acds0
+
+    # test comparing when different length
+    acds1 = AutoCatDesignSpace(structs[:-1], labels[:-1])
+    assert acds != acds1
+
+    # test same structures, different labels
+    acds2 = AutoCatDesignSpace(structs, labels)
+    acds2.update([structs[1]], labels=np.array([0.2]))
+    assert acds != acds2
+
+    # test diff structures, same labels
+    structs[0][0].symbol = "Ni"
+    acds3 = AutoCatDesignSpace(structs, labels)
+    assert acds != acds3
 
 
 def test_updating_design_space():
@@ -816,7 +856,7 @@ def test_multiple_sequential_learning_write_to_disk():
             os.path.join(_tmp_dir, f"test_multi_{i}.json")
         )
         written_ds = written_run.design_space
-        assert False not in [written_ds.design_space_structures == ds_structs]
+        assert written_ds.design_space_structures == ds_structs
         assert np.array_equal(written_ds.design_space_labels, ds_labels)
         assert written_run.iteration_count == runs_history[i].iteration_count
         assert np.array_equal(written_run.predictions, runs_history[i].predictions)

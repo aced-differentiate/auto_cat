@@ -69,6 +69,22 @@ class AutoCatDesignSpace:
         masked_structs = [structs[j] for j in range(len(self)) if mask[j]]
         self._design_space_structures = masked_structs
 
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, AutoCatDesignSpace):
+            # check that they are the same length
+            if len(self) == len(other):
+                # check all their structures are equal
+                self_structs = self.design_space_structures
+                o_structs = other.design_space_structures
+                if not self_structs == o_structs:
+                    return False
+
+                # check their labels are equal
+                self_labels = self.design_space_labels
+                o_labels = other.design_space_labels
+                return np.array_equal(self_labels, o_labels, equal_nan=True)
+        return False
+
     def copy(self):
         """
         Returns a copy of the design space
