@@ -1,7 +1,7 @@
-## AutoCatDesignSpace
+## DesignSpace
 
 The
-[`AutoCatDesignSpace`](../../API/Learning/sequential.md#autocat.learning.sequential.AutoCatDesignSpace) 
+[`DesignSpace`](../../API/Learning/sequential.md#autocat.learning.sequential.DesignSpace) 
 class object is intended to store the 
 *entire* design space. As the sequential learning
 loop is iterated, this can be continuously updated
@@ -23,13 +23,13 @@ design space labels.
 >>> import numpy as np
 >>> from autocat.surface import generate_surface_structures
 >>> from autocat.utils import extract_structures
->>> from autocat.learning.sequential import AutoCatDesignSpace
+>>> from autocat.learning.sequential import DesignSpace
 >>> surf_dict = generate_surface_structures(["Pt", "Pd", "Cu", "Ni"])
 >>> surf_structs = extract_structures(surf_dict)
 >>> labels = np.array([0.95395024, 0.63504885, np.nan, 0.08320879, np.nan,
 ... 0.32423194, 0.55570785, np.nan, np.nan, np.nan,
 ... 0.18884186, np.nan])
->>> acds = AutoCatDesignSpace(surf_structs, labels)
+>>> acds = DesignSpace(surf_structs, labels)
 >>> len(acds)
 12
 >>> acds.design_space_structures
@@ -52,17 +52,17 @@ array([0.95395024, 0.63504885,        nan, 0.08320879,        nan,
 ```
 
 
-## AutoCatSequentialLearner
+## SequentialLearner
 
 The 
-[`AutoCatSequentialLearner`](../../API/Learning/sequential.md#autocat.learning.sequential.AutoCatSequentialLearner) 
+[`SequentialLearner`](../../API/Learning/sequential.md#autocat.learning.sequential.SequentialLearner) 
 object stores information regarding the latest 
 iteration of the sequential learning loop including:
 
-1. An [`AutoCatPredictor`](../../API/Learning/predictors.md#autocat.learning.predictors.AutoCatPredictor)
+1. A [`Predictor`](../../API/Learning/predictors.md#autocat.learning.predictors.Predictor)
 2. Candidate selection kwargs for score calculation (e.g. acquisition functions)
 3. Iteration number
-4. Latest `AutoCatDesignSpace`
+4. Latest `DesignSpace`
 5. Candidate system that is identified for the next loop.
 
 This object can be thought of as a central hub for the 
@@ -73,8 +73,8 @@ sequential learning workflow, with an external driver
 >>> import numpy as np
 >>> from autocat.surface import generate_surface_structures
 >>> from autocat.utils import extract_structures
->>> from autocat.learning.sequential import AutoCatDesignSpace
->>> from autocat.learning.sequential import AutoCatSequentialLearner
+>>> from autocat.learning.sequential import DesignSpace
+>>> from autocat.learning.sequential import SequentialLearner
 >>> from sklearn.gaussian_process import GaussianProcessRegressor
 >>> from sklearn.gaussian_process.kernels import RBF
 >>> surf_dict = generate_surface_structures(["Pt", "Pd", "Cu", "Ni"])
@@ -82,9 +82,9 @@ sequential learning workflow, with an external driver
 >>> labels = np.array([0.95395024, 0.63504885, np.nan, 0.08320879, np.nan,
 ... 0.32423194, 0.55570785, np.nan, np.nan, np.nan,
 ... 0.18884186, np.nan])
->>> acds = AutoCatDesignSpace(surf_structs, labels)
+>>> acds = DesignSpace(surf_structs, labels)
 >>> kernel = RBF()
->>> acsl = AutoCatSequentialLearner(
+>>> acsl = SequentialLearner(
 ...    acds,
 ...    predictor_kwargs={
 ...        "structure_featurizer": "sine_matrix",

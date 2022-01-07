@@ -1,7 +1,7 @@
 In order to iterate a sequential learning pipeline,
 a regressor is needed to select subsequent candidate systems.
 For this purpose, there is the 
-[`AutoCatPredictor`](../../API/Learning/predictors.md#autocat.learning.predictors.AutoCatPredictor)
+[`Predictor`](../../API/Learning/predictors.md#autocat.learning.predictors.Predictor)
 object class. This contains two key attributes:
 
 - a regressor that can be fit to data and used for predictions
@@ -15,10 +15,10 @@ structure methods that featurize the entire structure (e.g. `sine matrix`)
 Generally, this predictor object behaves similarly to regressors found in 
 [`sklearn`](https://scikit-learn.org/stable/)
 with its own 
-[`fit`](../../API/Learning/predictors.md#autocat.learning.predictors.AutoCatPredictor.fit), 
-[`predict`](../../API/Learning/predictors.md#autocat.learning.predictors.AutoCatPredictor.predict), 
+[`fit`](../../API/Learning/predictors.md#autocat.learning.predictors.Predictor.fit), 
+[`predict`](../../API/Learning/predictors.md#autocat.learning.predictors.Predictor.predict), 
 and 
-[`score`](../../API/Learning/predictors.md#autocat.learning.predictors.AutoCatPredictor.score) 
+[`score`](../../API/Learning/predictors.md#autocat.learning.predictors.Predictor.score) 
 methods.
 
 As an example, let's train a random forest regressor on some 
@@ -26,14 +26,14 @@ single atom alloys.
 
 ```py
 >>> import numpy as np
->>> from autocat.learning.predictors import AutoCatPredictor
+>>> from autocat.learning.predictors import Predictor
 >>> from autocat.saa import generate_saa_structures
 >>> from autocat.utils import extract_structures
 >>> from sklearn.ensemble import RandomForestRegressor
 >>> saa_dict = generate_saa_structures(["Cu", "Au", "Fe"], ["Pt", "Ru", "Ni"])
 >>> saa_structs = extract_structures(saa_dict)
 >>> labels = np.random.randint(1, size=(len(saa_structs) - 1))
->>> acp = AutoCatPredictor(
+>>> acp = Predictor(
 ...     structure_featurizer="sine_matrix", model_class=RandomForestRegressor
 ... )
 >>> acp.fit(saa_structs[:-1], labels)
@@ -48,7 +48,7 @@ if available. To see this, let's train a gaussian process regressor with an RBF
 
 ```py
 >>> import numpy as np
->>> from autocat.learning.predictors import AutoCatPredictor
+>>> from autocat.learning.predictors import Predictor
 >>> from autocat.saa import generate_saa_structures
 >>> from autocat.utils import extract_structures
 >>> from sklearn.gaussian_process import GaussianProcessRegressor
@@ -57,7 +57,7 @@ if available. To see this, let's train a gaussian process regressor with an RBF
 >>> saa_structs = extract_structures(saa_dict)
 >>> labels = np.random.randint(1, size=(len(saa_structs) - 1))
 >>> kernel = RBF()
->>> acp = AutoCatPredictor(
+>>> acp = Predictor(
 ...     structure_featurizer="sine_matrix",
 ...     model_class=GaussianProcessRegressor,
 ...     model_kwargs={"kernel": kernel},
