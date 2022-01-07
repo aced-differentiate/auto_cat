@@ -12,12 +12,12 @@ from ase.io import read as ase_read
 from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
 from autocat.data.segregation_energies import SEGREGATION_ENERGIES
-from autocat.learning.predictors import AutoCatPredictor
+from autocat.learning.predictors import Predictor
 from autocat.learning.sequential import (
-    AutoCatDesignSpace,
-    AutoCatDesignSpaceError,
-    AutoCatSequentialLearningError,
-    AutoCatSequentialLearner,
+    DesignSpace,
+    DesignSpaceError,
+    SequentialLearnerError,
+    SequentialLearner,
     calculate_segregation_energy_scores,
     choose_next_candidate,
     get_overlap_score,
@@ -32,7 +32,7 @@ from autocat.utils import extract_structures
 
 
 def test_sequential_learner_from_json():
-    # Tests generation of an AutoCatSequentialLearner from a json
+    # Tests generation of an SequentialLearner from a json
     sub1 = generate_surface_structures(["Au"], facets={"Au": ["110"]})["Au"]["fcc110"][
         "structure"
     ]
@@ -56,8 +56,8 @@ def test_sequential_learner_from_json():
     }
 
     candidate_selection_kwargs = {"aq": "Random", "num_candidates_to_pick": 3}
-    acds = AutoCatDesignSpace(structs, labels)
-    acsl = AutoCatSequentialLearner(
+    acds = DesignSpace(structs, labels)
+    acsl = SequentialLearner(
         acds,
         predictor_kwargs=predictor_kwargs,
         candidate_selection_kwargs=candidate_selection_kwargs,
@@ -66,7 +66,7 @@ def test_sequential_learner_from_json():
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acsl.write_json(_tmp_dir, "testing_acsl.json")
         json_path = os.path.join(_tmp_dir, "testing_acsl.json")
-        written_acsl = AutoCatSequentialLearner.from_json(json_path)
+        written_acsl = SequentialLearner.from_json(json_path)
         assert np.array_equal(
             written_acsl.design_space.design_space_labels,
             acds.design_space_labels,
@@ -99,7 +99,7 @@ def test_sequential_learner_from_json():
 
 
 def test_sequential_learner_write_json():
-    # Tests writing a AutoCatSequentialLearner to disk as a json
+    # Tests writing a SequentialLearner to disk as a json
     sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
         "structure"
     ]
@@ -123,8 +123,8 @@ def test_sequential_learner_write_json():
     }
 
     candidate_selection_kwargs = {"aq": "MU", "num_candidates_to_pick": 2}
-    acds = AutoCatDesignSpace(structs, labels)
-    acsl = AutoCatSequentialLearner(
+    acds = DesignSpace(structs, labels)
+    acsl = SequentialLearner(
         acds,
         predictor_kwargs=predictor_kwargs,
         candidate_selection_kwargs=candidate_selection_kwargs,
@@ -161,7 +161,7 @@ def test_sequential_learner_write_json():
         }
 
     # test writing when no kwargs given
-    acsl = AutoCatSequentialLearner(acds)
+    acsl = SequentialLearner(acds)
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acsl.write_json(_tmp_dir)
         with open(os.path.join(_tmp_dir, "acsl.json"), "r") as f:
@@ -242,8 +242,8 @@ def test_sequential_learner_iterate():
     sub4 = place_adsorbate(sub4, "Fe")["custom"]["structure"]
     structs = [sub1, sub2, sub3, sub4]
     labels = np.array([11.0, 25.0, np.nan, np.nan])
-    acds = AutoCatDesignSpace(structs, labels)
-    acsl = AutoCatSequentialLearner(acds)
+    acds = DesignSpace(structs, labels)
+    acsl = SequentialLearner(acds)
 
     assert acsl.iteration_count == 0
 
@@ -309,8 +309,8 @@ def test_sequential_learner_setup():
     sub4 = place_adsorbate(sub4, "N")["custom"]["structure"]
     structs = [sub1, sub2, sub3, sub4]
     labels = np.array([4.0, np.nan, 6.0, np.nan])
-    acds = AutoCatDesignSpace(structs, labels)
-    acsl = AutoCatSequentialLearner(acds)
+    acds = DesignSpace(structs, labels)
+    acsl = SequentialLearner(acds)
 
     assert acsl.design_space.design_space_structures == acds.design_space_structures
     assert np.array_equal(
@@ -323,7 +323,7 @@ def test_sequential_learner_setup():
     # test default kwargs
     assert acsl.predictor_kwargs == {"structure_featurizer": "sine_matrix"}
     # test specifying kwargs
-    acsl = AutoCatSequentialLearner(
+    acsl = SequentialLearner(
         acds,
         predictor_kwargs={
             "structure_featurizer": "elemental_property",
@@ -358,7 +358,7 @@ def test_sequential_learner_setup():
 
 
 def test_design_space_setup():
-    # test setting up an AutoCatDesignSpace
+    # test setting up an DesignSpace
     sub1 = generate_surface_structures(
         ["Pt"], supercell_dim=[2, 2, 5], facets={"Pt": ["100"]}
     )["Pt"]["fcc100"]["structure"]
@@ -369,15 +369,15 @@ def test_design_space_setup():
     sub2 = place_adsorbate(sub2, "F")["custom"]["structure"]
     structs = [sub1, sub2]
     labels = np.array([3.0, 7.0])
-    acds = AutoCatDesignSpace(structs, labels)
+    acds = DesignSpace(structs, labels)
     assert acds.design_space_structures == [sub1, sub2]
     assert acds.design_space_structures is not structs
     assert np.array_equal(acds.design_space_labels, labels)
     assert acds.design_space_labels is not labels
     assert len(acds) == 2
     # test different number of structures and labels
-    with pytest.raises(AutoCatDesignSpaceError):
-        acds = AutoCatDesignSpace([sub1], labels)
+    with pytest.raises(DesignSpaceError):
+        acds = DesignSpace([sub1], labels)
 
 
 def test_delitem_design_space():
@@ -401,13 +401,13 @@ def test_delitem_design_space():
     structs = [sub0, sub1, sub2]
     labels = np.array([-2.5, np.nan, 600.0])
     # test deleting by single idx
-    acds = AutoCatDesignSpace(structs, labels)
+    acds = DesignSpace(structs, labels)
     del acds[1]
     assert len(acds) == 2
     assert np.array_equal(acds.design_space_labels, np.array([-2.5, 600.0]))
     assert acds.design_space_structures == [sub0, sub2]
     # test deleting using a mask
-    acds = AutoCatDesignSpace(structs, labels)
+    acds = DesignSpace(structs, labels)
     mask = np.zeros(len(acds), bool)
     mask[0] = 1
     mask[1] = 1
@@ -419,7 +419,7 @@ def test_delitem_design_space():
     # test deleting by providing list of idx
     structs = [sub0, sub1, sub2, sub3]
     labels = np.array([-20, 8, np.nan, 0.3])
-    acds = AutoCatDesignSpace(structs, labels)
+    acds = DesignSpace(structs, labels)
     del acds[[1, 3]]
     assert len(acds) == 2
     assert np.array_equal(
@@ -427,7 +427,7 @@ def test_delitem_design_space():
     )
     assert acds.design_space_structures == [sub0, sub2]
     # test deleting by providing list with a single idx
-    acds = AutoCatDesignSpace(structs, labels)
+    acds = DesignSpace(structs, labels)
     del acds[[0]]
     assert len(acds) == 3
     assert np.array_equal(
@@ -458,22 +458,22 @@ def test_eq_design_space():
     labels = np.array([-2.5, np.nan, 600.0])
 
     # test trivial case
-    acds = AutoCatDesignSpace(structs, labels)
-    acds0 = AutoCatDesignSpace(structs, labels)
+    acds = DesignSpace(structs, labels)
+    acds0 = DesignSpace(structs, labels)
     assert acds == acds0
 
     # test comparing when different length
-    acds1 = AutoCatDesignSpace(structs[:-1], labels[:-1])
+    acds1 = DesignSpace(structs[:-1], labels[:-1])
     assert acds != acds1
 
     # test same structures, different labels
-    acds2 = AutoCatDesignSpace(structs, labels)
+    acds2 = DesignSpace(structs, labels)
     acds2.update([structs[1]], labels=np.array([0.2]))
     assert acds != acds2
 
     # test diff structures, same labels
     structs[0][0].symbol = "Ni"
-    acds3 = AutoCatDesignSpace(structs, labels)
+    acds3 = DesignSpace(structs, labels)
     assert acds != acds3
 
 
@@ -492,14 +492,14 @@ def test_updating_design_space():
     ]["structure"]
     structs = [sub1, sub2, sub3]
     labels = np.array([4.0, 5.0, 6.0])
-    acds = AutoCatDesignSpace(structs, labels)
+    acds = DesignSpace(structs, labels)
 
     # Test trying to update just structures
-    with pytest.raises(AutoCatDesignSpaceError):
+    with pytest.raises(DesignSpaceError):
         acds.design_space_structures = [sub4]
 
     # Test trying to update just labels
-    with pytest.raises(AutoCatDesignSpaceError):
+    with pytest.raises(DesignSpaceError):
         acds.design_space_structures = np.array([4.0])
 
     # Test updating label already in DS and extending
@@ -514,7 +514,7 @@ def test_updating_design_space():
 
 
 def test_write_design_space_as_json():
-    # Tests writing out the AutoCatDesignSpace to disk
+    # Tests writing out the DesignSpace to disk
     sub1 = generate_surface_structures(["Pd"], facets={"Pd": ["111"]})["Pd"]["fcc111"][
         "structure"
     ]
@@ -524,9 +524,7 @@ def test_write_design_space_as_json():
     structs = [sub1, sub2]
     labels = np.array([0.3, 0.8])
     with tempfile.TemporaryDirectory() as _tmp_dir:
-        acds = AutoCatDesignSpace(
-            design_space_structures=structs, design_space_labels=labels,
-        )
+        acds = DesignSpace(design_space_structures=structs, design_space_labels=labels,)
         acds.write_json(write_location=_tmp_dir)
         # loads back written json
         with open(os.path.join(_tmp_dir, "acds.json"), "r") as f:
@@ -544,7 +542,7 @@ def test_write_design_space_as_json():
 
 
 def test_get_design_space_from_json():
-    # Tests generating AutoCatDesignSpace from a json
+    # Tests generating DesignSpace from a json
     sub1 = generate_surface_structures(["Au"], facets={"Au": ["100"]})["Au"]["fcc100"][
         "structure"
     ]
@@ -557,13 +555,11 @@ def test_get_design_space_from_json():
     structs = [sub1, sub2, sub3]
     labels = np.array([30.0, 900.0, np.nan])
     with tempfile.TemporaryDirectory() as _tmp_dir:
-        acds = AutoCatDesignSpace(
-            design_space_structures=structs, design_space_labels=labels,
-        )
+        acds = DesignSpace(design_space_structures=structs, design_space_labels=labels,)
         acds.write_json("testing.json", write_location=_tmp_dir)
 
         tmp_json_dir = os.path.join(_tmp_dir, "testing.json")
-        acds_from_json = AutoCatDesignSpace.from_json(tmp_json_dir)
+        acds_from_json = DesignSpace.from_json(tmp_json_dir)
         assert acds_from_json.design_space_structures == structs
         assert np.array_equal(
             acds_from_json.design_space_labels, labels, equal_nan=True
@@ -589,7 +585,7 @@ def test_simulated_sequential_histories():
         sub2,
     ]
     ds_labels = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
-    acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    acds = DesignSpace(ds_structs, ds_labels)
     candidate_selection_kwargs = {
         "target_min": 0.9,
         "target_max": 2.1,
@@ -634,7 +630,7 @@ def test_simulated_sequential_batch_added():
     num_loops = 2
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
-    acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    acds = DesignSpace(ds_structs, ds_labels)
     sl = simulated_sequential_learning(
         full_design_space=acds,
         predictor_kwargs=predictor_kwargs,
@@ -662,7 +658,7 @@ def test_simulated_sequential_num_loops():
     candidate_selection_kwargs = {"num_candidates_to_pick": 3, "aq": "Random"}
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
-    acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    acds = DesignSpace(ds_structs, ds_labels)
     # Test default number of loops
     sl = simulated_sequential_learning(
         full_design_space=acds,
@@ -674,7 +670,7 @@ def test_simulated_sequential_num_loops():
     assert sl.iteration_count == 2
 
     # Test catches maximum number of loops
-    with pytest.raises(AutoCatSequentialLearningError):
+    with pytest.raises(SequentialLearnerError):
         sl = simulated_sequential_learning(
             full_design_space=acds,
             predictor_kwargs=predictor_kwargs,
@@ -686,7 +682,7 @@ def test_simulated_sequential_num_loops():
     # Test with default num loops and default num candidates
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0])
-    acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    acds = DesignSpace(ds_structs, ds_labels)
     candidate_selection_kwargs.update({"num_candidates_to_pick": 1})
 
     sl = simulated_sequential_learning(
@@ -715,7 +711,7 @@ def test_simulated_sequential_write_to_disk():
         candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
         ds_structs = [base_struct1, base_struct2, base_struct3]
         ds_labels = np.array([0, 1, 2])
-        acds = AutoCatDesignSpace(ds_structs, ds_labels)
+        acds = DesignSpace(ds_structs, ds_labels)
         sl = simulated_sequential_learning(
             full_design_space=acds,
             init_training_size=2,
@@ -727,7 +723,7 @@ def test_simulated_sequential_write_to_disk():
         )
         # check data written as json
         json_path = os.path.join(_tmp_dir, "acsl.json")
-        sl_written = AutoCatSequentialLearner.from_json(json_path)
+        sl_written = SequentialLearner.from_json(json_path)
         assert sl.iteration_count == sl_written.iteration_count
         assert np.array_equal(sl.predictions_history, sl_written.predictions_history)
         assert np.array_equal(
@@ -764,9 +760,9 @@ def test_simulated_sequential_learning_fully_explored():
     predictor_kwargs = {"structure_featurizer": "elemental_property"}
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([0.0, np.nan, 4.0])
-    acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    acds = DesignSpace(ds_structs, ds_labels)
     candidate_selection_kwargs = {"aq": "MU"}
-    with pytest.raises(AutoCatSequentialLearningError):
+    with pytest.raises(SequentialLearnerError):
         sl = simulated_sequential_learning(
             full_design_space=acds,
             init_training_size=1,
@@ -785,7 +781,7 @@ def test_multiple_sequential_learning_serial():
     predictor_kwargs = {"structure_featurizer": "elemental_property"}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
-    acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    acds = DesignSpace(ds_structs, ds_labels)
     candidate_selection_kwargs = {"aq": "MU"}
     runs_history = multiple_simulated_sequential_learning_runs(
         full_design_space=acds,
@@ -796,7 +792,7 @@ def test_multiple_sequential_learning_serial():
         init_training_size=1,
     )
     assert len(runs_history) == 3
-    assert isinstance(runs_history[0], AutoCatSequentialLearner)
+    assert isinstance(runs_history[0], SequentialLearner)
     assert len(runs_history[1].predictions_history) == 2
 
 
@@ -809,7 +805,7 @@ def test_multiple_sequential_learning_parallel():
     predictor_kwargs = {"structure_featurizer": "elemental_property"}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
-    acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    acds = DesignSpace(ds_structs, ds_labels)
     candidate_selection_kwargs = {"aq": "Random"}
     runs_history = multiple_simulated_sequential_learning_runs(
         full_design_space=acds,
@@ -821,7 +817,7 @@ def test_multiple_sequential_learning_parallel():
         init_training_size=1,
     )
     assert len(runs_history) == 3
-    assert isinstance(runs_history[2], AutoCatSequentialLearner)
+    assert isinstance(runs_history[2], SequentialLearner)
     assert len(runs_history[1].uncertainties_history) == 2
 
 
@@ -835,7 +831,7 @@ def test_multiple_sequential_learning_write_to_disk():
     predictor_kwargs = {"structure_featurizer": "elemental_property"}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
-    acds = AutoCatDesignSpace(ds_structs, ds_labels)
+    acds = DesignSpace(ds_structs, ds_labels)
     candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
     runs_history = multiple_simulated_sequential_learning_runs(
         full_design_space=acds,
@@ -852,7 +848,7 @@ def test_multiple_sequential_learning_write_to_disk():
 
     # check data history in each run
     for i in range(3):
-        written_run = AutoCatSequentialLearner.from_json(
+        written_run = SequentialLearner.from_json(
             os.path.join(_tmp_dir, f"test_multi_{i}.json")
         )
         written_ds = written_run.design_space
@@ -892,21 +888,21 @@ def test_choose_next_candidate_input_minimums():
     unc = np.random.rand(5)
     pred = np.random.rand(5)
 
-    with pytest.raises(AutoCatSequentialLearningError):
+    with pytest.raises(SequentialLearnerError):
         choose_next_candidate()
 
-    with pytest.raises(AutoCatSequentialLearningError):
+    with pytest.raises(SequentialLearnerError):
         choose_next_candidate(unc=unc, pred=pred, num_candidates_to_pick=2, aq="Random")
 
-    with pytest.raises(AutoCatSequentialLearningError):
+    with pytest.raises(SequentialLearnerError):
         choose_next_candidate(
             labels=labels, pred=pred, num_candidates_to_pick=2, aq="MU"
         )
 
-    with pytest.raises(AutoCatSequentialLearningError):
+    with pytest.raises(SequentialLearnerError):
         choose_next_candidate(pred=pred, num_candidates_to_pick=2, aq="MLI")
 
-    with pytest.raises(AutoCatSequentialLearningError):
+    with pytest.raises(SequentialLearnerError):
         choose_next_candidate(unc=unc, num_candidates_to_pick=2, aq="MLI")
 
 
@@ -986,7 +982,7 @@ def test_get_overlap_score():
     norm = stats.norm(loc=mean, scale=std)
 
     # checks that at least target min or max is provided
-    with pytest.raises(AutoCatSequentialLearningError):
+    with pytest.raises(SequentialLearnerError):
         get_overlap_score(mean, std)
 
     # test default min

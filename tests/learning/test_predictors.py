@@ -15,8 +15,8 @@ from autocat.surface import generate_surface_structures
 from autocat.perturbations import generate_perturbed_dataset
 from autocat.learning.featurizers import get_X
 from autocat.learning.featurizers import catalyst_featurization
-from autocat.learning.predictors import AutoCatPredictor
-from autocat.learning.predictors import AutoCatPredictorError
+from autocat.learning.predictors import Predictor
+from autocat.learning.predictors import PredictorError
 
 
 def test_fit_model_on_perturbed_systems():
@@ -28,7 +28,7 @@ def test_fit_model_on_perturbed_systems():
     p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=15,)
     p_structures = p_set["collected_structures"]
     correction_matrix = p_set["correction_matrix"]
-    acsc = AutoCatPredictor(
+    acsc = Predictor(
         structure_featurizer="sine_matrix",
         adsorbate_featurizer="soap",
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
@@ -63,7 +63,7 @@ def test_predict_initial_configuration_formats():
     p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
     p_structures = p_set["collected_structures"]
     correction_matrix = p_set["correction_matrix"]
-    acsc = AutoCatPredictor(
+    acsc = Predictor(
         structure_featurizer="sine_matrix",
         adsorbate_featurizer="soap",
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
@@ -86,7 +86,7 @@ def test_score_on_perturbed_systems():
     p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
     p_structures = p_set["collected_structures"]
     correction_matrix = p_set["correction_matrix"][:, 0]
-    acsc = AutoCatPredictor(
+    acsc = Predictor(
         structure_featurizer="sine_matrix",
         adsorbate_featurizer="soap",
         adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
@@ -106,7 +106,7 @@ def test_score_on_perturbed_systems():
     assert len(pred_corr) == 5
     assert len(unc) == 5
     assert mae != mse
-    with pytest.raises(AutoCatPredictorError):
+    with pytest.raises(PredictorError):
         acsc.score(p_structures[15:], correction_matrix, metric="msd")
 
     # Test with single target
@@ -120,7 +120,7 @@ def test_score_on_perturbed_systems():
 
 def test_model_class_and_kwargs():
     # Tests providing regression model class and kwargs
-    acsc = AutoCatPredictor(KernelRidge, model_kwargs={"gamma": 0.5})
+    acsc = Predictor(KernelRidge, model_kwargs={"gamma": 0.5})
     assert isinstance(acsc.regressor, KernelRidge)
     # check that regressor created with correct kwarg
     assert acsc.regressor.gamma == 0.5
@@ -128,7 +128,7 @@ def test_model_class_and_kwargs():
     acsc.model_class = GaussianProcessRegressor
     # check that kwargs are removed when class is changed
     assert acsc.model_kwargs is None
-    acsc = AutoCatPredictor()
+    acsc = Predictor()
     acsc.model_kwargs = {"alpha": 2.5}
     assert acsc.model_kwargs == {"alpha": 2.5}
     assert acsc.regressor.alpha == 2.5
@@ -144,7 +144,7 @@ def test_model_without_unc():
     p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
     p_structures = p_set["collected_structures"]
     correction_matrix = p_set["correction_matrix"]
-    acsc = AutoCatPredictor(
+    acsc = Predictor(
         model_class=KernelRidge,
         structure_featurizer="sine_matrix",
         adsorbate_featurizer=None,

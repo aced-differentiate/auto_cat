@@ -12,7 +12,7 @@ from ase import Atoms
 from ase.io import read as ase_read
 from scipy import stats
 
-from autocat.learning.predictors import AutoCatPredictor
+from autocat.learning.predictors import Predictor
 from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
 from autocat.data.segregation_energies import SEGREGATION_ENERGIES
@@ -20,11 +20,11 @@ from autocat.data.segregation_energies import SEGREGATION_ENERGIES
 Array = List[float]
 
 
-class AutoCatDesignSpaceError(Exception):
+class DesignSpaceError(Exception):
     pass
 
 
-class AutoCatDesignSpace:
+class DesignSpace:
     def __init__(
         self, design_space_structures: List[Atoms], design_space_labels: Array,
     ):
@@ -44,7 +44,7 @@ class AutoCatDesignSpace:
         """
         if len(design_space_structures) != design_space_labels.shape[0]:
             msg = f"Number of structures ({len(design_space_structures)}) and labels ({design_space_labels.shape[0]}) must match"
-            raise AutoCatDesignSpaceError(msg)
+            raise DesignSpaceError(msg)
 
         self._design_space_structures = [
             struct.copy() for struct in design_space_structures
@@ -70,7 +70,7 @@ class AutoCatDesignSpace:
         self._design_space_structures = masked_structs
 
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, AutoCatDesignSpace):
+        if isinstance(other, DesignSpace):
             # check that they are the same length
             if len(self) == len(other):
                 # check all their structures are equal
@@ -102,7 +102,7 @@ class AutoCatDesignSpace:
     @design_space_structures.setter
     def design_space_structures(self, design_space_structures):
         msg = "Please use `update` method to update the design space."
-        raise AutoCatDesignSpaceError(msg)
+        raise DesignSpaceError(msg)
 
     @property
     def design_space_labels(self):
@@ -111,7 +111,7 @@ class AutoCatDesignSpace:
     @design_space_labels.setter
     def design_space_labels(self, design_space_labels):
         msg = "Please use `update` method to update the design space."
-        raise AutoCatDesignSpaceError(msg)
+        raise DesignSpaceError(msg)
 
     def update(self, structures: List[Atoms], labels: Array):
         """
@@ -190,19 +190,19 @@ class AutoCatDesignSpace:
                 atoms = ase_read(_tmp_json, format="json")
                 structures.append(atoms)
         labels = np.array(all_data[-1])
-        return AutoCatDesignSpace(
+        return DesignSpace(
             design_space_structures=structures, design_space_labels=labels,
         )
 
 
-class AutoCatSequentialLearningError(Exception):
+class SequentialLearnerError(Exception):
     pass
 
 
-class AutoCatSequentialLearner:
+class SequentialLearner:
     def __init__(
         self,
-        design_space: AutoCatDesignSpace,
+        design_space: DesignSpace,
         predictor_kwargs: Dict[str, Union[str, float]] = None,
         candidate_selection_kwargs: Dict[str, Union[str, float]] = None,
         sl_kwargs: Dict[str, int] = None,
@@ -218,7 +218,7 @@ class AutoCatSequentialLearner:
             predictor_kwargs = {"structure_featurizer": "sine_matrix"}
         self._predictor_kwargs = None
         self.predictor_kwargs = predictor_kwargs
-        self._predictor = AutoCatPredictor(**predictor_kwargs)
+        self._predictor = Predictor(**predictor_kwargs)
 
         # acquisition function arguments to use for candidate selection
         if not candidate_selection_kwargs:
@@ -268,7 +268,7 @@ class AutoCatSequentialLearner:
         if not predictor_kwargs:
             predictor_kwargs = {}
         self._predictor_kwargs = predictor_kwargs
-        self._predictor = AutoCatPredictor(**predictor_kwargs)
+        self._predictor = Predictor(**predictor_kwargs)
 
     @property
     def predictor(self):
@@ -463,7 +463,7 @@ class AutoCatSequentialLearner:
                 atoms = ase_read(_tmp_json, format="json")
                 structures.append(atoms)
         labels = np.array(all_data[-4])
-        acds = AutoCatDesignSpace(
+        acds = DesignSpace(
             design_space_structures=structures, design_space_labels=labels,
         )
         predictor_kwargs = all_data[-3]
@@ -494,7 +494,7 @@ class AutoCatSequentialLearner:
             else:
                 sl_kwargs[k] = None
 
-        return AutoCatSequentialLearner(
+        return SequentialLearner(
             design_space=acds,
             predictor_kwargs=predictor_kwargs,
             candidate_selection_kwargs=candidate_selection_kwargs,
@@ -503,7 +503,7 @@ class AutoCatSequentialLearner:
 
 
 def multiple_simulated_sequential_learning_runs(
-    full_design_space: AutoCatDesignSpace,
+    full_design_space: DesignSpace,
     number_of_runs: int = 5,
     number_parallel_jobs: int = None,
     predictor_kwargs: Dict[str, Union[str, float]] = None,
@@ -513,7 +513,7 @@ def multiple_simulated_sequential_learning_runs(
     write_to_disk: bool = False,
     write_location: str = ".",
     json_name_prefix: str = None,
-) -> List[AutoCatSequentialLearner]:
+) -> List[SequentialLearner]:
     """
     Conducts multiple simulated sequential learning runs
 
@@ -521,7 +521,7 @@ def multiple_simulated_sequential_learning_runs(
     ----------
 
     full_design_space:
-        Fully labelled AutoCatDesignSpace to simulate
+        Fully labelled DesignSpace to simulate
         being searched over
 
     predictor_kwargs:
@@ -571,7 +571,7 @@ def multiple_simulated_sequential_learning_runs(
     -------
 
     runs_history:
-        List of AutoCatSequentialLearner objects for each simulated run
+        List of SequentialLearner objects for each simulated run
     """
 
     if number_parallel_jobs is not None:
@@ -612,7 +612,7 @@ def multiple_simulated_sequential_learning_runs(
 
 
 def simulated_sequential_learning(
-    full_design_space: AutoCatDesignSpace,
+    full_design_space: DesignSpace,
     predictor_kwargs: Dict[str, Union[str, float]] = None,
     candidate_selection_kwargs: Dict[str, Union[str, float]] = None,
     init_training_size: int = 10,
@@ -620,7 +620,7 @@ def simulated_sequential_learning(
     write_to_disk: bool = False,
     write_location: str = ".",
     json_name: str = None,
-) -> AutoCatSequentialLearner:
+) -> SequentialLearner:
     """
     Conducts a simulated sequential learning loop for a
     fully labelled design space to explore.
@@ -629,7 +629,7 @@ def simulated_sequential_learning(
     ----------
 
     full_design_space:
-        Fully labelled AutoCatDesignSpace to simulate
+        Fully labelled DesignSpace to simulate
         being searched over
 
     predictor_kwargs:
@@ -678,13 +678,13 @@ def simulated_sequential_learning(
     if True in np.isnan(full_design_space.design_space_labels):
         missing_label_idx = np.where(np.isnan(full_design_space.design_space_labels))[0]
         msg = f"Design space must be fully explored. Missing labels at indices: {missing_label_idx}"
-        raise AutoCatSequentialLearningError(msg)
+        raise SequentialLearnerError(msg)
 
     # check that specified initial training size makes sense
     if init_training_size > ds_size:
         msg = f"Initial training size ({init_training_size})\
              larger than design space ({ds_size})"
-        raise AutoCatSequentialLearningError(msg)
+        raise SequentialLearnerError(msg)
 
     batch_size_to_add = candidate_selection_kwargs.get("num_candidates_to_pick", 1)
     max_num_sl_loops = int(np.ceil((ds_size - init_training_size) / batch_size_to_add))
@@ -695,7 +695,7 @@ def simulated_sequential_learning(
     # check that specified number of loops is feasible
     if number_of_sl_loops > max_num_sl_loops:
         msg = f"Number of SL loops ({number_of_sl_loops}) cannot be greater than ({max_num_sl_loops})"
-        raise AutoCatSequentialLearningError(msg)
+        raise SequentialLearnerError(msg)
 
     # generate initial training set
     init_idx = np.zeros(ds_size, dtype=bool)
@@ -712,9 +712,9 @@ def simulated_sequential_learning(
     # set up learner that is used for iteration
     dummy_labels = np.empty(len(full_design_space))
     dummy_labels[:] = np.nan
-    ds = AutoCatDesignSpace(full_design_space.design_space_structures, dummy_labels)
+    ds = DesignSpace(full_design_space.design_space_structures, dummy_labels)
     ds.update(init_structs, init_labels)
-    sl = AutoCatSequentialLearner(
+    sl = SequentialLearner(
         design_space=ds,
         predictor_kwargs=predictor_kwargs,
         candidate_selection_kwargs=candidate_selection_kwargs,
@@ -823,20 +823,20 @@ def choose_next_candidate(
     if include_hhi:
         if structures is None:
             msg = "Structures must be provided to include HHI scores"
-            raise AutoCatSequentialLearningError(msg)
+            raise SequentialLearnerError(msg)
         hhi_scores = calculate_hhi_scores(structures, hhi_type)
 
     segreg_energy_scores = None
     if include_seg_ener:
         if structures is None:
             msg = "Structures must be provided to include segregation energy scores"
-            raise AutoCatSequentialLearningError(msg)
+            raise SequentialLearnerError(msg)
         segreg_energy_scores = calculate_segregation_energy_scores(structures)
 
     if aq == "Random":
         if labels is None:
             msg = "For aq = 'Random', the labels must be supplied"
-            raise AutoCatSequentialLearningError(msg)
+            raise SequentialLearnerError(msg)
 
         if train_idx is None:
             train_idx = np.zeros(len(labels), dtype=bool)
@@ -856,7 +856,7 @@ def choose_next_candidate(
     elif aq == "MU":
         if unc is None:
             msg = "For aq = 'MU', the uncertainties must be supplied"
-            raise AutoCatSequentialLearningError(msg)
+            raise SequentialLearnerError(msg)
 
         if train_idx is None:
             train_idx = np.zeros(len(unc), dtype=bool)
@@ -872,7 +872,7 @@ def choose_next_candidate(
     elif aq == "MLI":
         if unc is None or pred is None:
             msg = "For aq = 'MLI', both uncertainties and predictions must be supplied"
-            raise AutoCatSequentialLearningError(msg)
+            raise SequentialLearnerError(msg)
 
         if train_idx is None:
             train_idx = np.zeros(len(unc), dtype=bool)
@@ -915,7 +915,7 @@ def get_overlap_score(mean: float, std: float, x2: float = None, x1: float = Non
     """Calculate overlap score given targets x2 (max) and x1 (min)"""
     if x1 is None and x2 is None:
         msg = "Please specify at least either a minimum or maximum target for MLI"
-        raise AutoCatSequentialLearningError(msg)
+        raise SequentialLearnerError(msg)
 
     if x1 is None:
         x1 = -np.inf
@@ -954,7 +954,7 @@ def calculate_hhi_scores(structures: List[Atoms], hhi_type: str = "production"):
     """
     if structures is None:
         msg = "To include HHI, the structures must be provided"
-        raise AutoCatSequentialLearningError(msg)
+        raise SequentialLearnerError(msg)
 
     raw_hhi_data = {"production": HHI_PRODUCTION, "reserves": HHI_RESERVES}
     max_hhi = np.max([raw_hhi_data[hhi_type][r] for r in raw_hhi_data[hhi_type]])
@@ -1004,7 +1004,7 @@ def calculate_segregation_energy_scores(structures: List[Atoms]):
     """
     if structures is None:
         msg = "To include segregation energies, the structures must be provided"
-        raise AutoCatSequentialLearningError(msg)
+        raise SequentialLearnerError(msg)
 
     # won't consider surface energies (ie. dop == host) for normalization
     max_seg_ener = SEGREGATION_ENERGIES["Pd"]["W"]

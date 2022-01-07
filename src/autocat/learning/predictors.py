@@ -17,11 +17,11 @@ from autocat.learning.featurizers import get_X
 from autocat.learning.featurizers import _get_number_of_features
 
 
-class AutoCatPredictorError(Exception):
+class PredictorError(Exception):
     pass
 
 
-class AutoCatPredictor:
+class Predictor:
     def __init__(
         self,
         model_class=None,
@@ -483,7 +483,7 @@ class AutoCatPredictor:
 
         if metric not in score_func:
             msg = f"Metric: {metric} is not supported"
-            raise AutoCatPredictorError(msg)
+            raise PredictorError(msg)
 
         score = score_func[metric](y, pred_label, **kwargs)
 
