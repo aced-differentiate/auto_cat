@@ -9,7 +9,6 @@ from matminer.featurizers.site import ChemicalSRO
 from matminer.featurizers.site import OPSiteFingerprint
 from matminer.featurizers.site import CrystalNNFingerprint
 
-import tempfile
 import os
 import numpy as np
 import json
@@ -22,11 +21,182 @@ from ase.io import read
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.local_env import VoronoiNN
 
-# from autocat.io.qml import ase_atoms_to_qml_compound
+from autocat.learning.sequential import DesignSpace
+
+SUPPORTED_MATMINER_CLASSES = [
+    ElementProperty,
+    ChemicalSRO,
+    OPSiteFingerprint,
+    CrystalNNFingerprint,
+]
+
+SUPPORTED_DSCRIBE_CLASSES = [SineMatrix, CoulombMatrix, ACSF, SOAP]
 
 
-class AutoCatFeaturizationError(Exception):
+class FeaturizerError(Exception):
     pass
+
+
+class Featurizer:
+    def __init__(
+        self,
+        featurizer_class,
+        design_space: DesignSpace,
+        preset: str = None,
+        initialization_kwargs: Dict = None,
+    ):
+        self._featurizer_class = None
+        self.featurizer_class = featurizer_class
+
+        self._preset = None
+        self.preset = preset
+
+        self._initialization_kwargs = None
+        self.initialization_kwargs = initialization_kwargs
+
+        self.featurizer_object = self._initialize()
+
+        self._max_size = None
+        self._species_list = None
+
+        self._design_space = None
+        self.design_space = design_space
+
+    @property
+    def featurizer_class(self):
+        return self._featurizer_class
+
+    @featurizer_class.setter
+    def featurizer_class(self, featurizer_class):
+        if (
+            featurizer_class in SUPPORTED_MATMINER_CLASSES
+            or featurizer_class in SUPPORTED_DSCRIBE_CLASSES
+        ):
+            self._featurizer_class = featurizer_class
+            self._kwargs = None
+        else:
+            msg = f"Featurization class {featurizer_class} are not currently supported.\
+            \n At present only classes from 'matminer' and 'dscribe' are supported."
+            raise FeaturizerError(msg)
+
+    @property
+    def preset(self):
+        return self._preset
+
+    @preset.setter
+    def preset(self, preset):
+        if self.featurizer_class in [CrystalNNFingerprint, ElementProperty]:
+            self._preset = preset
+        elif self.featurizer_class is None:
+            self._preset = preset
+        else:
+            msg = f"Presets are not supported for {self.featurizer_class.__module__}"
+            raise FeaturizerError(msg)
+
+    @property
+    def initialization_kwargs(self):
+        return self._kwargs
+
+    @initialization_kwargs.setter
+    def initialization_kwargs(self, initialization_kwargs):
+        if initialization_kwargs is not None:
+            self._initialization_kwargs = initialization_kwargs
+
+    @property
+    def design_space(self):
+        return self._design_space
+
+    @design_space.setter
+    def design_space(self, design_space: DesignSpace):
+        if design_space is not None:
+            self._design_space = design_space
+            # analyze new design space
+            ds_structs = design_space.design_space_structures
+            self._max_size = max([len(s) for s in ds_structs])
+            species_list = []
+            adsorbate_indices = []
+            for s in ds_structs:
+                # get all unique species
+                found_species = np.unique(s.get_chemical_symbols()).tolist()
+                new_species = [
+                    spec for spec in found_species if spec not in species_list
+                ]
+                species_list.extend(new_species)
+                # get adsorbate indices
+                adsorbate_indices.append(np.where(s.get_tags() <= 0)[0].tolist())
+
+            self._species_list = species_list
+            self._adsorbate_indices = adsorbate_indices
+            self._max_adsorbate_size = max(
+                [len(ads_ids) for ads_ids in adsorbate_indices]
+            )
+
+    @property
+    def max_size(self):
+        return self._max_size
+
+    @property
+    def species_list(self):
+        return self._species_list
+
+    @property
+    def adsorbate_indices(self):
+        return self._adsorbate_indices
+
+    @property
+    def max_adsorbate_size(self):
+        return self._max_adsorbate_size
+
+    def _initialize(self):
+        # instantiate featurizer object
+        if self.preset is not None:
+            try:
+                return self.featurizer_class.from_preset(self.preset)
+            except:
+                msg = f"{self.featurizer_class} cannot be initialized from the preset {self.preset}"
+                raise FeaturizerError(msg)
+        else:
+            if self.featurizer_class in [SineMatrix, CoulombMatrix]:
+                return self.featurizer_class(
+                    n_atoms_max=self.max_size,
+                    permutation="none",
+                    **self.initialization_kwargs or {},
+                )
+            elif self.featurizer_class in [SOAP, ACSF]:
+                return self.featurizer_class(
+                    species=self.species_list, **self.initialization_kwargs or {}
+                )
+            return self.featurizer_class(**self.initialization_kwargs or {})
+
+    def _featurize_single(self, structure: Atoms, **kwargs):
+        feat_class = self.featurizer_class
+        if feat_class in SUPPORTED_DSCRIBE_CLASSES:
+            if feat_class in [SOAP, ACSF]:
+                positions = np.where(structure.get_tags() <= 0)[0].tolist()
+                return self.featurizer_object.create(
+                    structure, positions=positions, **kwargs
+                )
+            elif feat_class in [SineMatrix, CoulombMatrix]:
+                return self.featurizer_object.create(structure, **kwargs)
+        elif feat_class in SUPPORTED_MATMINER_CLASSES:
+            conv = AseAtomsAdaptor()
+            pym_struct = conv.get_structure(structure)
+            if feat_class == ElementProperty:
+                return np.array(
+                    self.featurizer_object.featurize(pym_struct.composition)
+                )
+            elif feat_class in [CrystalNNFingerprint, OPSiteFingerprint]:
+                representation = np.array([])
+                adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
+                for idx in adsorbate_indices:
+                    feat = self.featurizer_object.featurize(pym_struct, idx)
+                    representation = np.concatenate((representation, feat))
+                return representation
+            elif feat_class == ChemicalSRO:
+                pass
+
+    def featurize(self, structures: List[Atoms], **kwargs):
+        pass
 
 
 def get_X(
@@ -173,7 +343,7 @@ def get_X(
         X = np.zeros((len(structures), num_structure_features))
     else:
         msg = "Need to specify either a structure or adsorbate featurizer"
-        raise AutoCatFeaturizationError(msg)
+        raise FeaturizerError(msg)
 
     for idx, structure in enumerate(structures):
         if isinstance(structure, Atoms):
@@ -182,7 +352,7 @@ def get_X(
             ase_struct = read(structure)
         else:
             msg = f"Each structure needs to be either a str or ase.Atoms. Got {type(structure)}"
-            raise AutoCatFeaturizationError(msg)
+            raise FeaturizerError(msg)
         cat_feat = catalyst_featurization(
             ase_struct,
             structure_featurizer=structure_featurizer,
