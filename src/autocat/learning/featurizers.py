@@ -21,8 +21,6 @@ from ase.io import read
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.local_env import VoronoiNN
 
-from autocat.learning.sequential import DesignSpace
-
 SUPPORTED_MATMINER_CLASSES = [
     ElementProperty,
     ChemicalSRO,
@@ -41,12 +39,12 @@ class Featurizer:
     def __init__(
         self,
         featurizer_class,
-        design_space: DesignSpace,
+        design_space_structures: List[Atoms],
         preset: str = None,
         initialization_kwargs: Dict = None,
     ):
+
         self._featurizer_class = None
-        self.featurizer_class = featurizer_class
 
         self._preset = None
         self.preset = preset
@@ -54,13 +52,13 @@ class Featurizer:
         self._initialization_kwargs = None
         self.initialization_kwargs = initialization_kwargs
 
-        self.featurizer_object = self._initialize()
-
         self._max_size = None
         self._species_list = None
 
-        self._design_space = None
-        self.design_space = design_space
+        self._design_space_structures = None
+        self.design_space_structures = design_space_structures
+
+        self.featurizer_class = featurizer_class
 
     @property
     def featurizer_class(self):
@@ -74,6 +72,7 @@ class Featurizer:
         ):
             self._featurizer_class = featurizer_class
             self._kwargs = None
+            self.featurizer_object = self._initialize()
         else:
             msg = f"Featurization class {featurizer_class} are not currently supported.\
             \n At present only classes from 'matminer' and 'dscribe' are supported."
@@ -87,7 +86,7 @@ class Featurizer:
     def preset(self, preset):
         if self.featurizer_class in [CrystalNNFingerprint, ElementProperty]:
             self._preset = preset
-        elif self.featurizer_class is None:
+        elif preset is None:
             self._preset = preset
         else:
             msg = f"Presets are not supported for {self.featurizer_class.__module__}"
@@ -103,15 +102,15 @@ class Featurizer:
             self._initialization_kwargs = initialization_kwargs
 
     @property
-    def design_space(self):
-        return self._design_space
+    def design_space_structures(self):
+        return self._design_space_structures
 
-    @design_space.setter
-    def design_space(self, design_space: DesignSpace):
-        if design_space is not None:
-            self._design_space = design_space
+    @design_space_structures.setter
+    def design_space_structures(self, design_space_structures):
+        if design_space_structures is not None:
+            self._design_space_structures = design_space_structures
             # analyze new design space
-            ds_structs = design_space.design_space_structures
+            ds_structs = design_space_structures
             self._max_size = max([len(s) for s in ds_structs])
             species_list = []
             adsorbate_indices = []
@@ -193,7 +192,28 @@ class Featurizer:
                     representation = np.concatenate((representation, feat))
                 return representation
             elif feat_class == ChemicalSRO:
-                pass
+                species_list = self.species_list
+                adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
+                formatted_list = [[pym_struct, idx] for idx in adsorbate_indices]
+                self.featurizer_object.fit(formatted_list)
+                # concatenate representation for each adsorbate atom
+                representation = np.array([])
+                for idx in adsorbate_indices:
+                    raw_feat = self.featurizer_object.featurize(pym_struct, idx)
+                    # csro only generates for species observed in fit
+                    # as well as includes, so to be generalizable
+                    # we use full species list of the design space and place values
+                    # in the appropriate species location relative to this list
+                    labels = self.featurizer_object.feature_labels()
+                    feat = np.zeros(len(species_list))
+                    for i, label in enumerate(labels):
+                        # finds where corresponding species is in full species list
+                        lbl_idx = np.where(
+                            np.array(species_list) == label.split("_")[1]
+                        )
+                        feat[lbl_idx] = raw_feat[i]
+                    representation = np.concatenate((representation, feat))
+                return representation
 
     def featurize(self, structures: List[Atoms], **kwargs):
         pass
