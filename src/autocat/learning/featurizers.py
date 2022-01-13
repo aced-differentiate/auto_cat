@@ -1,5 +1,4 @@
 from dscribe.descriptors import SineMatrix
-from dscribe.descriptors import EwaldSumMatrix
 from dscribe.descriptors import CoulombMatrix
 from dscribe.descriptors import ACSF
 from dscribe.descriptors import SOAP
@@ -41,7 +40,7 @@ class Featurizer:
         featurizer_class,
         design_space_structures: List[Atoms] = None,
         species_list: List[str] = None,
-        max_size: int = 100,
+        max_size: int = None,
         preset: str = None,
         kwargs: Dict = None,
     ):
@@ -55,7 +54,7 @@ class Featurizer:
         self._kwargs = None
         self.kwargs = kwargs
 
-        self._max_size = None
+        self._max_size = 100
         self.max_size = max_size
 
         self._species_list = ["Pt", "Pd", "Cu", "Fe", "Ni", "H", "O", "C", "N"]
@@ -170,6 +169,21 @@ class Featurizer:
             return self.featurizer_class(**self.kwargs or {})
 
     def featurize_single(self, structure: Atoms, **kwargs):
+        """
+        Featurize a single structure. Returns a single vector
+
+        Parameters
+        ----------
+
+        structure:
+            ase.Atoms object of structure to be featurized
+
+        Returns
+        -------
+
+        representation:
+            Numpy array of feature vector of shape (number of features,)
+        """
         feat_class = self.featurizer_class
         if feat_class in SUPPORTED_DSCRIBE_CLASSES:
             if feat_class in [SOAP, ACSF]:
@@ -218,6 +232,21 @@ class Featurizer:
                 return representation
 
     def featurize_multiple(self, structures: List[Atoms], **kwargs):
+        """
+        Featurize multiple structures. Returns a matrix
+
+        Parameters
+        ----------
+
+        structures:
+            List of ase.Atoms structures to be featurized
+
+        Returns
+        -------
+
+        X:
+            Numpy array of shape (number of structures, number of features)
+        """
         first_vec = self.featurize_single(structures[0], **kwargs)
         num_features = len(first_vec)
         # if adsorbate featurization, assumes only 1 adsorbate in design space
