@@ -39,7 +39,9 @@ class Featurizer:
     def __init__(
         self,
         featurizer_class,
-        design_space_structures: List[Atoms],
+        design_space_structures: List[Atoms] = None,
+        species_list: List[str] = None,
+        max_size: int = 100,
         preset: str = None,
         initialization_kwargs: Dict = None,
     ):
@@ -53,8 +55,12 @@ class Featurizer:
         self.initialization_kwargs = initialization_kwargs
 
         self._max_size = None
-        self._species_list = None
+        self.max_size = max_size
 
+        self._species_list = ["Pt", "Pd", "Cu", "Fe", "Ni", "H", "O", "C", "N"]
+        self.species_list = species_list
+
+        # overrides max_size and species_list if given
         self._design_space_structures = None
         self.design_space_structures = design_space_structures
 
@@ -111,7 +117,6 @@ class Featurizer:
             self._design_space_structures = design_space_structures
             # analyze new design space
             ds_structs = design_space_structures
-            self._max_size = max([len(s) for s in ds_structs])
             species_list = []
             adsorbate_indices = []
             for s in ds_structs:
@@ -121,30 +126,31 @@ class Featurizer:
                     spec for spec in found_species if spec not in species_list
                 ]
                 species_list.extend(new_species)
-                # get adsorbate indices
-                adsorbate_indices.append(np.where(s.get_tags() <= 0)[0].tolist())
 
+            self._max_size = max([len(s) for s in ds_structs])
             self._species_list = species_list
-            self._adsorbate_indices = adsorbate_indices
-            self._max_adsorbate_size = max(
-                [len(ads_ids) for ads_ids in adsorbate_indices]
-            )
 
     @property
     def max_size(self):
         return self._max_size
 
+    @max_size.setter
+    def max_size(self, max_size):
+        if max_size is not None:
+            self._max_size = max_size
+
     @property
     def species_list(self):
         return self._species_list
 
+    @species_list.setter
+    def species_list(self, species_list):
+        if species_list is not None:
+            self._species_list = species_list
+
     @property
     def adsorbate_indices(self):
         return self._adsorbate_indices
-
-    @property
-    def max_adsorbate_size(self):
-        return self._max_adsorbate_size
 
     def _initialize(self):
         # instantiate featurizer object
@@ -167,13 +173,13 @@ class Featurizer:
                 )
             return self.featurizer_class(**self.initialization_kwargs or {})
 
-    def _featurize_single(self, structure: Atoms, **kwargs):
+    def featurize_single(self, structure: Atoms, **kwargs):
         feat_class = self.featurizer_class
         if feat_class in SUPPORTED_DSCRIBE_CLASSES:
             if feat_class in [SOAP, ACSF]:
-                positions = np.where(structure.get_tags() <= 0)[0].tolist()
+                adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
                 return self.featurizer_object.create(
-                    structure, positions=positions, **kwargs
+                    structure, positions=adsorbate_indices, **kwargs
                 )
             elif feat_class in [SineMatrix, CoulombMatrix]:
                 return self.featurizer_object.create(structure, **kwargs)
@@ -215,8 +221,16 @@ class Featurizer:
                     representation = np.concatenate((representation, feat))
                 return representation
 
-    def featurize(self, structures: List[Atoms], **kwargs):
-        pass
+    def featurize_multiple(self, structures: List[Atoms], **kwargs):
+        first_vec = self.featurize_single(structures[0], **kwargs)
+        num_features = len(first_vec)
+        # if adsorbate featurization, assumes only 1 adsorbate in design space
+        # (otherwise would require padding)
+        X = np.zeros((len(structures), num_features))
+        X[0, :] = first_vec.copy()
+        for i in range(1, len(structures)):
+            X[i, :] = self.featurize_single(structures[i], **kwargs)
+        return X
 
 
 def get_X(
