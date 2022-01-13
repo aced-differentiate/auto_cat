@@ -43,16 +43,17 @@ class Featurizer:
         species_list: List[str] = None,
         max_size: int = 100,
         preset: str = None,
-        initialization_kwargs: Dict = None,
+        kwargs: Dict = None,
     ):
 
         self._featurizer_class = None
+        self.featurizer_class = featurizer_class
 
         self._preset = None
         self.preset = preset
 
-        self._initialization_kwargs = None
-        self.initialization_kwargs = initialization_kwargs
+        self._kwargs = None
+        self.kwargs = kwargs
 
         self._max_size = None
         self.max_size = max_size
@@ -64,7 +65,7 @@ class Featurizer:
         self._design_space_structures = None
         self.design_space_structures = design_space_structures
 
-        self.featurizer_class = featurizer_class
+        self._featurizer_object = self._get_featurization_object()
 
     @property
     def featurizer_class(self):
@@ -78,10 +79,8 @@ class Featurizer:
         ):
             self._featurizer_class = featurizer_class
             self._kwargs = None
-            self.featurizer_object = self._initialize()
         else:
-            msg = f"Featurization class {featurizer_class} are not currently supported.\
-            \n At present only classes from 'matminer' and 'dscribe' are supported."
+            msg = f"Featurization class {featurizer_class} is not currently supported."
             raise FeaturizerError(msg)
 
     @property
@@ -99,26 +98,25 @@ class Featurizer:
             raise FeaturizerError(msg)
 
     @property
-    def initialization_kwargs(self):
+    def kwargs(self):
         return self._kwargs
 
-    @initialization_kwargs.setter
-    def initialization_kwargs(self, initialization_kwargs):
-        if initialization_kwargs is not None:
-            self._initialization_kwargs = initialization_kwargs
+    @kwargs.setter
+    def kwargs(self, kwargs):
+        if kwargs is not None:
+            self._kwargs = kwargs
 
     @property
     def design_space_structures(self):
         return self._design_space_structures
 
     @design_space_structures.setter
-    def design_space_structures(self, design_space_structures):
+    def design_space_structures(self, design_space_structures: List[Atoms]):
         if design_space_structures is not None:
             self._design_space_structures = design_space_structures
             # analyze new design space
             ds_structs = design_space_structures
             species_list = []
-            adsorbate_indices = []
             for s in ds_structs:
                 # get all unique species
                 found_species = np.unique(s.get_chemical_symbols()).tolist()
@@ -144,15 +142,15 @@ class Featurizer:
         return self._species_list
 
     @species_list.setter
-    def species_list(self, species_list):
+    def species_list(self, species_list: List[str]):
         if species_list is not None:
             self._species_list = species_list
 
     @property
-    def adsorbate_indices(self):
-        return self._adsorbate_indices
+    def featurization_object(self):
+        return self._get_featurization_object()
 
-    def _initialize(self):
+    def _get_featurization_object(self):
         # instantiate featurizer object
         if self.preset is not None:
             try:
@@ -163,15 +161,13 @@ class Featurizer:
         else:
             if self.featurizer_class in [SineMatrix, CoulombMatrix]:
                 return self.featurizer_class(
-                    n_atoms_max=self.max_size,
-                    permutation="none",
-                    **self.initialization_kwargs or {},
+                    n_atoms_max=self.max_size, permutation="none", **self.kwargs or {},
                 )
             elif self.featurizer_class in [SOAP, ACSF]:
                 return self.featurizer_class(
-                    species=self.species_list, **self.initialization_kwargs or {}
+                    species=self.species_list, **self.kwargs or {}
                 )
-            return self.featurizer_class(**self.initialization_kwargs or {})
+            return self.featurizer_class(**self.kwargs or {})
 
     def featurize_single(self, structure: Atoms, **kwargs):
         feat_class = self.featurizer_class
