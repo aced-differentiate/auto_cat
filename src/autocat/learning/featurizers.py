@@ -64,8 +64,6 @@ class Featurizer:
         self._design_space_structures = None
         self.design_space_structures = design_space_structures
 
-        self._featurizer_object = self._get_featurization_object()
-
     @property
     def featurizer_class(self):
         return self._featurizer_class
@@ -77,6 +75,7 @@ class Featurizer:
             or featurizer_class in SUPPORTED_DSCRIBE_CLASSES
         ):
             self._featurizer_class = featurizer_class
+            self._preset = None
             self._kwargs = None
         else:
             msg = f"Featurization class {featurizer_class} is not currently supported."
@@ -188,39 +187,41 @@ class Featurizer:
         if feat_class in SUPPORTED_DSCRIBE_CLASSES:
             if feat_class in [SOAP, ACSF]:
                 adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
-                return self.featurizer_object.create(
+                return self.featurization_object.create(
                     structure, positions=adsorbate_indices, **kwargs
                 )
             elif feat_class in [SineMatrix, CoulombMatrix]:
-                return self.featurizer_object.create(structure, **kwargs)
+                return self.featurization_object.create(structure, **kwargs)
         elif feat_class in SUPPORTED_MATMINER_CLASSES:
             conv = AseAtomsAdaptor()
             pym_struct = conv.get_structure(structure)
             if feat_class == ElementProperty:
                 return np.array(
-                    self.featurizer_object.featurize(pym_struct.composition)
+                    self.featurization_object.featurize(pym_struct.composition)
                 )
             elif feat_class in [CrystalNNFingerprint, OPSiteFingerprint]:
                 representation = np.array([])
                 adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
                 for idx in adsorbate_indices:
-                    feat = self.featurizer_object.featurize(pym_struct, idx)
+                    feat = self.featurization_object.featurize(pym_struct, idx)
                     representation = np.concatenate((representation, feat))
                 return representation
             elif feat_class == ChemicalSRO:
                 species_list = self.species_list
                 adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
                 formatted_list = [[pym_struct, idx] for idx in adsorbate_indices]
-                self.featurizer_object.fit(formatted_list)
+                featurization_object = self.featurization_object
+                featurization_object.fit(formatted_list)
                 # concatenate representation for each adsorbate atom
                 representation = np.array([])
+                # TODO: order species_list so that this is no longer needed
                 for idx in adsorbate_indices:
-                    raw_feat = self.featurizer_object.featurize(pym_struct, idx)
+                    raw_feat = featurization_object.featurize(pym_struct, idx)
                     # csro only generates for species observed in fit
                     # as well as includes, so to be generalizable
                     # we use full species list of the design space and place values
                     # in the appropriate species location relative to this list
-                    labels = self.featurizer_object.feature_labels()
+                    labels = featurization_object.feature_labels()
                     feat = np.zeros(len(species_list))
                     for i, label in enumerate(labels):
                         # finds where corresponding species is in full species list
