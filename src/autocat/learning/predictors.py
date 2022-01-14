@@ -6,15 +6,16 @@ from typing import Dict
 from typing import Union
 
 from ase import Atoms
-from sklearn import metrics
 
-from sklearn.model_selection import KFold
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
 
-from autocat.learning.featurizers import get_X
-from autocat.learning.featurizers import _get_number_of_features
+from autocat.learning.featurizers import Featurizer
+from autocat.learning.featurizers import (
+    SUPPORTED_DSCRIBE_CLASSES,
+    SUPPORTED_MATMINER_CLASSES,
+)
 
 
 class PredictorError(Exception):
@@ -26,15 +27,8 @@ class Predictor:
         self,
         model_class=None,
         multiple_separate_models: bool = None,
-        structure_featurizer: str = None,
-        adsorbate_featurizer: str = None,
-        maximum_structure_size: int = None,
-        maximum_adsorbate_size: int = None,
-        elementalproperty_preset: str = None,
-        species_list: List[str] = None,
-        refine_structures: bool = None,
-        structure_featurization_kwargs: Dict = None,
-        adsorbate_featurization_kwargs: Dict = None,
+        featurizer_class=None,
+        featurization_kwargs: Dict = None,
         model_kwargs: Dict = None,
     ):
         """
@@ -91,32 +85,15 @@ class Predictor:
 
         self.regressor = self.model_class(**self.model_kwargs or {})
 
-        self._refine_structures = True
-        self.refine_structures = refine_structures
+        self._featurizer_class = None
+        self.featurizer_class = featurizer_class
 
-        self._structure_featurizer = None
-        self.structure_featurizer = structure_featurizer
+        self._featurization_kwargs = None
+        self.featurization_kwargs = featurization_kwargs
 
-        self._adsorbate_featurizer = None
-        self.adsorbate_featurizer = adsorbate_featurizer
-
-        self._structure_featurization_kwargs = None
-        self.structure_featurization_kwargs = structure_featurization_kwargs
-
-        self._adsorbate_featurization_kwargs = None
-        self.adsorbate_featurization_kwargs = adsorbate_featurization_kwargs
-
-        self._maximum_structure_size = None
-        self.maximum_structure_size = maximum_structure_size
-
-        self._elementalproperty_preset = "magpie"
-        self.elementalproperty_preset = elementalproperty_preset
-
-        self._maximum_adsorbate_size = None
-        self.maximum_adsorbate_size = maximum_adsorbate_size
-
-        self._species_list = None
-        self.species_list = species_list
+        self.featurization_object = Featurizer(
+            featurizer_class=self.featurizer_class, kwargs=self.featurization_kwargs
+        )
 
     @property
     def model_class(self):
@@ -151,120 +128,37 @@ class Predictor:
             self.regressor = self.model_class(**model_kwargs)
 
     @property
-    def refine_structures(self):
-        return self._refine_structures
+    def featurizer_class(self):
+        return self._featurizer_class
 
-    @refine_structures.setter
-    def refine_structures(self, refine_structures):
-        if refine_structures is not None:
-            self._refine_structures = refine_structures
+    @featurizer_class.setter
+    def featurizer_class(self, featurizer_class):
+        if featurizer_class is not None:
+            assert (
+                featurizer_class in SUPPORTED_DSCRIBE_CLASSES
+                or featurizer_class in SUPPORTED_MATMINER_CLASSES
+            )
+            self._featurizer_class = featurizer_class
+            self.featurization_object = Featurizer(
+                featurizer_class, kwargs=self.featurization_kwargs
+            )
             if self.is_fit:
                 self.is_fit = False
                 self.X_ = None
                 self.y_ = None
 
     @property
-    def structure_featurizer(self):
-        return self._structure_featurizer
+    def featurization_kwargs(self):
+        return self._featurization_kwargs
 
-    @structure_featurizer.setter
-    def structure_featurizer(self, structure_featurizer):
-        if structure_featurizer is not None:
-            self._structure_featurizer = structure_featurizer
-            if self.is_fit:
-                self.is_fit = False
-                self.X_ = None
-                self.y_ = None
-
-    @property
-    def adsorbate_featurizer(self):
-        return self._adsorbate_featurizer
-
-    @adsorbate_featurizer.setter
-    def adsorbate_featurizer(self, adsorbate_featurizer):
-        if adsorbate_featurizer is not None:
-            self._adsorbate_featurizer = adsorbate_featurizer
-            if self.is_fit:
-                self.is_fit = False
-                self.X_ = None
-                self.y_ = None
-
-    @property
-    def structure_featurization_kwargs(self):
-        return self._structure_featurization_kwargs
-
-    @structure_featurization_kwargs.setter
-    def structure_featurization_kwargs(self, structure_featurization_kwargs):
-        if structure_featurization_kwargs is not None:
-            assert isinstance(structure_featurization_kwargs, dict)
-            if self._structure_featurization_kwargs is not None:
-                self._structure_featurization_kwargs = structure_featurization_kwargs
-            if self.is_fit:
-                self.is_fit = False
-                self.X_ = None
-                self.y_ = None
-
-    @property
-    def elementalproperty_preset(self):
-        return self._elementalproperty_preset
-
-    @elementalproperty_preset.setter
-    def elementalproperty_preset(self, elementalproperty_preset):
-        if elementalproperty_preset is not None:
-            self._elementalproperty_preset = elementalproperty_preset
-            if self.is_fit:
-                self.is_fit = False
-                self.X_ = None
-                self.y_ = None
-
-    @property
-    def adsorbate_featurization_kwargs(self):
-        return self._adsorbate_featurization_kwargs
-
-    @adsorbate_featurization_kwargs.setter
-    def adsorbate_featurization_kwargs(self, adsorbate_featurization_kwargs):
-        if adsorbate_featurization_kwargs is not None:
-            assert isinstance(adsorbate_featurization_kwargs, dict)
-            self._adsorbate_featurization_kwargs = adsorbate_featurization_kwargs
-            if self.is_fit:
-                self.is_fit = False
-                self.X_ = None
-                self.y_ = None
-
-    @property
-    def maximum_structure_size(self):
-        return self._maximum_structure_size
-
-    @maximum_structure_size.setter
-    def maximum_structure_size(self, maximum_structure_size):
-        if maximum_structure_size is not None:
-            self._maximum_structure_size = maximum_structure_size
-            if self.is_fit:
-                self.is_fit = False
-                self.X_ = None
-                self.y_ = None
-
-    @property
-    def maximum_adsorbate_size(self):
-        return self._maximum_adsorbate_size
-
-    @maximum_adsorbate_size.setter
-    def maximum_adsorbate_size(self, maximum_adsorbate_size):
-        if maximum_adsorbate_size is not None:
-            self._maximum_adsorbate_size = maximum_adsorbate_size
-            if self.is_fit:
-                self.is_fit = False
-                self.X_ = None
-                self.y_ = None
-
-    @property
-    def species_list(self):
-        return self._species_list
-
-    @species_list.setter
-    def species_list(self, species_list):
-        if species_list is not None:
-            self._species_list = species_list
+    @featurization_kwargs.setter
+    def featurization_kwargs(self, featurization_kwargs):
+        if featurization_kwargs is not None:
+            assert isinstance(featurization_kwargs, dict)
+            self._featurization_kwargs = featurization_kwargs
+            self.featurization_object = Featurizer(
+                self.featurizer_class, kwargs=featurization_kwargs
+            )
             if self.is_fit:
                 self.is_fit = False
                 self.X_ = None
@@ -276,70 +170,28 @@ class Predictor:
         """
         acp = self.__class__(
             model_class=self.model_class,
+            featurizer_class=self.featurizer_class,
             multiple_separate_models=self.multiple_separate_models,
-            structure_featurizer=self.structure_featurizer,
-            adsorbate_featurizer=self.adsorbate_featurizer,
-            maximum_structure_size=self.maximum_structure_size,
-            maximum_adsorbate_size=self.maximum_adsorbate_size,
-            elementalproperty_preset=self.elementalproperty_preset,
-            refine_structures=self.refine_structures,
         )
         acp.regressor = copy.deepcopy(self.regressor)
         acp.is_fit = self.is_fit
-        acp.structure_featurization_kwargs = copy.deepcopy(
-            self.structure_featurization_kwargs
-        )
-        acp.adsorbate_featurization_kwargs = copy.deepcopy(
-            self.adsorbate_featurization_kwargs
-        )
+        acp.featurization_kwargs = copy.deepcopy(self.featurization_kwargs)
         acp.model_kwargs = copy.deepcopy(self.model_kwargs)
-        if self.species_list is not None:
-            acp.species_list = self.species_list.copy()
 
         return acp
-
-    def get_total_number_of_features(self):
-        # get specified kwargs for featurizers
-        str_kwargs = self.structure_featurization_kwargs
-        ads_kwargs = self.adsorbate_featurization_kwargs
-        if str_kwargs is None:
-            str_kwargs = {}
-        if ads_kwargs is None:
-            ads_kwargs = {}
-        if self.structure_featurizer is not None:
-            # check if one of dscribe structure featurizers
-            if self.structure_featurizer in ["sine_matrix", "coulomb_matrix"]:
-                str_kwargs.update({"n_atoms_max": self.maximum_structure_size})
-            num_struct_feat = _get_number_of_features(
-                self.structure_featurizer, **str_kwargs
-            )
-        else:
-            # no structure featurizer present
-            num_struct_feat = 0
-        if self.adsorbate_featurizer is not None:
-            # check if one of dscribe structure featurizers
-            if self.adsorbate_featurizer == "soap":
-                ads_kwargs.update({"species": self.species_list})
-            num_ads_feat = _get_number_of_features(
-                self.adsorbate_featurizer, **ads_kwargs
-            )
-        else:
-            # no adsorbate featurizer present
-            num_ads_feat = 0
-        return num_struct_feat, num_ads_feat
 
     def fit(
         self, training_structures: List[Union[Atoms, str]], y: np.ndarray,
     ):
         """
-        Given a list of perturbed structures
-        will featurize and train a regression model on them
+        Given a list of structures and labels will featurize
+        and train a regression model
 
         Parameters
         ----------
 
         training_structures:
-            List of perturbed structures to be trained upon
+            List of structures to be trained upon
 
         y:
             Numpy array of labels corresponding to training structures
@@ -351,45 +203,7 @@ class Predictor:
         trained_model:
             Trained `sklearn` model object
         """
-        self.X_ = get_X(
-            training_structures,
-            maximum_structure_size=self.maximum_structure_size,
-            structure_featurizer=self.structure_featurizer,
-            maximum_adsorbate_size=self.maximum_adsorbate_size,
-            adsorbate_featurizer=self.adsorbate_featurizer,
-            species_list=self.species_list,
-            refine_structures=self.refine_structures,
-            structure_featurization_kwargs=self.structure_featurization_kwargs,
-            adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
-        )
-
-        if self.maximum_structure_size is None:
-            if self.refine_structures:
-                ref_structures = [
-                    structure[np.where(structure.get_tags() < 2)[0].tolist()]
-                    for structure in training_structures
-                ]
-                self.maximum_structure_size = max([len(ref) for ref in ref_structures])
-            else:
-                self.maximum_structure_size = max([len(s) for s in training_structures])
-
-        if self.maximum_adsorbate_size is None:
-            adsorbate_sizes = []
-            for struct in training_structures:
-                adsorbate_sizes.append(
-                    len(np.where(struct.get_tags() <= 0)[0].tolist())
-                )
-            self.maximum_adsorbate_size = max(adsorbate_sizes)
-
-        if self.species_list is None:
-            species_list = []
-            for s in training_structures:
-                found_species = np.unique(s.get_chemical_symbols()).tolist()
-                new_species = [
-                    spec for spec in found_species if spec not in species_list
-                ]
-                species_list.extend(new_species)
-            self.species_list = species_list
+        self.X_ = self.featurization_object.featurize_multiple(training_structures)
         self.y_ = y
         self.regressor.fit(self.X_, self.y_)
         self.is_fit = True
@@ -398,36 +212,28 @@ class Predictor:
         self, testing_structures: List[Atoms],
     ):
         """
-        From a trained model, will predict corrected structure
-        of a given initial structure guess
+        From a trained model, will predict on given structures
 
         Parameters
         ----------
 
         testing_structures:
-            List of Atoms objects of initial guesses for adsorbate
-            placement to be optimized
+            List of Atoms objects to make predictions on
 
         Returns
         -------
 
-        predicted_corrections:
-            List of corrections to be applied to each input structure
+        predicted_labels:
+            List of predicted labels for each input structure
 
         unc:
-            List of uncertainties for each prediction
+            List of uncertainties for each prediction if available.
+            Otherwise returns `None`
 
         """
         assert self.is_fit
-        featurized_input = get_X(
-            structures=testing_structures,
-            structure_featurizer=self.structure_featurizer,
-            adsorbate_featurizer=self.adsorbate_featurizer,
-            maximum_structure_size=self.maximum_structure_size,
-            maximum_adsorbate_size=self.maximum_adsorbate_size,
-            species_list=self.species_list,
-            structure_featurization_kwargs=self.structure_featurization_kwargs,
-            adsorbate_featurization_kwargs=self.adsorbate_featurization_kwargs,
+        featurized_input = self.featurization_object.featurize_multiple(
+            testing_structures
         )
         try:
             predicted_labels, unc = self.regressor.predict(
@@ -453,8 +259,8 @@ class Predictor:
         Parameters
         ----------
 
-        test_structure_guesses:
-            List of Atoms objects of structures to be tested o
+        testing_structures:
+            List of Atoms objects of structures to be tested on
 
         y:
             Labels for the testing structures
