@@ -181,7 +181,7 @@ class Featurizer:
         -------
 
         representation:
-            Numpy array of feature vector of shape (number of features,)
+            Numpy array of feature vector (not flattened)
         """
         feat_class = self.featurizer_class
         if feat_class in SUPPORTED_DSCRIBE_CLASSES:
@@ -234,7 +234,8 @@ class Featurizer:
 
     def featurize_multiple(self, structures: List[Atoms], **kwargs):
         """
-        Featurize multiple structures. Returns a matrix
+        Featurize multiple structures. Returns a matrix where each
+        row is the flattened feature vector of each system
 
         Parameters
         ----------
@@ -248,14 +249,14 @@ class Featurizer:
         X:
             Numpy array of shape (number of structures, number of features)
         """
-        first_vec = self.featurize_single(structures[0], **kwargs)
+        first_vec = self.featurize_single(structures[0], **kwargs).flatten()
         num_features = len(first_vec)
         # if adsorbate featurization, assumes only 1 adsorbate in design space
         # (otherwise would require padding)
         X = np.zeros((len(structures), num_features))
         X[0, :] = first_vec.copy()
         for i in range(1, len(structures)):
-            X[i, :] = self.featurize_single(structures[i], **kwargs)
+            X[i, :] = self.featurize_single(structures[i], **kwargs).flatten()
         return X
 
 
