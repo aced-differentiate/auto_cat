@@ -167,7 +167,7 @@ class Featurizer:
                 )
             return self.featurizer_class(**self.kwargs or {})
 
-    def featurize_single(self, structure: Atoms, **kwargs):
+    def featurize_single(self, structure: Atoms):
         """
         Featurize a single structure. Returns a single vector
 
@@ -188,10 +188,10 @@ class Featurizer:
             if feat_class in [SOAP, ACSF]:
                 adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
                 return self.featurization_object.create(
-                    structure, positions=adsorbate_indices, **kwargs
+                    structure, positions=adsorbate_indices,
                 )
             elif feat_class in [SineMatrix, CoulombMatrix]:
-                return self.featurization_object.create(structure, **kwargs)
+                return self.featurization_object.create(structure)
         elif feat_class in SUPPORTED_MATMINER_CLASSES:
             conv = AseAtomsAdaptor()
             pym_struct = conv.get_structure(structure)
@@ -232,7 +232,7 @@ class Featurizer:
                     representation = np.concatenate((representation, feat))
                 return representation
 
-    def featurize_multiple(self, structures: List[Atoms], **kwargs):
+    def featurize_multiple(self, structures: List[Atoms]):
         """
         Featurize multiple structures. Returns a matrix where each
         row is the flattened feature vector of each system
@@ -249,14 +249,14 @@ class Featurizer:
         X:
             Numpy array of shape (number of structures, number of features)
         """
-        first_vec = self.featurize_single(structures[0], **kwargs).flatten()
+        first_vec = self.featurize_single(structures[0]).flatten()
         num_features = len(first_vec)
         # if adsorbate featurization, assumes only 1 adsorbate in design space
         # (otherwise would require padding)
         X = np.zeros((len(structures), num_features))
         X[0, :] = first_vec.copy()
         for i in range(1, len(structures)):
-            X[i, :] = self.featurize_single(structures[i], **kwargs).flatten()
+            X[i, :] = self.featurize_single(structures[i]).flatten()
         return X
 
 
