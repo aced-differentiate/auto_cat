@@ -216,6 +216,40 @@ def test_featurizer_featurize_single():
     assert np.array_equal(acf, manual_cnn)
 
 
+def test_featurizer_featurize_multiple():
+    # tests featurizing multiple structures at a time
+
+    # TEST STRUCTURE FEATURIZER
+    saas = extract_structures(
+        generate_saa_structures(
+            ["Au", "Cu"], ["Pd", "Pt"], facets={"Au": ["111"], "Cu": ["111"]}
+        )
+    )
+    f = Featurizer(ElementProperty, preset="magpie", design_space_structures=saas)
+    acf = f.featurize_multiple(saas)
+    manual_mat = []
+    for i in range(len(saas)):
+        manual_mat.append(f.featurize_single(saas[i]))
+    manual_mat = np.array(manual_mat)
+    assert np.array_equal(acf, manual_mat)
+
+    # TEST SITE FEATURIZER
+    ads_structs = []
+    for struct in saas:
+        ads_structs.append(
+            extract_structures(place_adsorbate(struct, "NNH", position=(0.0, 0.0)))[0]
+        )
+    f.featurizer_class = SOAP
+    f.design_space_structures = ads_structs
+    f.kwargs = {"rcut": 6.0, "lmax": 6, "nmax": 6}
+    acf = f.featurize_multiple(ads_structs)
+    manual_mat = []
+    for i in range(len(ads_structs)):
+        manual_mat.append(f.featurize_single(ads_structs[i]).flatten())
+    manual_mat = np.array(manual_mat)
+    assert np.array_equal(acf, manual_mat)
+
+
 def test_full_structure_featurization_sine():
     # Tests Sine Matrix Generation
     surf = generate_surface_structures(["Fe"])["Fe"]["bcc100"]["structure"]
