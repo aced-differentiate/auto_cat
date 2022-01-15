@@ -143,10 +143,8 @@ class Predictor:
                 or featurizer_class in SUPPORTED_MATMINER_CLASSES
             )
             self._featurizer_class = featurizer_class
-            self.featurization_object = Featurizer(
-                featurizer_class,
-                **self.featurization_kwargs if self.featurization_kwargs else {},
-            )
+            self._featurization_kwargs = None
+            self.featurization_object = Featurizer(featurizer_class,)
             if self.is_fit:
                 self.is_fit = False
                 self.X_ = None
