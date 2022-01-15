@@ -26,10 +26,10 @@ class Predictor:
     def __init__(
         self,
         model_class=None,
+        model_kwargs: Dict = None,
         multiple_separate_models: bool = None,
         featurizer_class=None,
         featurization_kwargs: Dict = None,
-        model_kwargs: Dict = None,
     ):
         """
         Constructor.
@@ -83,16 +83,20 @@ class Predictor:
         self._model_kwargs = None
         self.model_kwargs = model_kwargs
 
-        self.regressor = self.model_class(**self.model_kwargs or {})
+        self.regressor = self.model_class(
+            **self.model_kwargs if self.model_kwargs else {}
+        )
 
         self._featurizer_class = None
+        self._featurization_kwargs = None
+
         self.featurizer_class = featurizer_class
 
-        self._featurization_kwargs = None
         self.featurization_kwargs = featurization_kwargs
 
         self.featurization_object = Featurizer(
-            featurizer_class=self.featurizer_class, kwargs=self.featurization_kwargs
+            featurizer_class=self.featurizer_class,
+            **self.featurization_kwargs if self.featurization_kwargs else {},
         )
 
     @property
@@ -140,12 +144,16 @@ class Predictor:
             )
             self._featurizer_class = featurizer_class
             self.featurization_object = Featurizer(
-                featurizer_class, kwargs=self.featurization_kwargs
+                featurizer_class,
+                **self.featurization_kwargs if self.featurization_kwargs else {},
             )
             if self.is_fit:
                 self.is_fit = False
                 self.X_ = None
                 self.y_ = None
+            self.regressor = self.model_class(
+                **self.model_kwargs if self.model_kwargs else {}
+            )
 
     @property
     def featurization_kwargs(self):
@@ -157,12 +165,15 @@ class Predictor:
             assert isinstance(featurization_kwargs, dict)
             self._featurization_kwargs = featurization_kwargs
             self.featurization_object = Featurizer(
-                self.featurizer_class, kwargs=featurization_kwargs
+                self.featurizer_class, **featurization_kwargs
             )
             if self.is_fit:
                 self.is_fit = False
                 self.X_ = None
                 self.y_ = None
+            self.regressor = self.model_class(
+                **self.model_kwargs if self.model_kwargs else {}
+            )
 
     def copy(self):
         """
