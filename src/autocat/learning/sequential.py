@@ -43,7 +43,8 @@ class DesignSpace:
 
         """
         if len(design_space_structures) != design_space_labels.shape[0]:
-            msg = f"Number of structures ({len(design_space_structures)}) and labels ({design_space_labels.shape[0]}) must match"
+            msg = f"Number of structures ({len(design_space_structures)})\
+                 and labels ({design_space_labels.shape[0]}) must match"
             raise DesignSpaceError(msg)
 
         self._design_space_structures = [
@@ -214,8 +215,14 @@ class SequentialLearner:
         self.design_space = design_space.copy()
 
         # predictor arguments to use throughout the SL process
-        if not predictor_kwargs:
-            predictor_kwargs = {"structure_featurizer": "sine_matrix"}
+        if predictor_kwargs is None:
+            predictor_kwargs = {}
+        ds_structs_kwargs = {
+            "design_space_structures": design_space.design_space_structures
+        }
+        if "featurization_kwargs" not in predictor_kwargs:
+            predictor_kwargs["featurization_kwargs"] = {}
+        predictor_kwargs["featurization_kwargs"].update(ds_structs_kwargs)
         self._predictor_kwargs = None
         self.predictor_kwargs = predictor_kwargs
         self._predictor = Predictor(**predictor_kwargs)
