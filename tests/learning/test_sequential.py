@@ -7,12 +7,16 @@ import json
 
 import tempfile
 
+from sklearn.gaussian_process import GaussianProcessRegressor
+
+from dscribe.descriptors import SOAP
+from dscribe.descriptors import SineMatrix
+
 from scipy import stats
 from ase.io import read as ase_read
 from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
 from autocat.data.segregation_energies import SEGREGATION_ENERGIES
-from autocat.learning.predictors import Predictor
 from autocat.learning.sequential import (
     DesignSpace,
     DesignSpaceError,
@@ -47,16 +51,15 @@ def test_sequential_learner_from_json():
     sub3 = place_adsorbate(sub3, "N")["custom"]["structure"]
     structs = [sub1, sub2, sub3]
     labels = np.array([0.1, np.nan, 0.3])
+    acds = DesignSpace(structs, labels)
+    featurization_kwargs = {"kwargs": {"rcut": 5.0, "lmax": 6, "nmax": 6}}
     predictor_kwargs = {
-        "structure_featurizer": "coulomb_matrix",
-        "elementalproperty_preset": "megnet_el",
-        "adsorbate_featurizer": "soap",
-        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
-        "species_list": ["Au", "Li", "Mg", "C", "Ru", "N"],
+        "model_class": GaussianProcessRegressor,
+        "featurizer_class": SOAP,
+        "featurization_kwargs": featurization_kwargs,
     }
 
     candidate_selection_kwargs = {"aq": "Random", "num_candidates_to_pick": 3}
-    acds = DesignSpace(structs, labels)
     acsl = SequentialLearner(
         acds,
         predictor_kwargs=predictor_kwargs,
@@ -243,7 +246,7 @@ def test_sequential_learner_iterate():
     structs = [sub1, sub2, sub3, sub4]
     labels = np.array([11.0, 25.0, np.nan, np.nan])
     acds = DesignSpace(structs, labels)
-    acsl = SequentialLearner(acds)
+    acsl = SequentialLearner(acds, predictor_kwargs={"featurizer_class": SineMatrix})
 
     assert acsl.iteration_count == 0
 
@@ -310,7 +313,7 @@ def test_sequential_learner_setup():
     structs = [sub1, sub2, sub3, sub4]
     labels = np.array([4.0, np.nan, 6.0, np.nan])
     acds = DesignSpace(structs, labels)
-    acsl = SequentialLearner(acds)
+    acsl = SequentialLearner(acds, predictor_kwargs={"featurizer_class": SineMatrix})
 
     assert acsl.design_space.design_space_structures == acds.design_space_structures
     assert np.array_equal(
@@ -320,37 +323,24 @@ def test_sequential_learner_setup():
     assert acsl.predictions == None
     assert acsl.candidate_indices == None
     assert acsl.candidate_selection_kwargs == {"aq": "Random"}
-    # test default kwargs
-    assert acsl.predictor_kwargs == {"structure_featurizer": "sine_matrix"}
-    # test specifying kwargs
+    # test specifying more kwargs
+    predictor_kwargs = {
+        "featurizer_class": SOAP,
+        "model_kwargs": {"n_restarts_optimizer": 9},
+        "featurization_kwargs": {"kwargs": {"rcut": 5.0, "lmax": 6, "nmax": 6}},
+    }
     acsl = SequentialLearner(
         acds,
-        predictor_kwargs={
-            "structure_featurizer": "elemental_property",
-            "elementalproperty_preset": "pymatgen",
-            "adsorbate_featurizer": "soap",
-            "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
-            "species_list": ["Ir", "O", "H", "Mo", "Fe", "N", "Re"],
-            "model_kwargs": {"n_restarts_optimizer": 9},
-        },
+        predictor_kwargs=predictor_kwargs,
         candidate_selection_kwargs={"aq": "MU", "num_candidates_to_pick": 2},
     )
     # test passing predictor kwargs
-    assert acsl.predictor_kwargs == {
-        "structure_featurizer": "elemental_property",
-        "elementalproperty_preset": "pymatgen",
-        "adsorbate_featurizer": "soap",
-        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
-        "species_list": ["Ir", "O", "H", "Mo", "Fe", "N", "Re"],
-        "model_kwargs": {"n_restarts_optimizer": 9},
-    }
-    assert acsl.predictor.structure_featurizer == "elemental_property"
-    assert acsl.predictor.elementalproperty_preset == "pymatgen"
-    assert acsl.predictor.adsorbate_featurizer == "soap"
-    assert acsl.predictor.adsorbate_featurization_kwargs == {
+    assert acsl.predictor_kwargs == predictor_kwargs
+    assert isinstance(acsl.predictor.featurizer.featurization_object, SOAP)
+    assert acsl.predictor.featurization_kwargs["kwargs"] == {
         "rcut": 5.0,
-        "nmax": 8,
         "lmax": 6,
+        "nmax": 6,
     }
 
     # test passing candidate selection kwargs
@@ -592,7 +582,7 @@ def test_simulated_sequential_histories():
         "aq": "MLI",
         "num_candidates_to_pick": 2,
     }
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     sl = simulated_sequential_learning(
         full_design_space=acds,
         init_training_size=1,
@@ -626,7 +616,7 @@ def test_simulated_sequential_batch_added():
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
     base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
     candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     num_loops = 2
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
@@ -654,7 +644,7 @@ def test_simulated_sequential_num_loops():
     ]
     base_struct1 = place_adsorbate(sub1, "H")["custom"]["structure"]
     base_struct2 = place_adsorbate(sub2, "N")["custom"]["structure"]
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     candidate_selection_kwargs = {"num_candidates_to_pick": 3, "aq": "Random"}
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
@@ -707,7 +697,7 @@ def test_simulated_sequential_write_to_disk():
         base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
         base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
         base_struct3 = place_adsorbate(sub2, "N")["custom"]["structure"]
-        predictor_kwargs = {"structure_featurizer": "elemental_property"}
+        predictor_kwargs = {"featurizer_class": SineMatrix}
         candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
         ds_structs = [base_struct1, base_struct2, base_struct3]
         ds_labels = np.array([0, 1, 2])
@@ -778,7 +768,7 @@ def test_multiple_sequential_learning_serial():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
@@ -802,7 +792,7 @@ def test_multiple_sequential_learning_parallel():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, "Li")["custom"]["structure"]
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
@@ -828,7 +818,7 @@ def test_multiple_sequential_learning_write_to_disk():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, "N")["custom"]["structure"]
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
