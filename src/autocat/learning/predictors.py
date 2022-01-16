@@ -94,7 +94,7 @@ class Predictor:
 
         self.featurization_kwargs = featurization_kwargs
 
-        self.featurization_object = Featurizer(
+        self.featurizer = Featurizer(
             featurizer_class=self.featurizer_class,
             **self.featurization_kwargs if self.featurization_kwargs else {},
         )
@@ -144,7 +144,7 @@ class Predictor:
             )
             self._featurizer_class = featurizer_class
             self._featurization_kwargs = None
-            self.featurization_object = Featurizer(featurizer_class,)
+            self.featurizer = Featurizer(featurizer_class,)
             if self.is_fit:
                 self.is_fit = False
                 self.X_ = None
@@ -162,9 +162,7 @@ class Predictor:
         if featurization_kwargs is not None:
             assert isinstance(featurization_kwargs, dict)
             self._featurization_kwargs = featurization_kwargs
-            self.featurization_object = Featurizer(
-                self.featurizer_class, **featurization_kwargs
-            )
+            self.featurizer = Featurizer(self.featurizer_class, **featurization_kwargs)
             if self.is_fit:
                 self.is_fit = False
                 self.X_ = None
@@ -212,7 +210,7 @@ class Predictor:
         trained_model:
             Trained `sklearn` model object
         """
-        self.X_ = self.featurization_object.featurize_multiple(training_structures)
+        self.X_ = self.featurizer.featurize_multiple(training_structures)
         self.y_ = y
         self.regressor.fit(self.X_, self.y_)
         self.is_fit = True
@@ -241,9 +239,7 @@ class Predictor:
 
         """
         assert self.is_fit
-        featurized_input = self.featurization_object.featurize_multiple(
-            testing_structures
-        )
+        featurized_input = self.featurizer.featurize_multiple(testing_structures)
         try:
             predicted_labels, unc = self.regressor.predict(
                 featurized_input, return_std=True
