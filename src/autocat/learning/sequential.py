@@ -2,6 +2,7 @@ import copy
 import numpy as np
 import os
 import json
+import importlib
 from joblib import Parallel, delayed
 import tempfile
 from typing import List
@@ -11,6 +12,10 @@ from typing import Union
 from ase import Atoms
 from ase.io import read as ase_read
 from scipy import stats
+
+from sklearn.gaussian_process import GaussianProcessRegressor
+
+from dscribe.descriptors import SineMatrix
 
 from autocat.learning.predictors import Predictor
 from autocat.data.hhi import HHI_PRODUCTION
@@ -216,12 +221,19 @@ class SequentialLearner:
 
         # predictor arguments to use throughout the SL process
         if predictor_kwargs is None:
-            predictor_kwargs = {}
+            predictor_kwargs = {
+                "model_class": GaussianProcessRegressor,
+                "featurizer_class": SineMatrix,
+            }
+        if "model_class" not in predictor_kwargs:
+            predictor_kwargs["model_class"] = GaussianProcessRegressor
+        if "featurizer_class" not in predictor_kwargs:
+            predictor_kwargs["featurizer_class"] = SineMatrix
+        if "featurization_kwargs" not in predictor_kwargs:
+            predictor_kwargs["featurization_kwargs"] = {}
         ds_structs_kwargs = {
             "design_space_structures": design_space.design_space_structures
         }
-        if "featurization_kwargs" not in predictor_kwargs:
-            predictor_kwargs["featurization_kwargs"] = {}
         predictor_kwargs["featurization_kwargs"].update(ds_structs_kwargs)
         self._predictor_kwargs = None
         self.predictor_kwargs = predictor_kwargs
@@ -272,9 +284,22 @@ class SequentialLearner:
 
     @predictor_kwargs.setter
     def predictor_kwargs(self, predictor_kwargs):
-        if not predictor_kwargs:
-            predictor_kwargs = {}
-        self._predictor_kwargs = predictor_kwargs
+        if predictor_kwargs is None:
+            predictor_kwargs = {
+                "model_class": GaussianProcessRegressor,
+                "featurizer_class": SineMatrix,
+            }
+        if "model_class" not in predictor_kwargs:
+            predictor_kwargs["model_class"] = GaussianProcessRegressor
+        if "featurizer_class" not in predictor_kwargs:
+            predictor_kwargs["featurizer_class"] = SineMatrix
+        if "featurization_kwargs" not in predictor_kwargs:
+            predictor_kwargs["featurization_kwargs"] = {}
+        ds_structs_kwargs = {
+            "design_space_structures": self.design_space.design_space_structures
+        }
+        predictor_kwargs["featurization_kwargs"].update(ds_structs_kwargs)
+        self._predictor_kwargs = copy.deepcopy(predictor_kwargs)
         self._predictor = Predictor(**predictor_kwargs)
 
     @property
@@ -289,7 +314,7 @@ class SequentialLearner:
     def candidate_selection_kwargs(self, candidate_selection_kwargs):
         if not candidate_selection_kwargs:
             candidate_selection_kwargs = {}
-        self._candidate_selection_kwargs = candidate_selection_kwargs
+        self._candidate_selection_kwargs = candidate_selection_kwargs.copy()
 
     @property
     def iteration_count(self):
@@ -431,7 +456,19 @@ class SequentialLearner:
         )
 
         # append kwargs for predictor
-        jsonified_list.append(self.predictor_kwargs)
+        jsonified_pred_kwargs = {}
+        for k in self.predictor_kwargs:
+            if k in ["model_class", "featurizer_class"]:
+                mod_string = self.predictor_kwargs[k].__module__
+                class_string = self.predictor_kwargs[k].__name__
+                jsonified_pred_kwargs[k] = [mod_string, class_string]
+            elif k == "featurization_kwargs":
+                jsonified_pred_kwargs[k] = copy.deepcopy(self.predictor_kwargs[k])
+                # assumes design space will always match DesignSpace
+                del jsonified_pred_kwargs[k]["design_space_structures"]
+            else:
+                jsonified_pred_kwargs[k] = self.predictor_kwargs[k]
+        jsonified_list.append(jsonified_pred_kwargs)
         # append kwargs for candidate selection
         jsonified_list.append(self.candidate_selection_kwargs)
         # append the acsl kwargs
@@ -474,6 +511,10 @@ class SequentialLearner:
             design_space_structures=structures, design_space_labels=labels,
         )
         predictor_kwargs = all_data[-3]
+        for k in predictor_kwargs:
+            if k in ["model_class", "featurizer_class"]:
+                mod = importlib.import_module(predictor_kwargs[k][0])
+                predictor_kwargs[k] = getattr(mod, predictor_kwargs[k][1])
         candidate_selection_kwargs = all_data[-2]
         raw_sl_kwargs = all_data[-1]
         sl_kwargs = {}
@@ -741,9 +782,6 @@ def simulated_sequential_learning(
             sl.iterate()
 
     if write_to_disk:
-        # for now does not write out model class
-        # serialization needs to be implemented
-        sl.predictor_kwargs.update({"model_class": None})
         sl.write_json(write_location=write_location, json_name=json_name)
         print(f"SL dictionary written to {write_location}")
 
