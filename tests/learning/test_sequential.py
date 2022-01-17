@@ -11,6 +11,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 
 from dscribe.descriptors import SOAP
 from dscribe.descriptors import SineMatrix
+from matminer.featurizers.composition import ElementProperty
 
 from scipy import stats
 from ase.io import read as ase_read
@@ -79,6 +80,9 @@ def test_sequential_learner_from_json():
             written_acsl.design_space.design_space_structures
             == acds.design_space_structures
         )
+        predictor_kwargs["featurization_kwargs"][
+            "design_space_structures"
+        ] = acds.design_space_structures
         assert written_acsl.predictor_kwargs == predictor_kwargs
         assert written_acsl.candidate_selection_kwargs == candidate_selection_kwargs
         assert written_acsl.iteration_count == 1
@@ -117,12 +121,11 @@ def test_sequential_learner_write_json():
     sub3 = place_adsorbate(sub3, "H")["custom"]["structure"]
     structs = [sub1, sub2, sub3]
     labels = np.array([0.1, 0.2, np.nan])
+    featurization_kwargs = {"preset": "magpie"}
     predictor_kwargs = {
-        "structure_featurizer": "sine_matrix",
-        "elementalproperty_preset": "deml",
-        "adsorbate_featurizer": "soap",
-        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
-        "species_list": ["Ag", "Li", "Al", "B", "Ti", "H"],
+        "model_class": GaussianProcessRegressor,
+        "featurizer_class": ElementProperty,
+        "featurization_kwargs": featurization_kwargs,
     }
 
     candidate_selection_kwargs = {"aq": "MU", "num_candidates_to_pick": 2}
@@ -147,9 +150,18 @@ def test_sequential_learner_write_json():
         assert structs == written_structs
         assert np.array_equal(labels, sl[3], equal_nan=True)
         # check predictor kwargs kept
-        assert predictor_kwargs == sl[4]
+        predictor_kwargs["model_class"] = [
+            "sklearn.gaussian_process._gpr",
+            "GaussianProcessRegressor",
+        ]
+        predictor_kwargs["featurizer_class"] = [
+            "matminer.featurizers.composition",
+            "ElementProperty",
+        ]
+        del predictor_kwargs["featurization_kwargs"]["design_space_structures"]
+        assert sl[4] == predictor_kwargs
         # check candidate selection kwargs kept
-        assert candidate_selection_kwargs == sl[-2]
+        assert sl[-2] == candidate_selection_kwargs
         assert sl[-1] == {
             "iteration_count": 0,
             "train_idx": None,
@@ -162,27 +174,6 @@ def test_sequential_learner_write_json():
             "candidate_index_history": None,
             "aq_scores": None,
         }
-
-    # test writing when no kwargs given
-    acsl = SequentialLearner(acds)
-    with tempfile.TemporaryDirectory() as _tmp_dir:
-        acsl.write_json(_tmp_dir)
-        with open(os.path.join(_tmp_dir, "acsl.json"), "r") as f:
-            sl = json.load(f)
-        # collects structs by writing each json individually
-        # and reading with ase
-        written_structs = []
-        for i in range(3):
-            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-            with open(_tmp_json, "w") as tmp:
-                json.dump(sl[i], tmp)
-            written_structs.append(ase_read(_tmp_json))
-        assert structs == written_structs
-        assert np.array_equal(labels, sl[3], equal_nan=True)
-        # check default predictor kwargs kept
-        assert sl[4] == {"structure_featurizer": "sine_matrix"}
-        # check default candidate selection kwargs kept
-        assert sl[-2] == {"aq": "Random"}
 
     # test after iteration
     acsl.iterate()
@@ -201,9 +192,17 @@ def test_sequential_learner_write_json():
         assert structs == written_structs
         assert np.array_equal(labels, sl[3], equal_nan=True)
         # check predictor kwargs kept
-        assert sl[4] == {"structure_featurizer": "sine_matrix"}
+        predictor_kwargs["model_class"] = [
+            "sklearn.gaussian_process._gpr",
+            "GaussianProcessRegressor",
+        ]
+        predictor_kwargs["featurizer_class"] = [
+            "matminer.featurizers.composition",
+            "ElementProperty",
+        ]
+        assert sl[4] == predictor_kwargs
         # check candidate selection kwargs kept
-        assert sl[-2] == {"aq": "Random"}
+        assert sl[-2] == candidate_selection_kwargs
         assert sl[-1].get("iteration_count") == 1
         assert sl[-1].get("train_idx") == acsl.train_idx.tolist()
         assert sl[-1].get("train_idx_history") == [
