@@ -4,6 +4,7 @@ import numpy as np
 from typing import List
 from typing import Dict
 from typing import Union
+from prettytable import PrettyTable
 
 from ase import Atoms
 
@@ -27,7 +28,6 @@ class Predictor:
         self,
         model_class=None,
         model_kwargs: Dict = None,
-        multiple_separate_models: bool = None,
         featurizer_class=None,
         featurization_kwargs: Dict = None,
     ):
@@ -74,9 +74,6 @@ class Predictor:
         """
         self.is_fit = False
 
-        self._multiple_separate_models = False
-        self.multiple_separate_models = multiple_separate_models
-
         self._model_class = GaussianProcessRegressor
         self.model_class = model_class
 
@@ -98,6 +95,16 @@ class Predictor:
             featurizer_class=self.featurizer_class,
             **self.featurization_kwargs if self.featurization_kwargs else {},
         )
+
+    def __repr__(self) -> str:
+        pt = PrettyTable()
+        pt.field_names = ["", "Predictor"]
+        model_class_name = self.model_class.__module__ + "." + self.model_class.__name__
+        pt.add_row(["class", model_class_name])
+        pt.add_row(["kwargs", self.model_kwargs])
+        pt.add_row(["is fit?", self.is_fit])
+        feat_str = str(self.featurizer)
+        return str(pt) + "\n" + feat_str
 
     @property
     def model_class(self):

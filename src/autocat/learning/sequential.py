@@ -8,6 +8,7 @@ import tempfile
 from typing import List
 from typing import Dict
 from typing import Union
+from prettytable import PrettyTable
 
 from ase import Atoms
 from ase.io import read as ase_read
@@ -56,6 +57,19 @@ class DesignSpace:
             struct.copy() for struct in design_space_structures
         ]
         self._design_space_labels = design_space_labels.copy()
+
+    def __repr__(self) -> str:
+        pt = PrettyTable()
+        pt.field_names = ["", "DesignSpace"]
+        pt.add_row(["total # of systems", len(self)])
+        num_unknown = sum(np.isnan(self.design_space_labels))
+        pt.add_row(["# of unlabelled systems", num_unknown])
+        pt.add_row(["unique species present", self.species_list])
+        max_label = max(self.design_space_labels)
+        pt.add_row(["maximum label", max_label])
+        min_label = min(self.design_space_labels)
+        pt.add_row(["minimum label", min_label])
+        return str(pt)
 
     def __len__(self):
         return len(self.design_space_structures)
@@ -118,6 +132,16 @@ class DesignSpace:
     def design_space_labels(self, design_space_labels):
         msg = "Please use `update` method to update the design space."
         raise DesignSpaceError(msg)
+
+    @property
+    def species_list(self):
+        species_list = []
+        for s in self.design_space_structures:
+            # get all unique species
+            found_species = np.unique(s.get_chemical_symbols()).tolist()
+            new_species = [spec for spec in found_species if spec not in species_list]
+            species_list.extend(new_species)
+        return species_list
 
     def update(self, structures: List[Atoms], labels: Array):
         """
@@ -269,6 +293,42 @@ class SequentialLearner:
             self.sl_kwargs.update({"candidate_index_history": None})
         if "aq_scores" not in self.sl_kwargs:
             self.sl_kwargs.update({"aq_scores": None})
+
+    def __repr__(self) -> str:
+        pt = PrettyTable()
+        pt.field_names = ["", "Sequential Learner"]
+        pt.add_row(["iteration count", self.iteration_count])
+        if self.candidate_structures is not None:
+            cand_formulas = [
+                s.get_chemical_formula() for s in self.candidate_structures
+            ]
+        else:
+            cand_formulas = None
+        pt.add_row(["next candidate system structures", cand_formulas])
+        pt.add_row(["next candidate system indices", self.candidate_indices])
+        pt.add_row(["acquisition function", self.candidate_selection_kwargs.get("aq")])
+        pt.add_row(
+            [
+                "# of candidates to pick",
+                self.candidate_selection_kwargs.get("num_candidates_to_pick", 1),
+            ]
+        )
+        pt.add_row(
+            ["target maximum", self.candidate_selection_kwargs.get("target_max")]
+        )
+        pt.add_row(
+            ["target minimum", self.candidate_selection_kwargs.get("target_min")]
+        )
+        pt.add_row(
+            ["include hhi?", self.candidate_selection_kwargs.get("include_hhi", False)]
+        )
+        pt.add_row(
+            [
+                "include segregation energies?",
+                self.candidate_selection_kwargs.get("include_seg_ener", False),
+            ]
+        )
+        return str(pt) + "\n" + str(self.design_space) + "\n" + str(self.predictor)
 
     @property
     def design_space(self):

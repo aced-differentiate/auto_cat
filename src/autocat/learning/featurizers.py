@@ -9,6 +9,7 @@ from matminer.featurizers.site import OPSiteFingerprint
 from matminer.featurizers.site import CrystalNNFingerprint
 
 import numpy as np
+from prettytable import PrettyTable
 
 from typing import List, Dict
 
@@ -58,6 +59,25 @@ class Featurizer:
         # overrides max_size and species_list if given
         self._design_space_structures = None
         self.design_space_structures = design_space_structures
+
+    def __repr__(self) -> str:
+        pt = PrettyTable()
+        pt.field_names = ["", "Featurizer"]
+        class_name = (
+            self.featurizer_class.__module__ + "." + self.featurizer_class.__name__
+        )
+        pt.add_row(["class", class_name])
+        pt.add_row(["kwargs", self.kwargs])
+        pt.add_row(["species list", self.species_list])
+        pt.add_row(["maximum structure size", self.max_size])
+        pt.add_row(["preset", self.preset])
+        pt.add_row(
+            [
+                "design space structures provided?",
+                self.design_space_structures is not None,
+            ]
+        )
+        return str(pt)
 
     @property
     def featurizer_class(self):
