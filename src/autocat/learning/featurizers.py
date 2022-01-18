@@ -206,7 +206,7 @@ class Featurizer:
                     structure, positions=adsorbate_indices,
                 )
             elif feat_class in [SineMatrix, CoulombMatrix]:
-                return self.featurization_object.create(structure)
+                return self.featurization_object.create(structure).reshape(-1,)
         elif feat_class in SUPPORTED_MATMINER_CLASSES:
             conv = AseAtomsAdaptor()
             pym_struct = conv.get_structure(structure)
