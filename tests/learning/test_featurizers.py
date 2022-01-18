@@ -134,14 +134,14 @@ def test_featurizer_featurize_single():
     f.featurizer_class = SineMatrix
     acf = f.featurize_single(saa)
     sm = SineMatrix(n_atoms_max=len(saa), permutation="none")
-    manual_sm = sm.create(saa)
+    manual_sm = sm.create(saa).reshape(-1,)
     assert np.array_equal(acf, manual_sm)
 
     # test CoulombMatrix
     f.featurizer_class = CoulombMatrix
     acf = f.featurize_single(saa)
     cm = CoulombMatrix(n_atoms_max=len(saa), permutation="none")
-    manual_cm = cm.create(saa)
+    manual_cm = cm.create(saa).reshape(-1,)
     assert np.array_equal(acf, manual_cm)
 
     # TEST SITE FEATURIZERS
@@ -209,6 +209,8 @@ def test_featurizer_featurize_multiple():
     # tests featurizing multiple structures at a time
 
     # TEST STRUCTURE FEATURIZER
+
+    # test ElementProperty
     saas = extract_structures(
         generate_saa_structures(
             ["Au", "Cu"], ["Pd", "Pt"], facets={"Au": ["111"], "Cu": ["111"]}
@@ -222,15 +224,81 @@ def test_featurizer_featurize_multiple():
     manual_mat = np.array(manual_mat)
     assert np.array_equal(acf, manual_mat)
 
+    # test SineMatrix
+    f.featurizer_class = SineMatrix
+    acf = f.featurize_multiple(saas)
+    manual_mat = []
+    for i in range(len(saas)):
+        manual_mat.append(f.featurize_single(saas[i]))
+    manual_mat = np.array(manual_mat)
+    assert np.array_equal(acf, manual_mat)
+
+    # test CoulombMatrix
+    f.featurizer_class = CoulombMatrix
+    acf = f.featurize_multiple(saas)
+    manual_mat = []
+    for i in range(len(saas)):
+        manual_mat.append(f.featurize_single(saas[i]))
+    manual_mat = np.array(manual_mat)
+    assert np.array_equal(acf, manual_mat)
+
     # TEST SITE FEATURIZER
     ads_structs = []
     for struct in saas:
         ads_structs.append(
             extract_structures(place_adsorbate(struct, "NNH", position=(0.0, 0.0)))[0]
         )
+    species_list = []
+    for s in ads_structs:
+        # get all unique species
+        found_species = np.unique(s.get_chemical_symbols()).tolist()
+        new_species = [spec for spec in found_species if spec not in species_list]
+        species_list.extend(new_species)
+
+    # test SOAP
     f.featurizer_class = SOAP
     f.design_space_structures = ads_structs
     f.kwargs = {"rcut": 6.0, "lmax": 6, "nmax": 6}
+    acf = f.featurize_multiple(ads_structs)
+    manual_mat = []
+    for i in range(len(ads_structs)):
+        manual_mat.append(f.featurize_single(ads_structs[i]).flatten())
+    manual_mat = np.array(manual_mat)
+    assert np.array_equal(acf, manual_mat)
+
+    # test ACSF
+    f.featurizer_class = ACSF
+    f.kwargs = {"rcut": 6.0}
+    acf = f.featurize_multiple(ads_structs)
+    manual_mat = []
+    for i in range(len(ads_structs)):
+        manual_mat.append(f.featurize_single(ads_structs[i]).flatten())
+    manual_mat = np.array(manual_mat)
+    assert np.array_equal(acf, manual_mat)
+
+    # test ChemicalSRO
+    f.featurizer_class = ChemicalSRO
+    vnn = VoronoiNN(cutoff=10.0, allow_pathological=True)
+    f.kwargs = {"nn": vnn, "includes": species_list}
+    acf = f.featurize_multiple(ads_structs)
+    manual_mat = []
+    for i in range(len(ads_structs)):
+        manual_mat.append(f.featurize_single(ads_structs[i]).flatten())
+    manual_mat = np.array(manual_mat)
+    assert np.array_equal(acf, manual_mat)
+
+    # test OPSiteFingerprint
+    f.featurizer_class = OPSiteFingerprint
+    acf = f.featurize_multiple(ads_structs)
+    manual_mat = []
+    for i in range(len(ads_structs)):
+        manual_mat.append(f.featurize_single(ads_structs[i]).flatten())
+    manual_mat = np.array(manual_mat)
+    assert np.array_equal(acf, manual_mat)
+
+    # test CrystalNNFingerprint
+    f.featurizer_class = CrystalNNFingerprint
+    f.preset = "cn"
     acf = f.featurize_multiple(ads_structs)
     manual_mat = []
     for i in range(len(ads_structs)):
