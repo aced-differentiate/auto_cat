@@ -1,4 +1,7 @@
 # AutoCat Documentation
+
+![AutoCat Logo](img/autocat_logo.png){ align=right }
+
 AutoCat is a suite of python tools for sequential learning with arbitrary 
 candidate metrics for materials applications. It additionally has tools 
 for automated structure generation related to catalysis.
@@ -27,6 +30,8 @@ key objects intended for each of these purposes are:
 
 
 ## Structure Generation
+
+![Adsorption Figure](img/struct_gen_figs/adsorption.png){ align=right }
 
 This submodule contains functions for automating atomic structure generation 
 within the context of a catalysis study using density functional theory. 
