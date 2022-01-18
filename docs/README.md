@@ -1,14 +1,58 @@
-# Overview
-
-![autocatfigure](img/autocat_figure.png)
-
-AutoCat is a suite of python tools for automated structure generation
-and sequential learning with arbitrary candidate metrics for materials
-applications.
+# AutoCat Documentation
+AutoCat is a suite of python tools for sequential learning with arbitrary 
+candidate metrics for materials applications. It additionally has tools 
+for automated structure generation related to catalysis.
 
 Development of this package stems from [ACED](https://www.cmu.edu/aced/), as part of the 
 ARPA-E DIFFERENTIATE program.
 
+Below we provide an overview of the key functionalities of AutoCat. 
+For additional details please see the User Guide and API sections.
+
+## Sequential Learning
+
+One of the core philosophies of AutoCat is to provide modular and extensible tooling to
+facilitate accelerated computational materials discovery workflows. Within this submodule 
+are object types for defining a design space, featurizing materials systems, 
+training a regression model, and defining a closed-loop sequential learning iterator. The 
+key objects intended for each of these purposes are:
+
+- [**`DesignSpace`**](User_Guide/Learning/sequential#designspace): define a design space to explore
+
+- [**`Featurizer`**](User_Guide/Learning/featurizers): specify how to featurize the materials for regression
+
+- [**`Predictor`**](User_Guide/Learning/predictors): a regressor for predicting materials properties
+
+- [**`SequentialLearner`**](User_Guide/Learning/sequential#sequentiallearner): define a closed-loop iterator 
+
+
+## Structure Generation
+
+This submodule contains functions for automating atomic structure generation 
+within the context of a catalysis study using density functional theory. 
+Specifically, this includes generating bulk structures, surfaces, and 
+placing adsorbates. In addition, functions for generating the single-atom alloys 
+material class are also included. These functions are organized within AutoCat as follows:
+
+- [**`autocat.bulk`**](User_Guide/Structure_Generation/bulk): generation of periodic 
+mono-elemental bulk structures
+
+- [**`autocat.surface`**](User_Guide/Structure_Generation/surface): mono-elemental surface slab generation
+
+- [**`autocat.adsorption`**](User_Guide/Structure_Generation/adsorption): placement of adsorbates onto surfaces
+
+- [**`autocat.saa`**](User_Guide/Structure_Generation/saa): generation of single-atom alloy surfaces
+
+Structures generated or read with this package are typically of the form of 
+[`ase.Atoms`](https://wiki.fysik.dtu.dk/ase/ase/atoms.html#module-ase.atoms) 
+objects.
+
+When opting to write to 
+disk using these functions, they are automatically organized into a clean, scalable directory structure. 
+All structures are written in the 
+[`ase.io.Trajectory`](https://wiki.fysik.dtu.dk/ase/ase/io/trajectory.html#trajectory) 
+file format. 
+For further details on the directory structure, see the User Guide.
 
 ## Installation
 
@@ -17,7 +61,9 @@ There are two options for installation, either via `pip` or from the repo direct
 ### `pip` (recommended)
 
 If you are planning on strictly using AutoCat rather than contributing to development,
- we recommend using `pip` within a virtual environment (e.g. `conda`). This can be done
+ we recommend using `pip` within a virtual environment (e.g. 
+ [`conda`](https://www.anaconda.com/products/individual)
+ ). This can be done
 as follows:
 
 ```
