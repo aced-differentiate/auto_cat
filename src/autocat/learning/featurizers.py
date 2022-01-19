@@ -117,7 +117,7 @@ class Featurizer:
     @kwargs.setter
     def kwargs(self, kwargs):
         if kwargs is not None:
-            self._kwargs = kwargs
+            self._kwargs = kwargs.copy()
 
     @property
     def design_space_structures(self):
@@ -126,7 +126,9 @@ class Featurizer:
     @design_space_structures.setter
     def design_space_structures(self, design_space_structures: List[Atoms]):
         if design_space_structures is not None:
-            self._design_space_structures = design_space_structures
+            self._design_space_structures = [
+                struct.copy() for struct in design_space_structures
+            ]
             # analyze new design space
             ds_structs = design_space_structures
             species_list = []
@@ -157,7 +159,7 @@ class Featurizer:
     @species_list.setter
     def species_list(self, species_list: List[str]):
         if species_list is not None:
-            self._species_list = species_list
+            self._species_list = species_list.copy()
 
     @property
     def featurization_object(self):
