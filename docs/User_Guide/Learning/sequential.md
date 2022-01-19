@@ -60,7 +60,7 @@ The
 object stores information regarding the latest 
 iteration of the sequential learning loop including:
 
-1. A [`Predictor`](../../API/Learning/predictors.md#autocat.learning.predictors.Predictor)
+1. A [`Predictor`](predictors.md) (and its kwargs for both the regressor and featurizer)
 2. Candidate selection kwargs for score calculation (e.g. acquisition functions)
 3. Iteration number
 4. Latest `DesignSpace`
@@ -69,29 +69,35 @@ iteration of the sequential learning loop including:
 
 This object can be thought of as a central hub for the 
 sequential learning workflow, with an external driver 
-(either automated or manual) triggering iteration.
+(either automated or manual) triggering iteration. The first 
+`iterate` trains the model and identifies candidate(s) to 
+start the loop.
 
 ```py
 >>> import numpy as np
 >>> from autocat.surface import generate_surface_structures
 >>> from autocat.utils import extract_structures
+>>> from autocat.adsorption import place_adsorbate
 >>> from autocat.learning.sequential import DesignSpace
 >>> from autocat.learning.sequential import SequentialLearner
+>>> from dscribe.descriptors import SOAP
 >>> from sklearn.gaussian_process import GaussianProcessRegressor
 >>> from sklearn.gaussian_process.kernels import RBF
->>> surf_dict = generate_surface_structures(["Pt", "Pd", "Cu", "Ni"])
->>> surf_structs = extract_structures(surf_dict)
+>>> subs_dict = generate_surface_structures(["Pt", "Pd", "Cu", "Ni"])
+>>> subs = extract_structures(subs_dict)
+>>> ads_structs =[extract_structures(place_adsorbate(s, "H"))[0] for s in subs] 
 >>> labels = np.array([0.95395024, 0.63504885, np.nan, 0.08320879, np.nan,
 ... 0.32423194, 0.55570785, np.nan, np.nan, np.nan,
 ... 0.18884186, np.nan])
->>> acds = DesignSpace(surf_structs, labels)
+>>> acds = DesignSpace(ads_structs, labels)
 >>> kernel = RBF()
 >>> acsl = SequentialLearner(
 ...    acds,
 ...    predictor_kwargs={
-...        "structure_featurizer": "sine_matrix",
 ...        "model_class": GaussianProcessRegressor,
 ...        "model_kwargs": {"kernel": kernel},
+...        "featurizer_class": SOAP,
+...        "featurization_kwargs": {"kwargs": {"rcut": 5.0, "lmax": 6, "nmax": 6}}
 ...    },
 ...    candidate_selection_kwargs={
 ...        "aq": "MLI",
@@ -104,6 +110,9 @@ sequential learning workflow, with an external driver
 ... )
 >>> acsl.iteration_count
 0
+>>> acsl.iterate()
+>>> acsl.iteration_count
+1
 ```
 
 ## Simulated Sequential Learning
@@ -126,6 +135,7 @@ each iteration are kept.
 >>> from autocat.utils import extract_structures
 >>> from autocat.learning.sequential import DesignSpace
 >>> from autocat.learning.sequential import simulated_sequential_learning
+>>> from dscribe.descriptors import SineMatrix
 >>> from sklearn.gaussian_process import GaussianProcessRegressor
 >>> from sklearn.gaussian_process.kernels import RBF
 >>> surf_dict = generate_surface_structures(["Pt", "Pd", "Cu", "Ni"])
@@ -138,9 +148,9 @@ each iteration are kept.
 >>> sim_sl = simulated_sequential_learning(
 ...    full_design_space=acds,
 ...    predictor_kwargs={
-...        "structure_featurizer": "sine_matrix",
 ...        "model_class": GaussianProcessRegressor,
 ...        "model_kwargs": {"kernel": kernel},
+...        "featurizer_class": SineMatrix,
 ...    },
 ...    candidate_selection_kwargs={
 ...        "aq": "MLI",
@@ -172,6 +182,7 @@ this function can also initiate the multiple runs across parallel processes via 
 >>> from autocat.utils import extract_structures
 >>> from autocat.learning.sequential import DesignSpace
 >>> from autocat.learning.sequential import multiple_simulated_sequential_learning_runs
+>>> from matminer.featurizers.composition import ElementProperty
 >>> from sklearn.gaussian_process import GaussianProcessRegressor
 >>> from sklearn.gaussian_process.kernels import RBF
 >>> surf_dict = generate_surface_structures(["Pt", "Pd", "Cu", "Ni"])
@@ -184,9 +195,10 @@ this function can also initiate the multiple runs across parallel processes via 
 >>> multi_sim_sl = multiple_simulated_sequential_learning_runs(
 ...    full_design_space=acds,
 ...    predictor_kwargs={
-...        "structure_featurizer": "sine_matrix",
 ...        "model_class": GaussianProcessRegressor,
 ...        "model_kwargs": {"kernel": kernel},
+...        "featurizer_class": ElementProperty,
+...        "featurization_kwargs": {"preset": "matminer"},
 ...    },
 ...    candidate_selection_kwargs={
 ...        "aq": "MLI",
