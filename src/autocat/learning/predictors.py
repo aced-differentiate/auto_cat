@@ -131,7 +131,7 @@ class Predictor:
     @model_kwargs.setter
     def model_kwargs(self, model_kwargs):
         if model_kwargs is not None:
-            self._model_kwargs = model_kwargs
+            self._model_kwargs = copy.deepcopy(model_kwargs)
             if self.is_fit:
                 self.is_fit = False
                 self.X_ = None
@@ -168,7 +168,7 @@ class Predictor:
     def featurization_kwargs(self, featurization_kwargs):
         if featurization_kwargs is not None:
             assert isinstance(featurization_kwargs, dict)
-            self._featurization_kwargs = featurization_kwargs
+            self._featurization_kwargs = featurization_kwargs.copy()
             self.featurizer = Featurizer(self.featurizer_class, **featurization_kwargs)
             if self.is_fit:
                 self.is_fit = False
