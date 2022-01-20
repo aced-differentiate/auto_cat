@@ -33,7 +33,7 @@ class FeaturizerError(Exception):
 class Featurizer:
     def __init__(
         self,
-        featurizer_class,
+        featurizer_class=None,
         design_space_structures: List[Atoms] = None,
         species_list: List[str] = None,
         max_size: int = None,
@@ -41,7 +41,7 @@ class Featurizer:
         kwargs: Dict = None,
     ):
 
-        self._featurizer_class = None
+        self._featurizer_class = SineMatrix
         self.featurizer_class = featurizer_class
 
         self._preset = None
@@ -167,22 +167,15 @@ class Featurizer:
 
     def _get_featurization_object(self):
         # instantiate featurizer object
-        if self.preset is not None:
-            try:
-                return self.featurizer_class.from_preset(self.preset)
-            except:
-                msg = f"{self.featurizer_class} cannot be initialized from the preset {self.preset}"
-                raise FeaturizerError(msg)
-        else:
-            if self.featurizer_class in [SineMatrix, CoulombMatrix]:
-                return self.featurizer_class(
-                    n_atoms_max=self.max_size, permutation="none", **self.kwargs or {},
-                )
-            elif self.featurizer_class in [SOAP, ACSF]:
-                return self.featurizer_class(
-                    species=self.species_list, **self.kwargs or {}
-                )
-            return self.featurizer_class(**self.kwargs or {})
+        if hasattr(self.featurizer_class, "from_preset") and self.preset is not None:
+            return self.featurizer_class.from_preset(self.preset)
+        if self.featurizer_class in [SineMatrix, CoulombMatrix]:
+            return self.featurizer_class(
+                n_atoms_max=self.max_size, permutation="none", **self.kwargs or {},
+            )
+        if self.featurizer_class in [SOAP, ACSF]:
+            return self.featurizer_class(species=self.species_list, **self.kwargs or {})
+        return self.featurizer_class(**self.kwargs or {})
 
     def featurize_single(self, structure: Atoms):
         """
@@ -201,53 +194,47 @@ class Featurizer:
             Numpy array of feature vector (not flattened)
         """
         feat_class = self.featurizer_class
-        if feat_class in SUPPORTED_DSCRIBE_CLASSES:
-            if feat_class in [SOAP, ACSF]:
-                adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
-                return self.featurization_object.create(
-                    structure, positions=adsorbate_indices,
-                )
-            elif feat_class in [SineMatrix, CoulombMatrix]:
-                return self.featurization_object.create(structure).reshape(-1,)
-        elif feat_class in SUPPORTED_MATMINER_CLASSES:
-            conv = AseAtomsAdaptor()
-            pym_struct = conv.get_structure(structure)
-            if feat_class == ElementProperty:
-                return np.array(
-                    self.featurization_object.featurize(pym_struct.composition)
-                )
-            elif feat_class in [CrystalNNFingerprint, OPSiteFingerprint]:
-                representation = np.array([])
-                adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
-                for idx in adsorbate_indices:
-                    feat = self.featurization_object.featurize(pym_struct, idx)
-                    representation = np.concatenate((representation, feat))
-                return representation
-            elif feat_class == ChemicalSRO:
-                species_list = self.species_list
-                adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
-                formatted_list = [[pym_struct, idx] for idx in adsorbate_indices]
-                featurization_object = self.featurization_object
-                featurization_object.fit(formatted_list)
-                # concatenate representation for each adsorbate atom
-                representation = np.array([])
-                # TODO: order species_list so that this is no longer needed
-                for idx in adsorbate_indices:
-                    raw_feat = featurization_object.featurize(pym_struct, idx)
-                    # csro only generates for species observed in fit
-                    # as well as includes, so to be generalizable
-                    # we use full species list of the design space and place values
-                    # in the appropriate species location relative to this list
-                    labels = featurization_object.feature_labels()
-                    feat = np.zeros(len(species_list))
-                    for i, label in enumerate(labels):
-                        # finds where corresponding species is in full species list
-                        lbl_idx = np.where(
-                            np.array(species_list) == label.split("_")[1]
-                        )
-                        feat[lbl_idx] = raw_feat[i]
-                    representation = np.concatenate((representation, feat))
-                return representation
+        featurization_object = self.featurization_object
+        # dscribe classes
+        if feat_class in [SOAP, ACSF]:
+            adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
+            return featurization_object.create(structure, positions=adsorbate_indices,)
+        if feat_class in [SineMatrix, CoulombMatrix]:
+            return featurization_object.create(structure).reshape(-1,)
+
+        # matminer classes
+        pym_struct = AseAtomsAdaptor().get_structure(structure)
+        if feat_class == ElementProperty:
+            return np.array(featurization_object.featurize(pym_struct.composition))
+        representation = np.array([])
+        if feat_class in [CrystalNNFingerprint, OPSiteFingerprint]:
+            adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
+            for idx in adsorbate_indices:
+                feat = featurization_object.featurize(pym_struct, idx)
+                representation = np.concatenate((representation, feat))
+            return representation
+        if feat_class == ChemicalSRO:
+            adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
+            formatted_list = [[pym_struct, idx] for idx in adsorbate_indices]
+            featurization_object.fit(formatted_list)
+            # TODO: order species_list so that this is no longer needed
+            for idx in adsorbate_indices:
+                raw_feat = featurization_object.featurize(pym_struct, idx)
+                # csro only generates for species observed in fit
+                # as well as includes, so to be generalizable
+                # we use full species list of the design space and place values
+                # in the appropriate species location relative to this list
+                labels = featurization_object.feature_labels()
+                feat = np.zeros(len(self.species_list))
+                for i, label in enumerate(labels):
+                    # finds where corresponding species is in full species list
+                    lbl_idx = np.where(
+                        np.array(self.species_list) == label.split("_")[1]
+                    )
+                    feat[lbl_idx] = raw_feat[i]
+                representation = np.concatenate((representation, feat))
+            return representation
+        return None
 
     def featurize_multiple(self, structures: List[Atoms]):
         """
