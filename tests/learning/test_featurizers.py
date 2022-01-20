@@ -25,18 +25,18 @@ from pymatgen.analysis.local_env import VoronoiNN
 def test_featurizer_species_list():
     # test default species list
     f = Featurizer(SineMatrix)
-    assert f.species_list == ["Pt", "Pd", "Cu", "Fe", "Ni", "H", "O", "C", "N"]
+    assert f.species_list == ["Fe", "Ni", "Pt", "Pd", "Cu", "C", "N", "O", "H"]
 
-    # test updating species list manually
+    # test updating species list manually and sorting
     f.species_list = ["Li", "Na", "K"]
-    assert f.species_list == ["Li", "Na", "K"]
+    assert f.species_list == ["K", "Na", "Li"]
 
     # test getting species list from design space structures
     surfs = extract_structures(generate_surface_structures(["Fe", "V", "Ti"]))
     saas = extract_structures(generate_saa_structures(["Cu", "Au"], ["Fe", "Pt"]))
     surfs.extend(saas)
     f.design_space_structures = surfs
-    assert f.species_list == ["Fe", "V", "Ti", "Cu", "Pt", "Au"]
+    assert f.species_list == ["Ti", "V", "Fe", "Pt", "Au", "Cu"]
 
 
 def test_featurizer_max_size():
@@ -73,7 +73,7 @@ def test_featurizer_design_space_structures():
     assert f.design_space_structures == surfs
     # make sure design space is prioritized over max size and species list
     assert f.max_size == 36
-    assert f.species_list == ["Li", "Na", "Cu", "Ni"]
+    assert f.species_list == ["Na", "Li", "Ni", "Cu"]
 
 
 def test_featurizer_featurizer_kwargs():
@@ -174,15 +174,8 @@ def test_featurizer_featurize_single():
     csro = ChemicalSRO(vnn, includes=species)
     pym_struct = conv.get_structure(ads_struct)
     csro.fit([[pym_struct, 36], [pym_struct, 37]])
-    manual_csro = np.array([])
-    for idx in [36, 37]:
-        raw_feat = csro.featurize(pym_struct, idx)
-        labels = csro.feature_labels()
-        feat = np.zeros(len(species))
-        for i, label in enumerate(labels):
-            lbl_idx = np.where(np.array(species) == label.split("_")[1])
-            feat[lbl_idx] = raw_feat[i]
-        manual_csro = np.concatenate((manual_csro, feat))
+    manual_csro = csro.featurize(pym_struct, -2)
+    manual_csro = np.concatenate((manual_csro, csro.featurize(pym_struct, -1)))
     assert np.array_equal(acf, manual_csro)
 
     # test OPSiteFingerprint

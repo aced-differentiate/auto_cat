@@ -15,6 +15,7 @@ from typing import List, Dict
 
 from ase import Atoms
 from pymatgen.io.ase import AseAtomsAdaptor
+from pymatgen.core.periodic_table import Element
 
 SUPPORTED_MATMINER_CLASSES = [
     ElementProperty,
@@ -53,7 +54,7 @@ class Featurizer:
         self._max_size = 100
         self.max_size = max_size
 
-        self._species_list = ["Pt", "Pd", "Cu", "Fe", "Ni", "H", "O", "C", "N"]
+        self._species_list = ["Fe", "Ni", "Pt", "Pd", "Cu", "C", "N", "O", "H"]
         self.species_list = species_list
 
         # overrides max_size and species_list if given
@@ -131,17 +132,21 @@ class Featurizer:
             ]
             # analyze new design space
             ds_structs = design_space_structures
-            species_list = []
+            _species_list = []
             for s in ds_structs:
                 # get all unique species
                 found_species = np.unique(s.get_chemical_symbols()).tolist()
                 new_species = [
-                    spec for spec in found_species if spec not in species_list
+                    spec for spec in found_species if spec not in _species_list
                 ]
-                species_list.extend(new_species)
+                _species_list.extend(new_species)
+            # sort species list
+            sorted_species_list = sorted(
+                _species_list, key=lambda el: Element(el).mendeleev_no
+            )
 
             self._max_size = max([len(s) for s in ds_structs])
-            self._species_list = species_list
+            self._species_list = sorted_species_list
 
     @property
     def max_size(self):
@@ -159,7 +164,12 @@ class Featurizer:
     @species_list.setter
     def species_list(self, species_list: List[str]):
         if species_list is not None:
-            self._species_list = species_list.copy()
+            _species_list = species_list.copy()
+            # sort species list by mendeleev number
+            sorted_species_list = sorted(
+                _species_list, key=lambda el: Element(el).mendeleev_no
+            )
+            self._species_list = sorted_species_list
 
     @property
     def featurization_object(self):
@@ -217,21 +227,8 @@ class Featurizer:
             adsorbate_indices = np.where(structure.get_tags() <= 0)[0].tolist()
             formatted_list = [[pym_struct, idx] for idx in adsorbate_indices]
             featurization_object.fit(formatted_list)
-            # TODO: order species_list so that this is no longer needed
             for idx in adsorbate_indices:
-                raw_feat = featurization_object.featurize(pym_struct, idx)
-                # csro only generates for species observed in fit
-                # as well as includes, so to be generalizable
-                # we use full species list of the design space and place values
-                # in the appropriate species location relative to this list
-                labels = featurization_object.feature_labels()
-                feat = np.zeros(len(self.species_list))
-                for i, label in enumerate(labels):
-                    # finds where corresponding species is in full species list
-                    lbl_idx = np.where(
-                        np.array(self.species_list) == label.split("_")[1]
-                    )
-                    feat[lbl_idx] = raw_feat[i]
+                feat = featurization_object.featurize(pym_struct, idx)
                 representation = np.concatenate((representation, feat))
             return representation
         return None
