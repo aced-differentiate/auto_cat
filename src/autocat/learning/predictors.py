@@ -183,9 +183,7 @@ class Predictor:
         Returns a copy
         """
         acp = self.__class__(
-            model_class=self.model_class,
-            featurizer_class=self.featurizer_class,
-            multiple_separate_models=self.multiple_separate_models,
+            model_class=self.model_class, featurizer_class=self.featurizer_class,
         )
         acp.regressor = copy.deepcopy(self.regressor)
         acp.is_fit = self.is_fit
