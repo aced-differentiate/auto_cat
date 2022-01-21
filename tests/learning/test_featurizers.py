@@ -22,6 +22,38 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.local_env import VoronoiNN
 
 
+def test_eq_featurizer():
+    # test comparing featurizers
+
+    f = Featurizer(
+        SOAP,
+        max_size=5,
+        species_list=["Fe", "O", "H"],
+        kwargs={"rcut": 12, "nmax": 8, "lmax": 8},
+    )
+    f1 = Featurizer(
+        SOAP,
+        max_size=5,
+        species_list=["Fe", "O", "H"],
+        kwargs={"rcut": 12, "nmax": 8, "lmax": 8},
+    )
+    assert f == f1
+
+    f1.kwargs.update({"rcut": 13})
+    assert f != f1
+
+    surfs = extract_structures(generate_surface_structures(["Fe", "V"]))
+    surfs.extend(
+        extract_structures(
+            generate_surface_structures(["Au", "Ag"], supercell_dim=(1, 1, 5))
+        )
+    )
+    f = Featurizer(SineMatrix, design_space_structures=surfs,)
+
+    f1 = Featurizer(SineMatrix, species_list=["Fe", "V", "Au", "Ag"], max_size=36)
+    assert f == f1
+
+
 def test_featurizer_species_list():
     # test default species list
     f = Featurizer(SineMatrix)
