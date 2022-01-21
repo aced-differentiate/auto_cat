@@ -14,7 +14,7 @@ from dscribe.descriptors import SineMatrix
 from matminer.featurizers.composition import ElementProperty
 
 from scipy import stats
-from ase.io import read as ase_read
+from ase.io.jsonio import decode as ase_decoder
 from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
 from autocat.data.segregation_energies import SEGREGATION_ENERGIES
@@ -139,14 +139,7 @@ def test_sequential_learner_write_json():
         acsl.write_json(_tmp_dir, "testing_acsl.json")
         with open(os.path.join(_tmp_dir, "testing_acsl.json"), "r") as f:
             sl = json.load(f)
-        # collects structs by writing each json individually
-        # and reading with ase
-        written_structs = []
-        for i in range(3):
-            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-            with open(_tmp_json, "w") as tmp:
-                json.dump(sl[i], tmp)
-            written_structs.append(ase_read(_tmp_json))
+        written_structs = [ase_decoder(sl[i]) for i in range(3)]
         assert structs == written_structs
         assert np.array_equal(labels, sl[3], equal_nan=True)
         # check predictor kwargs kept
@@ -181,14 +174,7 @@ def test_sequential_learner_write_json():
         acsl.write_json(_tmp_dir, "testing_acsl.json")
         with open(os.path.join(_tmp_dir, "testing_acsl.json"), "r") as f:
             sl = json.load(f)
-        # collects structs by writing each json individually
-        # and reading with ase
-        written_structs = []
-        for i in range(3):
-            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-            with open(_tmp_json, "w") as tmp:
-                json.dump(sl[i], tmp)
-            written_structs.append(ase_read(_tmp_json))
+        written_structs = [ase_decoder(sl[i]) for i in range(3)]
         assert structs == written_structs
         assert np.array_equal(labels, sl[3], equal_nan=True)
         # check predictor kwargs kept
@@ -518,16 +504,9 @@ def test_write_design_space_as_json():
         # loads back written json
         with open(os.path.join(_tmp_dir, "acds.json"), "r") as f:
             ds = json.load(f)
-        # collects structs by writing each json individually
-        # and reading with ase
-        written_structs = []
-        for i in range(2):
-            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-            with open(_tmp_json, "w") as tmp:
-                json.dump(ds[i], tmp)
-            written_structs.append(ase_read(_tmp_json))
+        written_structs = [ase_decoder(ds[i]) for i in range(2)]
         assert structs == written_structs
-        assert (labels == ds[-1]).all()
+        assert np.array_equal(labels, ds[-1])
 
 
 def test_get_design_space_from_json():

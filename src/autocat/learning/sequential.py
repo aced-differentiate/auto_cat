@@ -4,14 +4,14 @@ import os
 import json
 import importlib
 from joblib import Parallel, delayed
-import tempfile
 from typing import List
 from typing import Dict
 from typing import Union
 from prettytable import PrettyTable
 
 from ase import Atoms
-from ase.io import read as ase_read
+from ase.io.jsonio import encode as atoms_encoder
+from ase.io.jsonio import decode as atoms_decoder
 from scipy import stats
 
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -179,46 +179,32 @@ class DesignSpace:
         write_to_disk: bool = True,
         return_jsonified_list: bool = False,
     ):
-        with tempfile.TemporaryDirectory() as _tmp_dir:
-            # write out all individual structure jsons
-            for i, struct in enumerate(self.design_space_structures):
-                tmp_filename = os.path.join(_tmp_dir, f"{i}.json")
-                struct.write(tmp_filename)
-            # load individual jsons and collect in list
-            collected_jsons = []
-            for i in range(len(self.design_space_structures)):
-                tmp_filename = os.path.join(_tmp_dir, f"{i}.json")
-                with open(tmp_filename, "r") as f:
-                    collected_jsons.append(json.load(f))
-            # append labels to list of collected jsons
-            jsonified_labels = [float(x) for x in self.design_space_labels]
-            collected_jsons.append(jsonified_labels)
-            # set default json name if needed
-            if json_name is None:
-                json_name = "acds.json"
-            # write out single json
-            if write_to_disk:
-                json_path = os.path.join(write_location, json_name)
-                with open(json_path, "w") as f:
-                    json.dump(collected_jsons, f)
-            # write jsonified list to memory
-            if return_jsonified_list:
-                return collected_jsons
+        collected_jsons = []
+        for struct in self.design_space_structures:
+            collected_jsons.append(atoms_encoder(struct))
+        # append labels to list of collected jsons
+        jsonified_labels = [float(x) for x in self.design_space_labels]
+        collected_jsons.append(jsonified_labels)
+        # set default json name if needed
+        if json_name is None:
+            json_name = "acds.json"
+        # write out single json
+        if write_to_disk:
+            json_path = os.path.join(write_location, json_name)
+            with open(json_path, "w") as f:
+                json.dump(collected_jsons, f)
+        # write jsonified list to memory
+        if return_jsonified_list:
+            return collected_jsons
 
     @staticmethod
     def from_json(json_name: str):
         with open(json_name, "r") as f:
             all_data = json.load(f)
         structures = []
-        with tempfile.TemporaryDirectory() as _tmp_dir:
-            for i in range(len(all_data) - 1):
-                # write temp json for each individual structure
-                _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-                with open(_tmp_json, "w") as tmp:
-                    json.dump(all_data[i], tmp)
-                # read individual tmp json using ase
-                atoms = ase_read(_tmp_json, format="json")
-                structures.append(atoms)
+        for i in range(len(all_data) - 1):
+            atoms = atoms_decoder(all_data[i])
+            structures.append(atoms)
         labels = np.array(all_data[-1])
         return DesignSpace(
             design_space_structures=structures, design_space_labels=labels,
@@ -557,15 +543,9 @@ class SequentialLearner:
         with open(json_name, "r") as f:
             all_data = json.load(f)
         structures = []
-        with tempfile.TemporaryDirectory() as _tmp_dir:
-            for i in range(len(all_data) - 4):
-                # write temp json for each individual structure
-                _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-                with open(_tmp_json, "w") as tmp:
-                    json.dump(all_data[i], tmp)
-                # read individual tmp json using ase
-                atoms = ase_read(_tmp_json, format="json")
-                structures.append(atoms)
+        for i in range(len(all_data) - 4):
+            atoms = atoms_decoder(all_data[i])
+            structures.append(atoms)
         labels = np.array(all_data[-4])
         acds = DesignSpace(
             design_space_structures=structures, design_space_labels=labels,
