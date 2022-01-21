@@ -9,6 +9,7 @@ from matminer.featurizers.site import OPSiteFingerprint
 from matminer.featurizers.site import CrystalNNFingerprint
 
 import numpy as np
+import copy
 from prettytable import PrettyTable
 
 from typing import List, Dict
@@ -61,6 +62,20 @@ class Featurizer:
         self._design_space_structures = None
         self.design_space_structures = design_space_structures
 
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Featurizer):
+            for attr in [
+                "featurizer_class",
+                "species_list",
+                "max_size",
+                "preset",
+                "kwargs",
+            ]:
+                if getattr(self, attr) != getattr(other, attr):
+                    return False
+            return True
+        return False
+
     def __repr__(self) -> str:
         pt = PrettyTable()
         pt.field_names = ["", "Featurizer"]
@@ -79,6 +94,24 @@ class Featurizer:
             ]
         )
         return str(pt)
+
+    def copy(self):
+        """
+        Returns a copy of the featurizer
+        """
+        ds_structs_copy = (
+            [struct.copy() for struct in self.design_space_structures]
+            if self.design_space_structures
+            else None
+        )
+        feat = self.__class__(
+            featurizer_class=self.featurizer_class,
+            design_space_structures=ds_structs_copy,
+            species_list=self.species_list.copy(),
+            max_size=self.max_size,
+            kwargs=copy.deepcopy(self.kwargs) if self.kwargs else None,
+        )
+        return feat
 
     @property
     def featurizer_class(self):
