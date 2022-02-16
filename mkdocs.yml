@@ -50,6 +50,7 @@ nav:
             - Intermediates: User_Guide/Data/intermediates.md
     - Tutorials:
         - Training a Predictor on hydrogen adsorption energies: Tutorials/pred_h.md
+        - Conducting a simulated sequential learning run: Tutorials/sl.md
     - API:
         - Sequential Learning:
             - autocat.learning.featurizers: API/Learning/featurizers.md
