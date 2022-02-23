@@ -1,7 +1,7 @@
 import os
 from typing import List
 from typing import Dict
-from typing import Optional
+from typing import Any
 
 from ase.build import bulk
 from ase.data import atomic_numbers
@@ -13,19 +13,18 @@ from autocat.data.lattice_parameters import BULK_BEEFVDW_FD
 from autocat.data.lattice_parameters import BULK_BEEFVDW_PW
 
 
-# TODO(@hegdevinayi): standardize typing.Optional in definition
 def generate_bulk_structures(
     species_list: List[str],
     crystal_structures: Dict[str, str] = None,
     default_lat_param_lib: str = None,
-    a_dict: Optional[Dict[str, float]] = None,
-    c_dict: Optional[Dict[str, float]] = None,
+    a_dict: Dict[str, float] = None,
+    c_dict: Dict[str, float] = None,
     set_magnetic_moments: List[str] = None,
-    magnetic_moments: Optional[Dict[str, float]] = None,
+    magnetic_moments: Dict[str, float] = None,
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
-):
+) -> Dict[str, Dict[str, Any]]:
     """
     Generates bulk crystal structures and writes them to separate
     directories, if specified.
@@ -106,6 +105,13 @@ def generate_bulk_structures(
 
     Dictionary with bulk structures (as `ase.Atoms` objects) and
     write-location (if any) for each input species.
+
+    Example:
+
+    {
+        "Pt": {"structure": Pt_ase_obj, "traj_file_path": "/path/to/Pt/traj/file"},
+        "Cr": ...
+    }
 
     """
 
