@@ -1,7 +1,7 @@
 import os
 from typing import List
 from typing import Dict
-from typing import Optional
+from typing import Any
 
 import ase.build
 from ase.data import reference_states
@@ -20,16 +20,16 @@ def generate_surface_structures(
     facets: Dict[str, str] = None,
     supercell_dim: List[int] = None,
     default_lat_param_lib: str = None,
-    a_dict: Optional[Dict[str, float]] = None,
-    c_dict: Optional[Dict[str, float]] = None,
+    a_dict: Dict[str, float] = None,
+    c_dict: Dict[str, float] = None,
     set_magnetic_moments: List[str] = None,
-    magnetic_moments: Optional[Dict[str, float]] = None,
+    magnetic_moments: Dict[str, float] = None,
     vacuum: float = 10.0,
     n_fixed_layers: int = 0,
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
-):
+) -> Dict[str, Dict[str, Dict[str, Any]]]:
     """
     Generates mono-element slabs and writes them to separate directories,
     if specified.
@@ -42,7 +42,11 @@ def generate_surface_structures(
 
     crystal_structures:
         Dictionary with crystal structure to be used for each species.
-        Options are fcc, bcc, or hcp. If not specified, will use the
+        These will be passed on as input to `ase.build.bulk`. So, must be one
+        of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic,
+        diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite.
+        If not specified, the default reference crystal structure for each
+        species from `ase.data` will be used.
 
     facets:
         Dictionary with the surface facets to be considered for each
@@ -59,9 +63,10 @@ def generate_surface_structures(
 
     default_lat_param_lib:
         String indicating which library the lattice constants should be pulled
-        from if not specified in either a_dict or c_dict. Defaults to ase.
+        from if not specified in either a_dict or c_dict.
+        Defaults to lattice constants defined in `ase.data`.
 
-        Options are:
+        Options:
         pbe_fd: parameters calculated using xc=PBE and finite-difference
         beefvdw_fd: parameters calculated using xc=BEEF-vdW and finite-difference
         pbe_pw: parameters calculated using xc=PBE and a plane-wave basis set
@@ -72,11 +77,11 @@ def generate_surface_structures(
 
     a_dict:
         Dictionary with lattice parameters <a> to be used for each species.
-        If not specified, defaults from default_lat_param_lib are used.
+        If not specified, defaults from `default_lat_param_lib` are used.
 
     c_dict:
         Dictionary with lattice parameters <c> to be used for each species.
-        If not specified, defaults from default_lat_param_lib are used.
+        If not specified, defaults from `default_lat_param_lib` are used.
 
     set_magnetic_moments:
         List of species for which magnetic moments need to be set.
@@ -99,7 +104,7 @@ def generate_surface_structures(
         bottom 2 layers).
 
     write_to_disk:
-        Boolean specifying whether the bulk structures generated should be
+        Boolean specifying whether the surface structures generated should be
         written to disk.
         Defaults to False.
 
@@ -122,7 +127,20 @@ def generate_surface_structures(
     -------
 
     Dictionary with surface structures (as `ase.Atoms` objects) and
-    write-location (if any) for each input species.
+    write-location (if any) for each {crystal structure and facet} specified for
+    each input species.
+
+    {
+        "Pt": {
+            "fcc111": {
+                "structure": Pt_surface_obj,
+                "traj_file_path": "/path/to/Pt/fcc111/surface/traj/file"
+                },
+            "fcc100": ...
+            ,
+        "Cu": ...
+        }
+    }
 
     """
 
@@ -239,7 +257,10 @@ def generate_surface_structures(
                 struct.write(traj_file_path)
                 print(f"{species}_{cs}{facet} structure written to {traj_file_path}")
 
-            surf[cs + facet] = {"structure": struct, "traj_file_path": traj_file_path}
+            surf[f"{cs}{facet}"] = {
+                "structure": struct,
+                "traj_file_path": traj_file_path,
+            }
 
         surface_structures[species] = surf
     return surface_structures
