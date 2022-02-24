@@ -49,9 +49,9 @@ def generate_bulk_structures(
         Defaults to lattice constants defined in `ase.data`.
 
         Options:
-        pbe_fd: parameters calculated using xc=pbe and finite-difference
+        pbe_fd: parameters calculated using xc=PBE and finite-difference
         beefvdw_fd: parameters calculated using xc=BEEF-vdW and finite-difference
-        pbe_pw: parameters calculated using xc=pbe and a plane-wave basis set
+        pbe_pw: parameters calculated using xc=PBE and a plane-wave basis set
         beefvdw_fd: parameters calculated using xc=BEEF-vdW and a plane-wave basis set
 
         N.B. if there is a species present in species_list that is NOT in the
