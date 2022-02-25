@@ -4,6 +4,7 @@ from typing import List
 from typing import Tuple
 from typing import Dict
 from typing import Union
+from typing import Any
 from collections.abc import Sequence
 
 from ase import Atom, Atoms
@@ -17,12 +18,16 @@ from ase.data import covalent_radii
 from ase.collections import g2
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
-from pymatgen.analysis.local_env import get_neighbors_of_site_with_index, VoronoiNN
+from pymatgen.analysis.local_env import get_neighbors_of_site_with_index
 
 from autocat.data.intermediates import NRR_MOLS
 from autocat.data.intermediates import NRR_INTERMEDIATE_NAMES
 from autocat.data.intermediates import ORR_MOLS
 from autocat.data.intermediates import ORR_INTERMEDIATE_NAMES
+
+
+class AutocatAdsorptionGenerationError(Exception):
+    pass
 
 
 def generate_rxn_structures(
@@ -48,12 +53,12 @@ def generate_rxn_structures(
     ----------
 
     surf:
-        Atoms object or name of file containing structure 
+        Atoms object or name of file containing structure
         as a string specifying the surface for which the adsorbate should be placed
 
     sites:
         Dictionary of list of sites to be considered with the keys being user defined labels
-        (e.g. {'custom': [(0.0,0.0),(1.5,1.5)]})
+        (e.g. {'custom': [(0.0, 0.0), (1.5, 1.5)]})
 
     all_sym_sites:
         Bool specifying if all sites identified by
@@ -448,7 +453,7 @@ def generate_molecule(
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
-):
+) -> Dict[str, Dict[str, Any]]:
     """
     Generates an `ase.Atoms` object of an isolated molecule.
     If specified, can write out a .traj file containing the isolated molecule
@@ -459,7 +464,7 @@ def generate_molecule(
 
     molecule_name:
         String of the name of the molecule to be generated. Will search in
-        the `ase` g2 database first, then in `autocat.intermediates`.
+        `autocat.intermediates` data first and then `ase` g2 database.
 
     rotations:
         List of rotation operations to be carried out which will be fed into
@@ -490,20 +495,25 @@ def generate_molecule(
 
     Dictionary containing Atoms object of the generated molecule and path to
     .traj file if written to disk.
+
+    Example:
+    {
+        "NH": {"structure": NH_ase_obj, "traj_file_path": "/path/to/NH/traj/file"},
+    }
     """
 
     if rotations is None:
         rotations = [[0.0, "x"]]
 
     m = None
-    if molecule_name in chemical_symbols:  # atom-in-a-box
-        m = Atoms(molecule_name)
-    elif molecule_name in g2.names and molecule_name not in ["OH", "NH2", "NH"]:
-        m = build_molecule(molecule_name)
-    elif molecule_name in NRR_INTERMEDIATE_NAMES:
+    if molecule_name in NRR_INTERMEDIATE_NAMES:
         m = NRR_MOLS[molecule_name].copy()
     elif molecule_name in ORR_INTERMEDIATE_NAMES:
         m = ORR_MOLS[molecule_name].copy()
+    elif molecule_name in chemical_symbols:  # atom-in-a-box
+        m = Atoms(molecule_name)
+    elif molecule_name in g2.names:
+        m = build_molecule(molecule_name)
 
     if m is None:
         msg = f"Unable to construct molecule {molecule_name}"
