@@ -16,7 +16,23 @@ class AutocatStructureGenerationError(Exception):
     pass
 
 
-# TODO(@hegdevinayi): Typing for the returned data
+def _find_dopant_index(structure, dopant_element):
+    """Helper function for finding the index of the (single) dopant atom."""
+    # TODO(@lancekavalsky): implement multi-dopant-atom indices
+    #    # Find index of species with lowest count
+    #    unique, counts = np.unique(syms, return_counts=True)
+    #    ind = np.where(syms == unique[np.argmin(counts)])[0][0]
+    symbols = np.array(structure.symbols)
+    dopant_index = np.where(symbols == dopant_element)
+    if np.size(dopant_index) < 1:
+        msg = f"Dopant element {dopant_element} not found in structure"
+        raise AutocatStructureGenerationError(msg)
+    elif np.size(dopant_index) > 1:
+        msg = f"More than one atom of {dopant_element} found in structure"
+        raise NotImplementedError(msg)
+    return dopant_index[0][0]
+
+
 def generate_saa_structures(
     host_species: List[str],
     dopant_species: List[str],
@@ -329,26 +345,12 @@ def substitute_dopant_on_surface(
                 f"{name}_{dopant_element}_{str(dopant_idx)} structure written to {traj_file_path}"
             )
 
+        # FIXME: can the dictionary key be more informative/will the user be
+        # able to get the correct information without having to run
+        # `find_dopant_index`?
         substituted_structures[str(dopant_idx)] = {
             "structure": struct,
             "traj_file_path": traj_file_path,
         }
 
     return substituted_structures
-
-
-def _find_dopant_index(structure, dopant_element):
-    """Helper function for finding the index of the (single) dopant atom."""
-    # TODO(@lancekavalsky): implement multi-dopant-atom indices
-    #    # Find index of species with lowest count
-    #    unique, counts = np.unique(syms, return_counts=True)
-    #    ind = np.where(syms == unique[np.argmin(counts)])[0][0]
-    symbols = np.array(structure.symbols)
-    dopant_index = np.where(symbols == dopant_element)
-    if np.size(dopant_index) < 1:
-        msg = f"Dopant element {dopant_element} not found in structure"
-        raise AutocatStructureGenerationError(msg)
-    elif np.size(dopant_index) > 1:
-        msg = f"More than one atom of {dopant_element} found in structure"
-        raise NotImplementedError(msg)
-    return dopant_index[0][0]
