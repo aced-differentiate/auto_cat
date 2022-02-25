@@ -362,30 +362,31 @@ def get_adsorbate_height_estimate(
     scale: float = 1.0,
 ):
     """
-    Guesses initial height for adsorbate placement based on summing covalent radii
-    to get the approximate bond length with each nearest neighbor. Takes the average
-    height based on each nearest neighbor contribution.
+    Guess an initial height for the adsorbate to be placed on the surface, by
+    summing covalent radii of the nearest neighbor atoms.
 
     Parameters
     ----------
 
-    surface:
-        Atoms object the surface for which nearest neighbors 
-        of the adsorbate should be identified
+    surface (REQUIRED):
+        Atoms object the surface for which adsorbate height must be estimated.
 
-    position:
-        Tuple or list of the xy cartesian coordinates for where the adsorbate would be placed 
+    position (REQUIRED):
+        Tuple or list of the xy cartesian coordinates for where the adsorbate would be placed.
 
-    adsorbate:
-        Atoms object of adsorbate to be placed on `surface`
+    adsorbate (REQUIRED):
+        Atoms object of adsorbate to be placed on the surface.
 
+    # FIXME: Should `mol_index` be an input in addition to the xy cartesian coordinates?
+    # Ideally, the coordinates should be enough to determine the closest surface atom, no?
+    # Also, naming
     mol_index:
         Integer index of atom in molecule that will be the reference for placing the molecule
         at `position`. Defaults to the atom at index 0
 
     scale:
-        Float giving a scale factor to be applied to the calculated bond length
-        e.g. scale=1.1 -> bond length = 1.1*(covalent_radius1 + covalent_radius2)
+        Float giving a scale factor to be applied to the calculated bond length.
+        e.g. scale = 1.1 -> bond length = 1.1 * (covalent_radius1 + covalent_radius2)
 
     Returns
     -------
@@ -416,9 +417,9 @@ def get_adsorbate_height_estimate(
 
 def get_adsorbate_slab_nn_list(
     surface: Atoms, position: Union[List[float], Tuple[float]], height: float = 1.5
-) -> List[Dict[str, List[float]]]:
+) -> Tuple[List[str], List[List[float]]]:
     """
-    Get list of nearest neighbors for the adsorbate atom on the surface at the
+    Get list of nearest neighbors for the adsorbate on the surface at the
     specified position.
 
     Parameters
@@ -435,24 +436,22 @@ def get_adsorbate_slab_nn_list(
     Returns
     -------
 
-    nn_list:
-        List of dictionaries each with the name of the species and coordinates
-        of all n.n. identified.
+    species_list, coordinates_list:
+        Two lists of length equal to the number of nearest neighbors identified:
+        first with the list of species names, and second with the list of
+        coordinates.
 
         Example:
-        [
-            {"Fe": [0.4, 0.6]},
-            {"Sr": [0.2, 0.9]},
-            ...
-        ]
+        (["Fe", "Sr"], [[0.4, 0.6], [0.2, 0.9]])
     """
     surf = surface.copy()
     conv = AseAtomsAdaptor()
     add_adsorbate(surf, "X", height=height, position=position)
     init_guess = conv.get_structure(surf)
     nn = get_neighbors_of_site_with_index(init_guess, -1)
-    nn_list = [{f"{_nn.species.hill_formula}": _nn.coords} for _nn in nn]
-    return nn_list
+    species_list = [_nn.species.hill_formula for _nn in nn]
+    coord_list = [_nn.coords for _nn in nn]
+    return species_list, coord_list
 
 
 def generate_molecule(
