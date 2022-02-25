@@ -12,7 +12,7 @@ from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 from autocat.surface import generate_surface_structures
 
 
-class AutocatStructureGenerationError(Exception):
+class AutocatSaaGenerationError(Exception):
     pass
 
 
@@ -26,7 +26,7 @@ def _find_dopant_index(structure, dopant_element):
     dopant_index = np.where(symbols == dopant_element)
     if np.size(dopant_index) < 1:
         msg = f"Dopant element {dopant_element} not found in structure"
-        raise AutocatStructureGenerationError(msg)
+        raise AutocatSaaGenerationError(msg)
     elif np.size(dopant_index) > 1:
         msg = f"More than one atom of {dopant_element} found in structure"
         raise NotImplementedError(msg)
