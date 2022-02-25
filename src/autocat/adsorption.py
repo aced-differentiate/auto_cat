@@ -416,33 +416,42 @@ def get_adsorbate_height_estimate(
 
 def get_adsorbate_slab_nn_list(
     surface: Atoms, position: Union[List[float], Tuple[float]], height: float = 1.5
-):
+) -> List[Dict[str, List[float]]]:
     """
-    Gets list of nearest neighbors for the adsorbate on the surface at a given position.
+    Get list of nearest neighbors for the adsorbate atom on the surface at the
+    specified position.
 
     Parameters
     ----------
 
-    surface:
-        Atoms object the surface for which nearest neighbors 
-        of the adsorbate should be identified
+    surface (REQUIRED):
+        Atoms object the surface for which nearest neighbors of the adsorbate
+        should be identified.
 
-    position:
-        Tuple or list of the xy cartesian coordinates for where the adsorbate would be placed
+    position (REQUIRED):
+        Tuple or list of the xy cartesian coordinates for where the adsorbate
+        would be placed.
 
     Returns
     -------
 
     nn_list:
-        List containing the species and coordinates of each identified n.n. in the form:
-        [[species1,[x1,y1]],[species2,[x2,y2]],...]
+        List of dictionaries each with the name of the species and coordinates
+        of all n.n. identified.
+
+        Example:
+        [
+            {"Fe": [0.4, 0.6]},
+            {"Sr": [0.2, 0.9]},
+            ...
+        ]
     """
     surf = surface.copy()
     conv = AseAtomsAdaptor()
     add_adsorbate(surf, "X", height=height, position=position)
     init_guess = conv.get_structure(surf)
     nn = get_neighbors_of_site_with_index(init_guess, -1)
-    nn_list = [[nn[i].species.hill_formula, nn[i].coords] for i in range(len(nn))]
+    nn_list = [{f"{_nn.species.hill_formula}": _nn.coords} for _nn in nn]
     return nn_list
 
 
