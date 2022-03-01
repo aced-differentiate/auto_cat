@@ -2,4 +2,3 @@ ase==3.21.1
 numpy==1.20.1
 pymatgen==2021.2.16
 fire==0.4.0
-icet==1.3
