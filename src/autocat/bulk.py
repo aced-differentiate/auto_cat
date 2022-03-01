@@ -59,11 +59,11 @@ def generate_bulk_structures(
 
     a_dict:
         Dictionary with lattice parameters <a> to be used for each species.
-        If not specified, defaults from the `ase.data` module are used.
+        If not specified, defaults from `default_lat_param_lib` are used.
 
     c_dict:
         Dictionary with lattice parameters <c> to be used for each species.
-        If not specified, defaults from the `ase.data` module are used.
+        If not specified, defaults from `default_lat_param_lib` are used.
 
     set_magnetic_moments:
         List of species for which magnetic moments need to be set.
