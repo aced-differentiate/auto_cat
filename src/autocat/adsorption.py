@@ -5,7 +5,7 @@ from typing import Tuple
 from typing import Dict
 from typing import Union
 from typing import Any
-from collections.abc import Sequence
+from typing import Sequence
 
 from ase import Atom, Atoms
 from ase.io import read
@@ -76,7 +76,7 @@ def generate_rxn_structures(
 
     height:
         Float specifying the height above surface where adsorbate should be initially placed.
-        
+
         If adsorbate given as an Atoms object, the key here should be specified using the result
         of `adsorbate.get_chemical_formula()`.
         e.g. ads=[adsorbate], height={adsorbate.get_chemical_formala():2.0}
@@ -356,9 +356,9 @@ def place_adsorbate(
 
 def get_adsorbate_height_estimate(
     surface: Atoms,
-    position: Union[Tuple[float], List[float]],
+    position: Sequence[float],
     adsorbate: Atoms,
-    mol_index: int = 0,
+    anchor_atom_index: int = 0,
     scale: float = 1.0,
 ):
     """
@@ -369,46 +369,51 @@ def get_adsorbate_height_estimate(
     ----------
 
     surface (REQUIRED):
-        Atoms object the surface for which adsorbate height must be estimated.
+        `ase.Atoms` object the surface for which adsorbate height must be estimated.
 
     position (REQUIRED):
-        Tuple or list of the xy cartesian coordinates for where the adsorbate would be placed.
+        Tuple or list of the xy cartesian coordinates for where the adsorbate
+        would be placed.
 
     adsorbate (REQUIRED):
-        Atoms object of adsorbate to be placed on the surface.
+        `ase.Atoms` object of adsorbate to be placed on the surface.
 
-    # FIXME: Should `mol_index` be an input in addition to the xy cartesian coordinates?
-    # Ideally, the coordinates should be enough to determine the closest surface atom, no?
-    # Also, naming
-    mol_index:
-        Integer index of atom in molecule that will be the reference for placing the molecule
-        at `position`. Defaults to the atom at index 0
+    anchor_atom_index:
+        Integer index of the atom in the adsorbate molecule that will be used as
+        anchor when placing it on the surface.
+        Defaults to the atom at index 0.
 
     scale:
         Float giving a scale factor to be applied to the calculated bond length.
-        e.g. scale = 1.1 -> bond length = 1.1 * (covalent_radius1 + covalent_radius2)
+        For example, scale = 1.1 -> bond length = 1.1 * (covalent_radius_1 + covalent_radius_2)
+        Defaults to 1.0 (i.e., no scaling).
 
     Returns
     -------
 
     height_estimate:
-        Float giving estimated good initial height for adsorbate
+        Float with the estimated initial height for the adsorbate molecule from
+        the surface.
+        Returns a default of 1.5 Angstom if the guessing process using
+        nearest-neighbor covalent radii fails.
     """
-    nn_list = get_adsorbate_slab_nn_list(surface, position)
-    rad_ads = covalent_radii[atomic_numbers[adsorbate[mol_index].symbol]]
+    species, coords = get_adsorbate_slab_nn_list(surface, position)
+    ads_atom_radius = covalent_radii[
+        atomic_numbers[adsorbate[anchor_atom_index].symbol]
+    ]
     guessed_heights = []
-    for nn in nn_list:
-        rad_nn = covalent_radii[atomic_numbers[nn[0]]]
-        r_dist = scale * (rad_ads + rad_nn)
+    for sp, coord in zip(species, coords):
+        nn_radius = covalent_radii[atomic_numbers[sp]]
+        r_dist = scale * (ads_atom_radius + nn_radius)
         position_array = np.array(position)
-        if (r_dist ** 2 - np.sum((position_array - nn[1][:2]) ** 2)) >= 0.0:
-            height = np.sqrt(r_dist ** 2 - np.sum((position_array - nn[1][:2]) ** 2))
+        if (r_dist ** 2 - np.sum((position_array - coord[:2]) ** 2)) >= 0.0:
+            height = np.sqrt(r_dist ** 2 - np.sum((position_array - coord[:2]) ** 2))
         else:
             height = np.nan
         guessed_heights.append(height)
 
     if np.isnan(np.nanmean(guessed_heights)):
-        height_estimate = 0.0
+        height_estimate = 1.5
     else:
         height_estimate = np.nanmean(guessed_heights)
 
@@ -416,7 +421,7 @@ def get_adsorbate_height_estimate(
 
 
 def get_adsorbate_slab_nn_list(
-    surface: Atoms, position: Union[List[float], Tuple[float]], height: float = 1.5
+    surface: Atoms, position: Sequence[float], height: float = 0.0
 ) -> Tuple[List[str], List[List[float]]]:
     """
     Get list of nearest neighbors for the adsorbate on the surface at the
@@ -456,7 +461,7 @@ def get_adsorbate_slab_nn_list(
 
 def generate_molecule(
     molecule_name: str,
-    rotations: Sequence[Sequence[float, str]] = None,
+    rotations: Sequence[Sequence[Union[float, str]]] = None,
     cell: Sequence[int] = (15, 15, 15),
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -613,7 +618,7 @@ def get_adsorption_sites(
     From given surface, gets each of the sites for the ads_site_type specified.
     Writes reference structures containing all of the identified sites
     if specified. Can also visualize all of the identified sites by
-    automatically calling the ase-gui
+    automatically calling the ase-gui.
     
     Parameters
     ----------
