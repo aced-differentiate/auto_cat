@@ -130,6 +130,8 @@ def generate_surface_structures(
     write-location (if any) for each {crystal structure and facet} specified for
     each input species.
 
+    Example:
+
     {
         "Pt": {
             "fcc111": {
