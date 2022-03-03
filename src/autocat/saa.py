@@ -220,16 +220,16 @@ def generate_saa_structures(
     }
     dop_mm_library.update(dopant_magnetic_moments)
 
-    saa_dict = {}
+    saa_structures = {}
     # iterate over hosts
     for host in hosts:
-        saa_dict[host] = {}
+        saa_structures[host] = {}
         # iterate over single-atoms
         for dopant in dopant_species:
             # ensure host != single-atom
             if dopant == host:
                 continue
-            saa_dict[host][dopant] = {}
+            saa_structures[host][dopant] = {}
             # iterate over surface facets
             for facet in hosts[host]:
                 host_structure = hosts[host][facet].get("structure")
@@ -252,11 +252,11 @@ def generate_saa_structures(
                         f"{dopant}/{host}({facet}) structure written to {traj_file_path}"
                     )
 
-                saa_dict[host][dopant][facet] = {
+                saa_structures[host][dopant][facet] = {
                     "structure": doped_structure,
                     "traj_file_path": traj_file_path,
                 }
-    return saa_dict
+    return saa_structures
 
 
 def substitute_single_atom_on_surface(
