@@ -24,13 +24,19 @@ from autocat.data.intermediates import ORR_MOLS
 from autocat.data.intermediates import ORR_INTERMEDIATE_NAMES
 
 
+# custom types
+RotationOperation = Sequence[Union[float, str]]
+RotationOperations = Sequence[RotationOperation]
+AdsorptionSite = Dict[str, Sequence[float]]
+
+
 class AutocatAdsorptionGenerationError(Exception):
     pass
 
 
 def generate_molecule(
-    molecule_name: str,
-    rotations: Sequence[Sequence[Union[float, str]]] = None,
+    molecule_name: str = None,
+    rotations: RotationOperations = None,
     cell: Sequence[int] = (15, 15, 15),
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -86,6 +92,9 @@ def generate_molecule(
         "NH": {"structure": NH_ase_obj, "traj_file_path": "/path/to/NH/traj/file"},
     }
     """
+    if molecule_name is None:
+        msg = "Molecule name must be specified"
+        raise AutocatAdsorptionGenerationError(msg)
 
     if rotations is None:
         rotations = [[0.0, "x"]]
@@ -121,18 +130,18 @@ def generate_molecule(
 
 
 def generate_adsorbed_structures(
-    surface: Union[str, Atoms],
-    adsorbates: Dict[str, Union[str, Atoms]] = None,
-    adsorption_sites: Dict[str, Dict[str, Sequence[float]]] = None,
-    use_all_sites: Dict[str, bool] = None,
-    site_types: Dict[str, List[str]] = None,
-    heights: Dict[str, float] = None,
-    anchor_atom_indices: Dict[str, int] = None,
-    rotations: Dict[str, Sequence[Sequence[Union[float, str]]]] = None,
+    surface: Union[str, Atoms] = None,
+    adsorbates: Union[Dict[str, Union[str, Atoms]], List[str]] = None,
+    adsorption_sites: Union[Dict[str, AdsorptionSite], AdsorptionSite] = None,
+    use_all_sites: Union[Dict[str, bool], bool] = None,
+    site_types: Union[Dict[str, List[str]], List[str]] = None,
+    heights: Union[Dict[str, float], float] = None,
+    anchor_atom_indices: Union[Dict[str, int], int] = None,
+    rotations: Union[Dict[str, RotationOperations], RotationOperations] = None,
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
-):
+) -> Dict[str, Dict[str, Dict[str, Dict[str, Any]]]]:
     """
 
     Builds structures for reaction intermediates by placing the adsorbate moeity
@@ -153,7 +162,11 @@ def generate_adsorbed_structures(
         Note that the strings that appear as values must be in the list of
         supported molecules in `autocat.data.intermediates` or in the `ase` g2
         database. Predefined data in `autocat.data` will take priority over that
-        in `ase.
+        in `ase`.
+
+        Alternatively, a list of strings can be provided as input.
+        Note that each string has to be *unique* and available in
+        `autocat.data.intermediates` or the `ase` g2 database.
 
         Example:
         {
@@ -163,9 +176,34 @@ def generate_adsorbed_structures(
             ...
         }
 
+        OR
+
+        ["NH", "NNH"]
+
+    rotations:
+        Dictionary of the list of rotation operations to be applied to each
+        adsorbate molecule/intermediate before being placed on the host surface.
+        Alternatively, a single list of rotation operations can be provided as
+        input to be used for all adsorbates.
+
+        Rotating 90 degrees around the z axis followed by 45 degrees
+        around the y-axis can be specified as
+            [(90.0, "z"), (45.0, "y")]
+
+        Example:
+        {
+            "NH": [(90.0, "z"), (45.0, "y")],
+            "NNH": ...
+        }
+
+        Defaults to [(0, "x")] (i.e., no rotations applied) for each adsorbate
+        molecule.
+
     adsorption_sites:
         Dictionary with labels + xy coordinates of sites on the surface where
         each adsorbate must be placed.
+        Alternatively, a single dictionary with label and xy coordinates can be
+        provided as input to be used for all adsorbates.
 
         Example:
         {
@@ -184,6 +222,8 @@ def generate_adsorbed_structures(
         must be used for placing each adsorbate. Will generate a number of
         adsorbed structures equal to the number of symmetrically unique sites
         identified using the `AdsorbateSiteFinder` module from `pymatgen`.
+        Alternatively, a single Boolean value can be provided as input to be
+        used for all adsorbates.
 
         NB: If True, overrides any sites defined in `adsorption_sites` for each
         adsorbate.
@@ -193,6 +233,8 @@ def generate_adsorbed_structures(
     site_types:
         Dictionary of the types of adsorption sites to be searched for for each
         adsorbate. Options are "ontop", "bridge", and "hollow".
+        Alternatively, a single list of adsorption sites can be provided as
+        input to be used for all adsorbates.
         Ignored if `use_all_sites` is False.
 
         Defaults to ["ontop", "bridge", "hollow"] (if `use_all_sites` is True)
@@ -201,30 +243,17 @@ def generate_adsorbed_structures(
     heights:
         Dictionary of the height above surface where each adsorbate should be
         placed.
+        Alternatively, a single float value can be provided as input to be
+        used for all adsorbates.
         If None, will estimate initial height based on covalent radii of the
         nearest neighbor atoms for each adsorbate.
 
     anchor_atom_indices:
         Dictionary of the integer index of the atom in each adsorbate molecule
         that should be used as anchor when placing it on the surface.
+        Alternatively, a single integer index can be provided as input to be
+        used for all adsorbates.
         Defaults to the atom at index 0 for each adsorbate molecule.
-
-    rotations:
-        Dictionary of the list of rotation operations to be applied to each
-        adsorbate molecule/intermediate before being placed on the host surface.
-
-        Rotating 90 degrees around the z axis followed by 45 degrees
-        around the y-axis can be specified as
-            [(90.0, "z"), (45.0, "y")]
-
-        Example:
-        {
-            "NH": [(90.0, "z"), (45.0, "y")],
-            "NNH": ...
-        }
-
-        Defaults to [(0, "x")] (i.e., no rotations applied) for each adsorbate
-        molecule.
 
     write_to_disk:
         Boolean specifying whether the bulk structures generated should be
@@ -237,6 +266,14 @@ def generate_adsorbed_structures(
         In the specified write_location, the following directory structure
         will be created:
 
+        adsorbates/[adsorbate_1]/[site_label_1]/[xy_site_coord_1]/input.traj
+        adsorbates/[adsorbate_1]/[site_label_1]/[xy_site_coord_2]/input.traj
+        ...
+        adsorbates/[adsorbate_1]/[site_label_2]/[xy_site_coord_1]/input.traj
+        ...
+        adsorbates/[adsorbate_2]/[site_label_1]/[xy_site_coord_1]/input.traj
+        ...
+
     dirs_exist_ok:
         Boolean specifying whether existing directories/files should be
         overwritten or not. This is passed on to the `os.makedirs` builtin.
@@ -246,9 +283,32 @@ def generate_adsorbed_structures(
     Returns
     -------
 
-    ads_structs:
-        Dictionary containing all of the reaction structures (and reference
-        states if specified)
+    ads_structures:
+        Dictionary containing all of the reaction structures (with the input
+        molecule/intermediate adsorbed onto the surface) as `ase.Atoms` object
+        for all adsorbates and adsorption sites.
+
+        Example:
+
+        {
+            "NH": {
+                "ontop": {
+                    "5.345_2.342": {
+                        "structure": NH_on_surface_obj,
+                        "traj_file_path": "/path/to/NH/adsorbed/on/surface/traj/file"
+                    },
+                    "1.478_1.230": {
+                        ...
+                    },
+                },
+                "hollow": {
+                    ...
+                },
+                ...
+            "NNH": {
+                ...
+            }
+        }
 
     """
     if surface is None:
@@ -258,91 +318,109 @@ def generate_adsorbed_structures(
     if adsorbates is None or not adsorbates:
         msg = "Adsorbate molecules/intermediates must be specified"
         raise AutocatAdsorptionGenerationError(msg)
+    elif isinstance(adsorbates, list):
+        adsorbates = {ads_key: ads_key for ads_key in adsorbates}
 
-    for k, v in adsorbates.items():
-        if isinstance(v, str):
-            pass
-
-    if adsorption_sites is None:
-        adsorption_sites = {}
-
-    if use_all_sites is None:
-        use_all_sites = {}
-
-    if site_types is None:
-        site_types = {}
-
-    if heights is None:
-        heights = {}
-
-    if anchor_atom_indices is None:
-        anchor_atom_indices = {}
+    # Input wrangling for the different types of parameter values allowed for
+    # the same function arguments.
 
     if rotations is None:
         rotations = {}
+    elif isinstance(rotations, list):
+        rotations = {ads_key: rotations for ads_key in adsorbates}
 
-    _adsorption_sites = {ads: {"origin": [0.0, 0.0]} for ads in adsorbates}
-    adsorption_sites = _adsorption_sites.update()
-    if use_all_sites:
-        if site_types is None:
-            site_types = ["ontop", "bridge", "hollow"]
-        adsorption_sites = get_adsorption_sites(surface, site_types=site_types)
+    if adsorption_sites is None:
+        adsorption_sites = {}
+    elif isinstance(adsorption_sites, dict):
+        if all([ads_key not in adsorption_sites for ads_key in adsorbates]):
+            adsorption_sites = {ads_key: adsorption_sites for ads_key in adsorbates}
 
-    if rotations is None:
-        rotations = [[0.0, "x"]]
+    if use_all_sites is None:
+        use_all_sites = {}
+    elif isinstance(use_all_sites, bool):
+        use_all_sites = {ads_key: use_all_sites for ads_key in adsorbates}
+
+    if site_types is None:
+        site_types = {}
+    elif isinstance(site_types, list):
+        site_types = {ads_key: site_types for ads_key in adsorbates}
+
+    if heights is None:
+        heights = {}
+    elif isinstance(heights, float):
+        heights = {ads_key: heights for ads_key in adsorbates}
+
+    if anchor_atom_indices is None:
+        anchor_atom_indices = {}
+    elif isinstance(anchor_atom_indices, int):
+        anchor_atom_indices = {ads_key: anchor_atom_indices for ads_key in adsorbates}
 
     ads_structures = {}
-    for typ in sites:
-        if typ != "all":
-            rxn_structs[a][typ] = {}
-            for p in sites[typ]:
-                rpos = np.around(p, 3)
-                loc = str(rpos[0]) + "_" + str(rpos[1])
-                st = place_adsorbate(
-                    surf,
-                    mol=ads_dict[a],
-                    write_to_disk=write_to_disk,
-                    write_location=write_location,
-                    dirs_exist_ok=dirs_exist_ok,
-                    rotations=rots_library[a],
-                    mol_index=mol_indices_library[a],
-                    height=height_library[a],
-                    position=p[:2],
-                    label=typ,
+    for ads_key in adsorbates:
+        ads_structures[ads_key] = {}
+        # generate the molecule if not already input
+        adsorbate = adsorbates.get(ads_key)
+        if isinstance(adsorbate, str):
+            adsorbate = generate_molecule(molecule_name=adsorbate)
+        # get all adsorption sites for the adsorbate
+        ads_adsorption_sites = adsorption_sites.get(ads_key, {"origin": [0, 0]})
+        ads_use_all_sites = use_all_sites.get(ads_key, False)
+        if ads_use_all_sites:
+            ads_site_types = site_types.get(ads_key, ["ontop", "bridge", "hollow"])
+            ads_adsorption_sites = get_adsorption_sites(
+                surface, site_types=ads_site_types
+            )
+        # for each adsorption site type, for each (xy) coordinate, generate the
+        # adsorbated (surface + adsorbate) structure
+        for site in ads_adsorption_sites:
+            ads_structures[ads_key][site] = {}
+            for coords in ads_adsorption_sites[site]:
+                rcoords = np.around(coords, 3)
+                scoords = f"{str(rcoords[0])}_{str(rcoords[1])}"
+                ads_height = heights.get(ads_key, None)
+                ads_anchor_atom_index = anchor_atom_indices.get(ads_key, 0)
+                ads_rotations = rotations.get(ads_key, [(0, "x")])
+                adsorbed_structure = place_adsorbate(
+                    surface=surface,
+                    adsorbate=adsorbate,
+                    adsorption_site=coords,
+                    anchor_atom_index=ads_anchor_atom_index,
+                    height=ads_height,
+                    rotations=ads_rotations,
                 )
-                rxn_structs[a][typ][loc] = {
-                    "structure": st[typ].get("structure"),
-                    "traj_file_path": st[typ].get("traj_file_path"),
-                }
 
-    if refs is None:
-        # Defaults to no references added, setting to {} will skip the later for loop
-        refs = {}
+                traj_file_path = None
+                if write_to_disk:
+                    dir_path = os.path.join(
+                        write_location, "adsorbates", ads_key, site, scoords
+                    )
+                    os.makedirs(dir_path, exist_ok=dirs_exist_ok)
+                    traj_file_path = os.path.join(dir_path, "input.traj")
+                    adsorbed_structure.write(traj_file_path)
+                    print(
+                        f"Structure with {ads_key} adsorbed at {site}/{scoords} written to {traj_file_path}"
+                    )
 
-    else:
-        # Since references specified, initializes appropriate key for dict to be returned
-        rxn_structs["references"] = {}
+                ads_structures[ads_key][site].update(
+                    {
+                        scoords: {
+                            "structure": adsorbed_structure,
+                            "traj_file_path": traj_file_path,
+                        }
+                    }
+                )
 
-    for ref in refs:
-        r = generate_molecule(
-            ref,
-            write_to_disk=write_to_disk,
-            write_location=write_location,
-            dirs_exist_ok=dirs_exist_ok,
-        )
-        rxn_structs["references"][ref] = r
-
-    return rxn_structs
+    return ads_structures
 
 
 def place_adsorbate(
     surface: Atoms = None,
     adsorbate: Atoms = None,
     adsorption_site: Sequence[float] = None,
-    rotations: Sequence[Sequence[Union[float, str]]] = None,
+    rotations: RotationOperations = None,
     anchor_atom_index: int = 0,
     height: float = None,
-):
+) -> Atoms:
     """
     Places an adsorbate molecule/intermediate onto a given surface at the specified location.
 
@@ -423,9 +501,9 @@ def place_adsorbate(
 
 
 def get_adsorbate_height_estimate(
-    surface: Atoms,
-    adsorbate: Atoms,
-    adsorption_site: Sequence[float],
+    surface: Atoms = None,
+    adsorbate: Atoms = None,
+    adsorption_site: Sequence[float] = None,
     anchor_atom_index: int = 0,
     scale: float = 1.0,
 ) -> float:
@@ -442,9 +520,11 @@ def get_adsorbate_height_estimate(
     adsorbate (REQUIRED):
         `ase.Atoms` object of adsorbate to be placed on the surface.
 
-    adsorption_site (REQUIRED):
+    adsorption_site:
         Tuple or list of the xy cartesian coordinates for where the adsorbate
         would be placed.
+
+        Defaults to [0, 0].
 
     anchor_atom_index:
         Integer index of the atom in the adsorbate molecule that will be used as
@@ -465,6 +545,9 @@ def get_adsorbate_height_estimate(
         Returns a default of 1.5 Angstom if the guessing process using
         nearest-neighbor covalent radii fails.
     """
+    if adsorption_site is None:
+        adsorption_site = [0, 0]
+
     species, coords = get_adsorbate_slab_nn_list(surface, adsorption_site)
     ads_atom_radius = covalent_radii[
         atomic_numbers[adsorbate[anchor_atom_index].symbol]
@@ -531,7 +614,9 @@ def get_adsorbate_slab_nn_list(
     return species_list, coord_list
 
 
-def get_adsorption_sites(surface: Atoms, site_types: List[str] = None, **kwargs):
+def get_adsorption_sites(
+    surface: Atoms = None, site_types: List[str] = None, **kwargs
+) -> Dict[str, Sequence[float]]:
     """
     For the given surface, returns all symmetrically unique sites of the
     specified type.
@@ -569,5 +654,7 @@ def get_adsorption_sites(surface: Atoms, site_types: List[str] = None, **kwargs)
     pmg_structure = converter.get_structure(surface)
     finder = AdsorbateSiteFinder(pmg_structure)
     sites = finder.find_adsorption_sites(positions=site_types, **kwargs)
+    # Remove the extraneous "all" returned by default from pymatgen
+    sites.pop("all", None)
 
     return sites
