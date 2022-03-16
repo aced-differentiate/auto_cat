@@ -320,6 +320,9 @@ def generate_adsorbed_structures(
         raise AutocatAdsorptionGenerationError(msg)
     elif isinstance(adsorbates, list):
         adsorbates = {ads_key: ads_key for ads_key in adsorbates}
+    else:
+        msg = f"Unrecognized input type for adsorbates ({type(adsorbates)})"
+        raise AutocatAdsorptionGenerationError(msg)
 
     # Input wrangling for the different types of parameter values allowed for
     # the same function arguments.
@@ -328,32 +331,54 @@ def generate_adsorbed_structures(
         rotations = {}
     elif isinstance(rotations, list):
         rotations = {ads_key: rotations for ads_key in adsorbates}
+    else:
+        msg = f"Unrecognized input type for adsorbates ({type(rotations)})"
+        raise AutocatAdsorptionGenerationError(msg)
 
     if adsorption_sites is None:
         adsorption_sites = {}
     elif isinstance(adsorption_sites, dict):
         if all([ads_key not in adsorption_sites for ads_key in adsorbates]):
             adsorption_sites = {ads_key: adsorption_sites for ads_key in adsorbates}
+        else:
+            msg = "Please ensure that none of the adsorption site labels overlap with\
+                 any of the keys in adsorbates."
+            raise AutocatAdsorptionGenerationError(msg)
+    else:
+        msg = f"Unrecognized input type for adsorption_sites ({type(adsorption_sites)})"
+        raise AutocatAdsorptionGenerationError(msg)
 
     if use_all_sites is None:
         use_all_sites = {}
     elif isinstance(use_all_sites, bool):
         use_all_sites = {ads_key: use_all_sites for ads_key in adsorbates}
+    else:
+        msg = f"Unrecognized input type for use_all_sites ({type(use_all_sites)})"
+        raise AutocatAdsorptionGenerationError(msg)
 
     if site_types is None:
         site_types = {}
     elif isinstance(site_types, list):
         site_types = {ads_key: site_types for ads_key in adsorbates}
+    else:
+        msg = f"Unrecognized input type for site_types ({type(site_types)})"
+        raise AutocatAdsorptionGenerationError(msg)
 
     if heights is None:
         heights = {}
     elif isinstance(heights, float):
         heights = {ads_key: heights for ads_key in adsorbates}
+    else:
+        msg = f"Unrecognized input type for heights ({type(heights)})"
+        raise AutocatAdsorptionGenerationError(msg)
 
     if anchor_atom_indices is None:
         anchor_atom_indices = {}
     elif isinstance(anchor_atom_indices, int):
         anchor_atom_indices = {ads_key: anchor_atom_indices for ads_key in adsorbates}
+    else:
+        msg = f"Unrecognized input type for anchor_atom_indices ({type(anchor_atom_indices)})"
+        raise AutocatAdsorptionGenerationError(msg)
 
     ads_structures = {}
     for ads_key in adsorbates:
