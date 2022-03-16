@@ -10,6 +10,7 @@ import numpy as np
 from autocat.saa import generate_saa_structures
 from autocat.saa import substitute_single_atom_on_surface
 from autocat.saa import _find_dopant_index
+from autocat.saa import AutocatSaaGenerationError
 from autocat.surface import generate_surface_structures
 
 
@@ -104,3 +105,26 @@ def test_substitute_single_atom_on_surface_cent_sa():
     y = (dop_host.cell[0][1] + dop_host.cell[1][1]) / 2.0
     assert dop_host[_find_dopant_index(dop_host, "Ni")].x == approx(x)
     assert dop_host[_find_dopant_index(dop_host, "Ni")].y == approx(y)
+
+
+def test_substitute_single_atom_on_surface_multi_unique_sites_to_dope():
+    # Test catches system with multiple unique sites to dope
+    host = generate_surface_structures(["Pt"])["Pt"]["fcc111"]["structure"]
+    host[19].symbol = "Au"
+    with raises(NotImplementedError):
+        substitute_single_atom_on_surface(host, "Ni", place_dopant_at_center=True)
+
+
+def test_find_dopant_index():
+    # Test helper function for finding dopant index
+    # no dopant
+    host = generate_surface_structures(["Cu"])["Cu"]["fcc111"]["structure"]
+    with raises(AutocatSaaGenerationError):
+        _find_dopant_index(host, "Au")
+    # single dopant
+    host[27].symbol = "Au"
+    assert _find_dopant_index(host, "Au") == 27
+    # multiple dopants
+    host[32].symbol = "Au"
+    with raises(NotImplementedError):
+        _find_dopant_index(host, "Au")
