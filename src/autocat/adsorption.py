@@ -35,7 +35,7 @@ class AutocatAdsorptionGenerationError(Exception):
 def generate_molecule(
     molecule_name: str = None,
     rotations: RotationOperations = None,
-    cell: Sequence[int] = None,
+    cell: Sequence[float] = None,
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
@@ -62,6 +62,12 @@ def generate_molecule(
             [(90.0, "z"), (45.0, "y")]
 
         Defaults to [(0, "x")] (i.e., no rotations applied).
+
+    cell:
+        List of float specifying the dimensions of the box to place the molecule
+        in, in Angstrom.
+
+        Defaults to [15, 15, 15].
 
     write_to_disk:
         Boolean specifying whether the bulk structures generated should be
@@ -97,6 +103,9 @@ def generate_molecule(
     if rotations is None:
         rotations = [[0.0, "x"]]
 
+    if cell is None:
+        cell = [15, 15, 15]
+
     m = None
     if molecule_name in NRR_MOLS:
         m = NRR_MOLS[molecule_name].copy()
@@ -114,8 +123,7 @@ def generate_molecule(
     for r in rotations:
         m.rotate(r[0], r[1])
 
-    if cell:
-        m.cell = cell
+    m.cell = cell
 
     m.center()
 
