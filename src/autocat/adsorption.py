@@ -24,7 +24,7 @@ from autocat.data.intermediates import ORR_MOLS
 from autocat.data.intermediates import ORR_INTERMEDIATE_NAMES
 
 
-# custom types
+# custom types for readability
 RotationOperation = Sequence[Union[float, str]]
 RotationOperations = Sequence[RotationOperation]
 AdsorptionSite = Dict[str, Sequence[float]]
@@ -215,6 +215,12 @@ def generate_adsorbed_structures(
             "NNH": ...
         }
 
+        OR
+
+        {
+            "my_default_site": [0.5, 0.5],
+        }
+
         Defaults to {"origin": [0, 0]} for all adsorbates.
 
     use_all_sites:
@@ -332,18 +338,16 @@ def generate_adsorbed_structures(
     elif isinstance(rotations, list):
         rotations = {ads_key: rotations for ads_key in adsorbates}
     else:
-        msg = f"Unrecognized input type for adsorbates ({type(rotations)})"
+        msg = f"Unrecognized input type for rotations ({type(rotations)})"
         raise AutocatAdsorptionGenerationError(msg)
 
     if adsorption_sites is None:
         adsorption_sites = {}
     elif isinstance(adsorption_sites, dict):
+        # check if the input is a single site for all adsorbates vs separate
+        # sites for each adsorbate
         if all([ads_key not in adsorption_sites for ads_key in adsorbates]):
             adsorption_sites = {ads_key: adsorption_sites for ads_key in adsorbates}
-        else:
-            msg = "Please ensure that none of the adsorption site labels overlap with\
-                 any of the keys in adsorbates."
-            raise AutocatAdsorptionGenerationError(msg)
     else:
         msg = f"Unrecognized input type for adsorption_sites ({type(adsorption_sites)})"
         raise AutocatAdsorptionGenerationError(msg)
