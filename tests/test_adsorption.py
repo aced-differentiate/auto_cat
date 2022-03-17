@@ -276,9 +276,10 @@ def test_generate_adsorbed_structures_write_location():
         write_to_disk=True,
         write_location="test_dir",
     )
+    loc = list(ads["OH"]["bridge"].keys())[0]
     assert os.path.samefile(
-        ads["OH"]["bridge"]["8.316_2.4"]["traj_file_path"],
-        "test_dir/adsorbates/OH/bridge/8.316_2.4/input.traj",
+        ads["OH"]["bridge"][loc]["traj_file_path"],
+        "test_dir/adsorbates/OH/bridge/" + loc + "/input.traj",
     )
     shutil.rmtree("test_dir")
 
