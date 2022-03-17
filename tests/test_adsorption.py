@@ -85,23 +85,37 @@ def test_get_adsorbate_slab_nn_list():
     nn_list = get_adsorbate_slab_nn_list(
         surface=surf, adsorption_site=(3.82898322, 0.73688816)
     )
-    assert len(nn_list) == 3
+    assert len(nn_list[0]) == 3
+    # Checks that 3 positions given (1 for each nn)
+    assert len(nn_list[1]) == 3
+    assert all([nn_list[1][i].shape == (3,) for i in range(len(nn_list[0]))])
+
     surf = generate_surface_structures(["Fe"])["Fe"]["bcc100"]["structure"]
     nn_list = get_adsorbate_slab_nn_list(surface=surf, adsorption_site=(0.0, 0.0))
-    assert len(nn_list) == 1
+    # Check that 1 nn identified
+    assert len(nn_list[0]) == 1
+    # Checks that 1 position given (1 for each nn)
+    assert len(nn_list[1]) == 1
+    assert all([nn_list[1][i].shape == (3,) for i in range(len(nn_list[0]))])
+
     surf = generate_surface_structures(["Pt"])["Pt"]["fcc100"]["structure"]
     nn_list = get_adsorbate_slab_nn_list(
-        surface=surf, adsorption_site=(6.92964646, 4.15778787)
+        surface=surf, adsorption_site=(6.92964646, 4.15778787), height=0.5
     )
-    assert len(nn_list) == 4
+    # Checks that 4 nn identified
+    assert len(nn_list[0]) == 4
+    # Checks that 4 position given (1 for each nn)
+    assert len(nn_list[1]) == 4
+    assert all([nn_list[1][i].shape == (3,) for i in range(len(nn_list[0]))])
+
     saa = generate_saa_structures(["Cu"], ["Pt"])["Cu"]["Pt"]["fcc111"]["structure"]
     nn_list = get_adsorbate_slab_nn_list(
         surface=saa, adsorption_site=(7.01980257, 3.31599674)
     )
     # Checks correct nn identified
     assert nn_list[0][0] == "Pt"
-    assert nn_list[1][0] == "Cu"
-    assert nn_list[0][1][0] == approx(saa[27].x)
+    assert nn_list[0][1] == "Cu"
+    assert nn_list[1][0][0] == approx(saa[27].x)
     assert nn_list[1][1][1] == approx(saa[28].y)
 
 
