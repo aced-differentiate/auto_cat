@@ -612,7 +612,7 @@ def get_adsorbate_height_estimate(
 
 
 def get_adsorbate_slab_nn_list(
-    surface: Atoms = None, adsorption_site: Sequence[float] = None, height: float = 0.0
+    surface: Atoms = None, adsorption_site: Sequence[float] = None, height: float = 0.5
 ) -> Tuple[List[str], List[List[float]]]:
     """
     Get list of nearest neighbors for the adsorbate on the surface at the

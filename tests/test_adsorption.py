@@ -100,7 +100,7 @@ def test_get_adsorbate_slab_nn_list():
 
     surf = generate_surface_structures(["Pt"])["Pt"]["fcc100"]["structure"]
     nn_list = get_adsorbate_slab_nn_list(
-        surface=surf, adsorption_site=(6.92964646, 4.15778787), height=0.5
+        surface=surf, adsorption_site=(6.92964646, 4.15778787),
     )
     # Checks that 4 nn identified
     assert len(nn_list[0]) == 4
