@@ -19,9 +19,7 @@ from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 from pymatgen.analysis.local_env import get_neighbors_of_site_with_index
 
 from autocat.data.intermediates import NRR_MOLS
-from autocat.data.intermediates import NRR_INTERMEDIATE_NAMES
 from autocat.data.intermediates import ORR_MOLS
-from autocat.data.intermediates import ORR_INTERMEDIATE_NAMES
 
 
 # custom types for readability
@@ -37,7 +35,7 @@ class AutocatAdsorptionGenerationError(Exception):
 def generate_molecule(
     molecule_name: str = None,
     rotations: RotationOperations = None,
-    cell: Sequence[int] = (15, 15, 15),
+    cell: Sequence[int] = None,
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
@@ -100,9 +98,9 @@ def generate_molecule(
         rotations = [[0.0, "x"]]
 
     m = None
-    if molecule_name in NRR_INTERMEDIATE_NAMES:
+    if molecule_name in NRR_MOLS:
         m = NRR_MOLS[molecule_name].copy()
-    elif molecule_name in ORR_INTERMEDIATE_NAMES:
+    elif molecule_name in ORR_MOLS:
         m = ORR_MOLS[molecule_name].copy()
     elif molecule_name in chemical_symbols:  # atom-in-a-box
         m = Atoms(molecule_name)
@@ -115,7 +113,10 @@ def generate_molecule(
 
     for r in rotations:
         m.rotate(r[0], r[1])
-    m.cell = cell
+
+    if cell:
+        m.cell = cell
+
     m.center()
 
     traj_file_path = None
