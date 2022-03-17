@@ -413,6 +413,8 @@ def generate_adsorbed_structures(
             print(f"site: {site}")
             ads_structures[ads_key][site] = {}
             for coords in ads_adsorption_sites[site]:
+                # use only xy coords and ignore z if given here (handled by ads_height)
+                coords = coords[:2]
                 print(f"coords: {coords}")
                 rcoords = np.around(coords, 3)
                 print(f"rcoords: {rcoords}")
