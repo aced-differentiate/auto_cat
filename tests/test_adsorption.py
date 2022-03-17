@@ -272,6 +272,7 @@ def test_generate_adsorbed_structures_write_location():
         surface=surf,
         adsorbates=["OH"],
         site_types=["bridge"],
+        use_all_sites=True,
         write_to_disk=True,
         write_location="test_dir",
     )
