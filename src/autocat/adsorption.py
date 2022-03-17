@@ -25,7 +25,7 @@ from autocat.data.intermediates import ORR_MOLS
 # custom types for readability
 RotationOperation = Sequence[Union[float, str]]
 RotationOperations = Sequence[RotationOperation]
-AdsorptionSite = Dict[str, Sequence[float]]
+AdsorptionSite = Dict[str, Sequence[Sequence[float]]]
 
 
 class AutocatAdsorptionGenerationError(Exception):
@@ -66,7 +66,6 @@ def generate_molecule(
     cell:
         List of float specifying the dimensions of the box to place the molecule
         in, in Angstrom.
-
         Defaults to [15, 15, 15].
 
     write_to_disk:
@@ -209,16 +208,16 @@ def generate_adsorbed_structures(
         molecule.
 
     adsorption_sites:
-        Dictionary with labels + xy coordinates of sites on the surface where
-        each adsorbate must be placed.
-        Alternatively, a single dictionary with label and xy coordinates can be
-        provided as input to be used for all adsorbates.
+        Dictionary with labels + list of xy coordinates of sites on the surface
+        where each adsorbate must be placed.
+        Alternatively, a single dictionary with label and a list of xy
+        coordinates can be provided as input to be used for all adsorbates.
 
         Example:
         {
             "NH": {
-                "my_awesome_site_1": [0.0, 0.0],
-                "my_awesome_site_2": [0.0, 1.5],
+                "my_awesome_site_1": [(0.0, 0.0), (0.25, 0.25)],
+                "my_awesome_site_2": [(0.0, 1.5)],
                 ...
             },
             "NNH": ...
@@ -227,10 +226,10 @@ def generate_adsorbed_structures(
         OR
 
         {
-            "my_default_site": [0.5, 0.5],
+            "my_default_site": [(0.5, 0.5)],
         }
 
-        Defaults to {"origin": [0, 0]} for all adsorbates.
+        Defaults to {"origin": [(0, 0)]} for all adsorbates.
 
     use_all_sites:
         Dictionary specifying if all symmetrically unique sites on the surface
@@ -330,23 +329,23 @@ def generate_adsorbed_structures(
         msg = "Surface structure must be specified"
         raise AutocatAdsorptionGenerationError(msg)
 
+    # Input wrangling for the different types of parameter values allowed for
+    # the same function arguments.
+
     if adsorbates is None or not adsorbates:
         msg = "Adsorbate molecules/intermediates must be specified"
         raise AutocatAdsorptionGenerationError(msg)
     elif isinstance(adsorbates, list):
         adsorbates = {ads_key: ads_key for ads_key in adsorbates}
-    else:
+    elif not isinstance(adsorbates, dict):
         msg = f"Unrecognized input type for adsorbates ({type(adsorbates)})"
         raise AutocatAdsorptionGenerationError(msg)
-
-    # Input wrangling for the different types of parameter values allowed for
-    # the same function arguments.
 
     if rotations is None:
         rotations = {}
     elif isinstance(rotations, list):
         rotations = {ads_key: rotations for ads_key in adsorbates}
-    else:
+    elif not isinstance(rotations, dict):
         msg = f"Unrecognized input type for rotations ({type(rotations)})"
         raise AutocatAdsorptionGenerationError(msg)
 
@@ -357,7 +356,7 @@ def generate_adsorbed_structures(
         # sites for each adsorbate
         if all([ads_key not in adsorption_sites for ads_key in adsorbates]):
             adsorption_sites = {ads_key: adsorption_sites for ads_key in adsorbates}
-    else:
+    elif not isinstance(adsorption_sites, dict):
         msg = f"Unrecognized input type for adsorption_sites ({type(adsorption_sites)})"
         raise AutocatAdsorptionGenerationError(msg)
 
@@ -365,7 +364,7 @@ def generate_adsorbed_structures(
         use_all_sites = {}
     elif isinstance(use_all_sites, bool):
         use_all_sites = {ads_key: use_all_sites for ads_key in adsorbates}
-    else:
+    elif not isinstance(use_all_sites, dict):
         msg = f"Unrecognized input type for use_all_sites ({type(use_all_sites)})"
         raise AutocatAdsorptionGenerationError(msg)
 
@@ -373,7 +372,7 @@ def generate_adsorbed_structures(
         site_types = {}
     elif isinstance(site_types, list):
         site_types = {ads_key: site_types for ads_key in adsorbates}
-    else:
+    elif not isinstance(site_types, dict):
         msg = f"Unrecognized input type for site_types ({type(site_types)})"
         raise AutocatAdsorptionGenerationError(msg)
 
@@ -381,7 +380,7 @@ def generate_adsorbed_structures(
         heights = {}
     elif isinstance(heights, float):
         heights = {ads_key: heights for ads_key in adsorbates}
-    else:
+    elif not isinstance(heights, dict):
         msg = f"Unrecognized input type for heights ({type(heights)})"
         raise AutocatAdsorptionGenerationError(msg)
 
@@ -389,7 +388,7 @@ def generate_adsorbed_structures(
         anchor_atom_indices = {}
     elif isinstance(anchor_atom_indices, int):
         anchor_atom_indices = {ads_key: anchor_atom_indices for ads_key in adsorbates}
-    else:
+    elif not isinstance(anchor_atom_indices, dict):
         msg = f"Unrecognized input type for anchor_atom_indices ({type(anchor_atom_indices)})"
         raise AutocatAdsorptionGenerationError(msg)
 
@@ -399,9 +398,9 @@ def generate_adsorbed_structures(
         # generate the molecule if not already input
         adsorbate = adsorbates.get(ads_key)
         if isinstance(adsorbate, str):
-            adsorbate = generate_molecule(molecule_name=adsorbate)
+            adsorbate = generate_molecule(molecule_name=adsorbate)["structure"]
         # get all adsorption sites for the adsorbate
-        ads_adsorption_sites = adsorption_sites.get(ads_key, {"origin": [0, 0]})
+        ads_adsorption_sites = adsorption_sites.get(ads_key, {"origin": [(0, 0)]})
         ads_use_all_sites = use_all_sites.get(ads_key, False)
         if ads_use_all_sites:
             ads_site_types = site_types.get(ads_key, ["ontop", "bridge", "hollow"])
@@ -411,9 +410,12 @@ def generate_adsorbed_structures(
         # for each adsorption site type, for each (xy) coordinate, generate the
         # adsorbated (surface + adsorbate) structure
         for site in ads_adsorption_sites:
+            print(f"site: {site}")
             ads_structures[ads_key][site] = {}
             for coords in ads_adsorption_sites[site]:
+                print(f"coords: {coords}")
                 rcoords = np.around(coords, 3)
+                print(f"rcoords: {rcoords}")
                 scoords = f"{str(rcoords[0])}_{str(rcoords[1])}"
                 ads_height = heights.get(ads_key, None)
                 ads_anchor_atom_index = anchor_atom_indices.get(ads_key, 0)
@@ -610,7 +612,7 @@ def get_adsorbate_height_estimate(
 
 
 def get_adsorbate_slab_nn_list(
-    surface: Atoms, adsorption_site: Sequence[float], height: float = 0.0
+    surface: Atoms = None, adsorption_site: Sequence[float] = None, height: float = 0.0
 ) -> Tuple[List[str], List[List[float]]]:
     """
     Get list of nearest neighbors for the adsorbate on the surface at the
