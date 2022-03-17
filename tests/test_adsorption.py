@@ -48,9 +48,8 @@ def test_generate_molecule_disk_io():
     mol = generate_molecule(
         molecule_name="N", write_to_disk=True, write_location=_tmp_dir
     )
-    assert os.path.samefile(
-        mol["traj_file_path"], os.path.join(_tmp_dir, "references", "N", "input.traj"),
-    )
+    traj_file_path = os.path.join(_tmp_dir, "references", "N", "input.traj")
+    assert os.path.samefile(mol["traj_file_path"], traj_file_path)
 
 
 def test_place_adsorbate_defaults():
@@ -247,6 +246,7 @@ def test_generate_adsorbed_structures_use_all_sites():
 
 def test_generate_adsorbed_structures_write_location():
     # Test user-specified write location
+    _tmp_dir = tempfile.TemporaryDirectory().name
     surf = generate_surface_structures(["Pt"])["Pt"]["fcc111"]["structure"]
     ads = generate_adsorbed_structures(
         surface=surf,
@@ -254,19 +254,25 @@ def test_generate_adsorbed_structures_write_location():
         use_all_sites=False,
         adsorption_sites={"origin": [(0.0, 0.0), (0.5, 0.5)], "custom": [(0.3, 0.3)]},
         write_to_disk=True,
-        write_location="test_dir",
+        write_location=_tmp_dir,
+    )
+    traj_file_path = os.path.join(
+        _tmp_dir, "adsorbates", "OH", "origin", "0.0_0.0", "input.traj"
     )
     assert os.path.samefile(
-        ads["OH"]["origin"]["0.0_0.0"]["traj_file_path"],
-        "test_dir/adsorbates/OH/origin/0.0_0.0/input.traj",
+        ads["OH"]["origin"]["0.0_0.0"]["traj_file_path"], traj_file_path
+    )
+    traj_file_path = os.path.join(
+        _tmp_dir, "adsorbates", "O", "origin", "0.5_0.5", "input.traj"
     )
     assert os.path.samefile(
-        ads["O"]["origin"]["0.5_0.5"]["traj_file_path"],
-        "test_dir/adsorbates/O/origin/0.5_0.5/input.traj",
+        ads["O"]["origin"]["0.5_0.5"]["traj_file_path"], traj_file_path
+    )
+    traj_file_path = os.path.join(
+        _tmp_dir, "adsorbates", "O", "custom", "0.3_0.3", "input.traj"
     )
     assert os.path.samefile(
-        ads["O"]["custom"]["0.3_0.3"]["traj_file_path"],
-        "test_dir/adsorbates/O/custom/0.3_0.3/input.traj",
+        ads["O"]["custom"]["0.3_0.3"]["traj_file_path"], traj_file_path
     )
     ads = generate_adsorbed_structures(
         surface=surf,
@@ -274,17 +280,17 @@ def test_generate_adsorbed_structures_write_location():
         site_types=["bridge"],
         use_all_sites=True,
         write_to_disk=True,
-        write_location="test_dir",
+        write_location=_tmp_dir,
     )
     loc = list(ads["OH"]["bridge"].keys())[0]
-    assert os.path.samefile(
-        ads["OH"]["bridge"][loc]["traj_file_path"],
-        "test_dir/adsorbates/OH/bridge/" + loc + "/input.traj",
+    traj_file_path = os.path.join(
+        _tmp_dir, "adsorbates", "OH", "bridge", loc, "input.traj"
     )
-    shutil.rmtree("test_dir")
+    assert os.path.samefile(ads["OH"]["bridge"][loc]["traj_file_path"], traj_file_path)
 
 
 def test_generate_adsorbed_structures_dirs_exist_ok():
+    _tmp_dir = tempfile.TemporaryDirectory().name
     surf = generate_surface_structures(["Pt"])["Pt"]["fcc111"]["structure"]
     ads = generate_adsorbed_structures(
         surface=surf,
@@ -292,6 +298,7 @@ def test_generate_adsorbed_structures_dirs_exist_ok():
         use_all_sites=False,
         adsorption_sites={"origin": [(0.0, 0.0)]},
         write_to_disk=True,
+        write_location=_tmp_dir,
     )
     with raises(FileExistsError):
         ads = generate_adsorbed_structures(
@@ -300,6 +307,7 @@ def test_generate_adsorbed_structures_dirs_exist_ok():
             use_all_sites=False,
             adsorption_sites={"origin": [(0.0, 0.0)]},
             write_to_disk=True,
+            write_location=_tmp_dir,
         )
     ads = generate_adsorbed_structures(
         surface=surf,
@@ -307,10 +315,12 @@ def test_generate_adsorbed_structures_dirs_exist_ok():
         use_all_sites=False,
         adsorption_sites={"origin": [(0.0, 0.0)]},
         write_to_disk=True,
+        write_location=_tmp_dir,
         dirs_exist_ok=True,
     )
-    assert os.path.samefile(
-        ads["H"]["origin"]["0.0_0.0"]["traj_file_path"],
-        "adsorbates/H/origin/0.0_0.0/input.traj",
+    traj_file_path = os.path.join(
+        _tmp_dir, "adsorbates", "H", "origin", "0.0_0.0", "input.traj"
     )
-    shutil.rmtree("adsorbates")
+    assert os.path.samefile(
+        ads["H"]["origin"]["0.0_0.0"]["traj_file_path"], traj_file_path
+    )
