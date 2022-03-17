@@ -410,14 +410,11 @@ def generate_adsorbed_structures(
         # for each adsorption site type, for each (xy) coordinate, generate the
         # adsorbated (surface + adsorbate) structure
         for site in ads_adsorption_sites:
-            print(f"site: {site}")
             ads_structures[ads_key][site] = {}
             for coords in ads_adsorption_sites[site]:
                 # use only xy coords and ignore z if given here (handled by ads_height)
                 coords = coords[:2]
-                print(f"coords: {coords}")
                 rcoords = np.around(coords, 3)
-                print(f"rcoords: {rcoords}")
                 scoords = f"{str(rcoords[0])}_{str(rcoords[1])}"
                 ads_height = heights.get(ads_key, None)
                 ads_anchor_atom_index = anchor_atom_indices.get(ads_key, 0)
