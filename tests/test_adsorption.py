@@ -136,7 +136,7 @@ def test_generate_adsorbed_structures_ase_atoms_input():
     m = molecule("CO")
     ads = generate_adsorbed_structures(
         surface=surf,
-        adsorbates=[m, "H"],
+        adsorbates={"CO": m, "H": "H"},
         use_all_sites=False,
         adsorption_sites={"origin": [(0.0, 0.0)]},
         anchor_atom_indices={"CO": 1},
@@ -151,7 +151,10 @@ def test_generate_adsorbed_structures_mol_placement():
     # Tests default height
     surf = generate_surface_structures(["Pt"])["Pt"]["fcc111"]["structure"]
     ads = generate_adsorbed_structures(
-        surface=surf, use_all_sites=False, adsorption_sites={"origin": [(0.0, 0.0)]}
+        surface=surf,
+        adsorbates=["H"],
+        use_all_sites=False,
+        adsorption_sites={"origin": [(0.0, 0.0)]},
     )
     assert (
         ads["H"]["origin"]["0.0_0.0"]["structure"][-1].z
