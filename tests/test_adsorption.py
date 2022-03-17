@@ -277,8 +277,8 @@ def test_generate_adsorbed_structures_write_location():
         write_location="test_dir",
     )
     assert os.path.samefile(
-        ads["OH"]["bridge"]["7.623_6.001"]["traj_file_path"],
-        "test_dir/adsorbates/OH/bridge/7.623_6.001/input.traj",
+        ads["OH"]["bridge"]["8.316_2.4"]["traj_file_path"],
+        "test_dir/adsorbates/OH/bridge/8.316_2.4/input.traj",
     )
     shutil.rmtree("test_dir")
 
