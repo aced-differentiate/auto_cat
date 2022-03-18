@@ -13,7 +13,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ['3.8']
+        python-version: ['3.9']
 
     steps:
     - uses: actions/checkout@v2
@@ -27,4 +27,6 @@ jobs:
         python -m pip install -r test_requirements.txt
         pip install -e .
     - name: Run tests
-      run: pytest --cov=src/ --cov-report term-missing -svv
+      run: |
+        pytest --cov=autocat --cov-report term-missing -svv
+        flake8 src

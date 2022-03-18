@@ -1,220 +1,354 @@
 import os
 import numpy as np
-from ase.io import read, write
-from ase import Atom, Atoms
-from ase.visualize import view
-from ase.build import fcc100, fcc110, fcc111
-from ase.build import bcc100, bcc110, bcc111
-from ase.data import atomic_numbers, ground_state_magnetic_moments, reference_states
+from typing import List
+from typing import Dict
+from typing import Any
+from typing import Sequence
+
+from ase import Atoms
+from ase.data import atomic_numbers
+from ase.data import ground_state_magnetic_moments
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
-from autocat.surface import gen_surf
+from autocat.surface import generate_surface_structures
 
 
-def gen_saa_dirs(
-    subs,
-    dops,
-    bv_dict={},
-    ft=["100", "110", "111"],
-    supcell=(3, 3, 4),
-    a_dict={},
-    c_dict={},
-    cent_sa=True,
-    fix=0,
-):
+class AutocatSaaGenerationError(Exception):
+    pass
+
+
+def _find_dopant_index(structure, dopant_element):
+    """Helper function for finding the index of the (single) dopant atom."""
+    # TODO(@lancekavalsky): implement multi-dopant-atom indices
+    #    # Find index of species with lowest count
+    #    unique, counts = np.unique(syms, return_counts=True)
+    #    ind = np.where(syms == unique[np.argmin(counts)])[0][0]
+    symbols = np.array(structure.symbols)
+    dopant_index = np.where(symbols == dopant_element)
+    if np.size(dopant_index) < 1:
+        msg = f"Dopant element {dopant_element} not found in structure"
+        raise AutocatSaaGenerationError(msg)
+    elif np.size(dopant_index) > 1:
+        msg = f"More than one atom of {dopant_element} found in structure"
+        raise NotImplementedError(msg)
+    return dopant_index[0][0]
+
+
+def generate_saa_structures(
+    host_species: List[str],
+    dopant_species: List[str],
+    crystal_structures: Dict[str, str] = None,
+    facets: Dict[str, str] = None,
+    supercell_dim: Sequence[int] = (3, 3, 4),
+    default_lat_param_lib: str = None,
+    a_dict: Dict[str, float] = None,
+    c_dict: Dict[str, float] = None,
+    set_host_magnetic_moments: List[str] = None,
+    host_magnetic_moments: Dict[str, float] = None,
+    set_dopant_magnetic_moments: List[str] = None,
+    dopant_magnetic_moments: Dict[str, float] = None,
+    vacuum: float = 10.0,
+    n_fixed_layers: int = 0,
+    place_dopant_at_center: bool = True,
+    write_to_disk: bool = False,
+    write_location: str = ".",
+    dirs_exist_ok: bool = False,
+) -> Dict[str, Dict[str, Dict[str, Dict[str, Any]]]]:
     """
-    For each of the substrates and dopants specified, a new directory containing a traj file for the SAA with the 
-    specified surfaces is generated
-
-    Parameters:
-        subs (list of str): host species
-        dops (list of str): dopant species
-        bv_dict (dict): dict of manually specified bravais lattices for specific host species
-        ft (list of str): facets to be considered
-        a_dict(dict): manually specified lattice parameters for species. if None then uses ASE default
-        c_dict(dict): manually specified lattice parameters for species. if None then uses ASE default
-        supcell (tuple): supercell
-        fix (int): number of layers from bottom to fix (e.g. value of 2 fixes bottom 2 layers)
-
-    Returns:
-        None
-    """
-
-    curr_dir = os.getcwd()
-
-    i = 0
-    while i < len(subs):
-
-        # Check if Bravais lattice manually specified
-        if subs[i] in bv_dict:
-            bv = bv_dict[subs[i]]
-        else:
-            bv = reference_states[atomic_numbers[subs[i]]]["symmetry"]
-
-        # Check if a manually specified
-        if subs[i] in a_dict:
-            a = a_dict[subs[i]]
-        else:
-            a = None
-
-        # Check if c manually specified
-        if subs[i] in c_dict:
-            c = c_dict[subs[i]]
-        else:
-            c = None
-
-        hosts = gen_surf(
-            subs[i], bv=bv, ft=ft, supcell=supcell, a=a, c=c, fix=fix
-        )  # generate host structures
-        j = 0
-        while j < len(dops):  # iterate over dopants
-            if subs[i] != dops[j]:  # ensures different host and sa species
-                for f in ft:  # iterate over facets
-                    try:
-                        os.makedirs(
-                            subs[i] + "/" + dops[j] + "/" + bv + f
-                        )  # create directory for each sub/dop combo
-                    except OSError:
-                        print(
-                            "Failed Creating Directory ./{}/{}/{}".format(
-                                subs[i], dops[j], bv + f
-                            )
-                        )
-                    else:
-                        print(
-                            "Successfully Created Directory ./{}/{}/{}".format(
-                                subs[i], dops[j], bv + f
-                            )
-                        )
-                        os.chdir(
-                            subs[i] + "/" + dops[j] + "/" + bv + f
-                        )  # change into new dir
-                        slab = hosts[bv + f]  # extract host corresponding to facet
-                        gen_doped_structs(
-                            slab, dops[j], write_traj=True, cent_sa=cent_sa
-                        )  #  generate doped structures
-                        print(
-                            "{}/{}/{} SAA trajs generated".format(
-                                subs[i], dops[j], bv + f
-                            )
-                        )
-                        os.chdir(curr_dir)
-            j += 1
-        i += 1
-
-    print("Completed")
-
-
-def gen_doped_structs(sub_ase, dop, write_traj=False, cent_sa=True):
-    """
-    Generates doped structures given host material (ase object) and dopant (str), and returns list of ase objs
-
-    Parameters:
-        sub_ase (ase Atoms obj): host material
-        dop (str): dopant species
-        cen_saa (bool): If centering of SA in the cell is desired, otherwise will be placed at the origin
-
-    Return
-        all_ase_structs (list of ase Atoms obj): doped structures
-
-    """
-    name = "".join(np.unique(sub_ase.symbols))
-    tags = sub_ase.get_tags()
-    constr = sub_ase.constraints
-    host_mag = sub_ase.get_initial_magnetic_moments()
-    conv = AseAtomsAdaptor()  # converter between pymatgen and ase
-
-    struct = conv.get_structure(sub_ase)  # convert ase substrate to pymatgen structure
-
-    finder = AdsorbateSiteFinder(struct)
-
-    all_structs = finder.generate_substitution_structures(
-        dop
-    )  # collect all substitution structures
-
-    # magmom guess for dopant. Taken from http://www.webelements.com
-    mag = ground_state_magnetic_moments[atomic_numbers[dop]]
-
-    all_ase_structs = []
-    i = 0
-    while i < len(all_structs):
-        ase_struct = conv.get_atoms(all_structs[i])  # converts to ase object
-        ase_struct.set_tags(tags)
-        ase_struct.pbc = (1, 1, 0)  # ensure pbc in xy only
-        ase_struct.constraints = constr  # propagate constraints
-        ase_struct.set_initial_magnetic_moments(
-            host_mag
-        )  # propagate host magnetization
-        sa_ind = find_sa_ind(ase_struct)
-        ase_struct[sa_ind].magmom = mag  # set initial magmom
-        if cent_sa:  # centers the sa
-            cent_x = ase_struct.cell[0][0] / 2 + ase_struct.cell[1][0] / 2
-            cent_y = ase_struct.cell[0][1] / 2 + ase_struct.cell[1][1] / 2
-            cent = (cent_x, cent_y, 0)
-            ase_struct.translate(cent)
-            ase_struct.wrap()
-
-        all_ase_structs.append(ase_struct)
-        if write_traj:
-            write(name + dop + str(i) + ".i.traj", ase_struct)
-        i += 1
-
-    return all_ase_structs
-
-
-def find_sa_ind(saa):
-    """ Given an SAA structure (without any adsorbates), finds the single atom index"""
-    syms = np.array(saa.symbols)
-    unique, counts = np.unique(syms, return_counts=True)
-    ind = np.where(syms == unique[np.argmin(counts)])[0][
-        0
-    ]  # Finds index of species with lowest count
-    return ind
-
-
-def dope_surface(surf, sites, dop, write_traj=False):
-    """
-    Given a surface (aseobj) and dopant species(str), returns a list of ase object of doped surfaces.
-    NOTE: Allows for MANUAL selection of substition site
-    Optionally writes traj files for each struct
+    Builds single-atom alloys for all combinations of host species and dopant
+    species given. Will write the structures to separate directories if
+    specified.
 
     Parameters
-    surf (ase Atoms object): host object
-    sites (list of ints): list of atom indices to be substituted
+    ----------
+
+    host_species (REQUIRED):
+        List of chemical species of desired host (substrate) species.
+
+    dopant_species (REQUIRED):
+        List of chemical symbols of desired single-atom dopant species.
+
+    crystal_structures:
+        Dictionary with crystal structure to be used for each species.
+        These will be passed on as input to `ase.build.bulk`. So, must be one
+        of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic,
+        diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite.
+        If not specified, the default reference crystal structure for each
+        species from `ase.data` will be used.
+
+    facets:
+        Dictionary with the surface facets to be considered for each
+        species.
+        If not specified for a given species, the following defaults will be
+        used based on the crystal structure:
+        fcc/bcc: 100, 111, 110
+        hcp: 0001
+
+    supercell_dim:
+        Tuple or List specifying the size of the supercell to be
+        generated in the format (nx, ny, nz).
+        Defaults to (3, 3, 4).
+
+    default_lat_param_lib:
+        String indicating which library the lattice constants should be pulled
+        from if not specified in either a_dict or c_dict.
+
+        Options:
+        pbe_fd: parameters calculated using xc=PBE and finite-difference
+        beefvdw_fd: parameters calculated using xc=BEEF-vdW and finite-difference
+        pbe_pw: parameters calculated using xc=PBE and a plane-wave basis set
+        beefvdw_fd: parameters calculated using xc=BEEF-vdW and a plane-wave basis set
+
+        N.B. if there is a species present in `host_species` that is NOT in the
+        reference library specified, it will be pulled from `ase.data`.
+
+    a_dict:
+        Dictionary with lattice parameters <a> to be used for each species.
+        If not specified, defaults from `default_lat_param_lib` are used.
+
+    c_dict:
+        Dictionary with lattice parameters <c> to be used for each species.
+        If not specified, defaults from `default_lat_param_lib` are used.
+
+    set_host_magnetic_moments:
+        List of host species for which magnetic moments need to be set.
+        If not specified, magnetic moments will be set only for Fe, Co, Ni
+        (the ferromagnetic elements).
+
+    host_magnetic_moments:
+        Dictionary with the magnetic moments to be set for the host chemical
+        species listed previously.
+        If not specified, default ground state magnetic moments from
+        `ase.data` are used.
+
+    set_dopant_magnetic_moments:
+        List of single-atom species for which magnetic moments need to be set.
+        If not specified, magnetic moments will guessed for all dopant species from
+        `ase.data`.
+
+    dopant_magnetic_moments:
+        Dictionary with the magnetic moments to be set for the single-atom
+        dopant species listed previously.
+        If not specified, default ground state magnetic moments from
+        `ase.data` are used.
+
+    vacuum:
+        Float specifying the amount of vacuum (in Angstrom) to be added to
+        the slab (the slab is placed at the center of the supercell).
+        Defaults to 10.0 Angstrom.
+
+    n_fixed_layers:
+        Integer giving the number of layers of the slab to be fixed
+        starting from the bottom up (e.g., a value of 2 will fix the
+        bottom 2 layers).
+        Defaults to 0 (i.e., no layers in the slab fixed).
+
+    place_dopant_at_center:
+        Boolean specifying whether the single-atom should be placed
+        at the center of the unit cell. If False, the single-atom will
+        be placed at the origin.
+        Defaults to True.
+
+    write_to_disk:
+        Boolean specifying whether the bulk structures generated should be
+        written to disk.
+        Defaults to False.
+
+    write_location:
+        String with the location where the per-species/per-crystal structure
+        directories must be constructed and structure files written to disk.
+        In the specified write_location, the following directory structure
+        will be created:
+        [host]/[dopant]/[facet]/substrate/input.traj
+
+    dirs_exist_ok:
+        Boolean specifying whether existing directories/files should be
+        overwritten or not. This is passed on to the `os.makedirs` builtin.
+        Defaults to False (raises an error if directories corresponding the
+        species and crystal structure already exist).
 
     Returns
-    doped_surfs (list of ase Atoms objects): doped structures
+    -------
+
+    Dictionary with the single-atom alloy structures as `ase.Atoms` objects and
+    write-location, if any, for each {crystal structure and facet} specified for
+    each input host and dopant species combination.
+
+    Example:
+    {
+        "Fe": {
+            "Cu": {
+                "bcc100": {
+                    "structure": FeN-1_Cu1_saa_obj,
+                    "traj_file_path": "/path/to/Cu/on/bcc/Fe/100/surface/traj/file"
+                },
+                "bcc110": ...,
+            },
+            "Ru": {
+                ...
+            },
+        },
+        "Rh": {
+            ...
+        }
+    }
+
     """
-    surf_name = surf.get_chemical_symbols()[0]
-    doped_surfs = []
 
-    # magmom guess for dopant. Taken from http://www.webelements.com
-    mag = ground_state_magnetic_moments[atomic_numbers[dop]]
+    hosts = generate_surface_structures(
+        host_species,
+        crystal_structures=crystal_structures,
+        facets=facets,
+        supercell_dim=supercell_dim,
+        default_lat_param_lib=default_lat_param_lib,
+        a_dict=a_dict,
+        c_dict=c_dict,
+        set_magnetic_moments=set_host_magnetic_moments,
+        magnetic_moments=host_magnetic_moments,
+        vacuum=vacuum,
+        n_fixed_layers=n_fixed_layers,
+    )
 
-    for site in sites:  # iterate over all given top sites
-        dop_surf = surf.copy()
-        dop_surf[site].symbol = dop  # updates atom at top site to dopant
-        dop_surf[site].magmom = mag  # guesses initial magnetic moment
-        doped_surfs.append(dop_surf)
+    if set_dopant_magnetic_moments is None:
+        set_dopant_magnetic_moments = dopant_species
+    if dopant_magnetic_moments is None:
+        dopant_magnetic_moments = {}
 
-        if write_traj:
-            i = 0
-            while i < len(doped_surfs):
-                doped_surfs[i].write(
-                    surf_name + "_" + dop + "_" + str(site) + ".i.traj"
-                )  # writes the traj files to the directory
-                i += 1
-    return doped_surfs
+    dop_mm_library = {
+        dop: ground_state_magnetic_moments[atomic_numbers[dop]]
+        for dop in dopant_species
+    }
+    dop_mm_library.update(dopant_magnetic_moments)
+
+    saa_structures = {}
+    # iterate over hosts
+    for host in hosts:
+        saa_structures[host] = {}
+        # iterate over single-atoms
+        for dopant in dopant_species:
+            # ensure host != single-atom
+            if dopant == host:
+                continue
+            saa_structures[host][dopant] = {}
+            # iterate over surface facets
+            for facet in hosts[host]:
+                host_structure = hosts[host][facet].get("structure")
+                doped_structure = substitute_single_atom_on_surface(
+                    host_structure,
+                    dopant,
+                    place_dopant_at_center=place_dopant_at_center,
+                    dopant_magnetic_moment=dop_mm_library.get(dopant),
+                )
+
+                traj_file_path = None
+                if write_to_disk:
+                    dir_path = os.path.join(
+                        write_location, host, dopant, facet, "substrate"
+                    )
+                    os.makedirs(dir_path, exist_ok=dirs_exist_ok)
+                    traj_file_path = os.path.join(dir_path, "input.traj")
+                    doped_structure.write(traj_file_path)
+                    print(
+                        f"{dopant}/{host}({facet}) structure written to {traj_file_path}"
+                    )
+
+                saa_structures[host][dopant][facet] = {
+                    "structure": doped_structure,
+                    "traj_file_path": traj_file_path,
+                }
+    return saa_structures
 
 
-# def top_pos_to_ind(surf,sites):
-#    '''Takes top site positions from get_ads_sites and converts them to corresponding atom indices of the surface (aseobj)'''
-#    inds = []
-#    for site in sites: # iterates over all site positions
-#        i = 0
-#        while i < len(surf): # iterate over all atoms in the cell
-#            # checks if the site position is equal to the i-th atom in the x-y coordinates
-#            if surf.positions[i][0] == site[0] and surf.positions[i][1] == site[1]:
-#                inds.append(i)
-#            i += 1
-#    return inds
+def substitute_single_atom_on_surface(
+    host_structure: Atoms,
+    dopant_element: str,
+    place_dopant_at_center: bool = True,
+    dopant_magnetic_moment: float = 0.0,
+) -> Atoms:
+    """
+    For a given host (**elemental surface**) structure and a dopant element,
+    returns a slab with one host atom on the surface substituted with the
+    specified dopant element with a specified magnetic moment.
+    Note that for the current implementation (single-atom alloys), there will
+    exist only one symmetrically unique site to substitute on the surface of the
+    elemental slab.
+
+    Parameters
+    ----------
+
+    host_structure (REQUIRED):
+        ase.Atoms object of the host slab to be doped.
+
+    dopant_element (REQUIRED):
+        String of the elemental species to be substitutionally doped into the
+        host structure.
+
+    place_dopant_at_center:
+        Boolean specifying whether the single-atom dopant should be placed at
+        the center of the unit cell. If False, the dopant atom will be placed at
+        the origin.
+        Defaults to True.
+
+    dopant_magnetic_moment:
+        Float with the initial magnetic moment on the doped single-atom.
+        Defaults to no spin polarization (i.e., magnetic moment of 0).
+
+    Returns
+    -------
+
+    The elemental slab with a single-atom dopant on the surface as an
+    `ase.Atoms` object.
+
+    Raises
+    ------
+
+    NotImplementedError
+        If multiple symmetrically equivalent sites are found on the surface to dope.
+        Note that is intended more as a "guardrail" on current functionality to
+        match the maturity/implementation of other modules in `autocat` than an
+        actual error. The error should no longer be present when the
+        substitution functionality is folded into a more general form.
+
+    """
+    tags = host_structure.get_tags()
+    constraints = host_structure.constraints
+    host_magmoms = host_structure.get_initial_magnetic_moments()
+
+    # convert ase substrate to pymatgen structure
+    converter = AseAtomsAdaptor()
+    pmg_structure = converter.get_structure(host_structure)
+
+    # find all symmetrically unique site to substitute on
+    finder = AdsorbateSiteFinder(pmg_structure)
+
+    # collect all substitution structures and convert them back into ase.Atoms
+    pmg_substituted_structures = finder.generate_substitution_structures(dopant_element)
+    if len(pmg_substituted_structures) > 1:
+        msg = "Multiple symmetrically unique sites to dope found."
+        raise NotImplementedError(msg)
+
+    ase_substituted_structure = converter.get_atoms(pmg_substituted_structures[0])
+    ase_substituted_structure.set_tags(tags)
+    # ensure pbc in xy only
+    ase_substituted_structure.pbc = (1, 1, 0)
+    # propagate constraints and host magnetization
+    ase_substituted_structure.constraints = constraints
+    ase_substituted_structure.set_initial_magnetic_moments(host_magmoms)
+    # set initial magnetic moment for the dopant atom
+    dopant_idx = _find_dopant_index(ase_substituted_structure, dopant_element)
+    ase_substituted_structure[dopant_idx].magmom = dopant_magnetic_moment
+    # center the single-atom dopant
+    if place_dopant_at_center:
+        cent_x = (
+            ase_substituted_structure.cell[0][0] / 2
+            + ase_substituted_structure.cell[1][0] / 2
+        )
+        cent_y = (
+            ase_substituted_structure.cell[0][1] / 2
+            + ase_substituted_structure.cell[1][1] / 2
+        )
+        cent = (cent_x, cent_y, 0)
+        ase_substituted_structure.translate(cent)
+        ase_substituted_structure.wrap()
+
+    return ase_substituted_structure
