@@ -21,7 +21,8 @@ from dscribe.descriptors import SineMatrix
 from autocat.learning.predictors import Predictor
 from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
-from autocat.data.segregation_energies import SEGREGATION_ENERGIES
+from autocat.data.segregation_energies import RABAN1999_SEGREGATION_ENERGIES
+from autocat.data.segregation_energies import RAO2020_SEGREGATION_ENERGIES
 
 Array = List[float]
 
@@ -1062,7 +1063,9 @@ def calculate_hhi_scores(structures: List[Atoms], hhi_type: str = "production"):
     return hhi_scores
 
 
-def calculate_segregation_energy_scores(structures: List[Atoms]):
+def calculate_segregation_energy_scores(
+    structures: List[Atoms], data_source: str = "raban1999"
+):
     """
     Calculates HHI scores for structures weighted by their composition.
     The scores are normalized and inverted such that these should
@@ -1074,11 +1077,11 @@ def calculate_segregation_energy_scores(structures: List[Atoms]):
     structures:
         List of Atoms objects for which to calculate the scores
 
-    hhi_type:
-        Type of HHI index to be used for the score
-        Options
-        - production (default)
-        - reserves
+    data_source:
+        Which tabulated data should the segregation energies be pulled from.
+        Options:
+        - "raban1999": A.V. Raban, et. al. Phys. Rev. B 59, 15990
+        - "rao2020": K. K. Rao, et. al. Topics in Catalysis volume 63, pages728-741 (2020)
 
     Returns
     -------
@@ -1091,17 +1094,23 @@ def calculate_segregation_energy_scores(structures: List[Atoms]):
         msg = "To include segregation energies, the structures must be provided"
         raise SequentialLearnerError(msg)
 
-    # won't consider surface energies (ie. dop == host) for normalization
-    max_seg_ener = SEGREGATION_ENERGIES["Pd"]["W"]
-    min_seg_ener = SEGREGATION_ENERGIES["Fe_100"]["Ag"]
-    # normalize and invert (so that this score is to be maximized)
-    norm_seg_ener_data = {}
-    for hsp in SEGREGATION_ENERGIES:
-        norm_seg_ener_data[hsp] = {}
-        for dsp in SEGREGATION_ENERGIES[hsp]:
-            norm_seg_ener_data[hsp][dsp] = 1.0 - (
-                SEGREGATION_ENERGIES[hsp][dsp] - min_seg_ener
-            ) / (max_seg_ener - min_seg_ener)
+    if data_source == "raban1999":
+        # won't consider surface energies (ie. dop == host) for normalization
+        max_seg_ener = RABAN1999_SEGREGATION_ENERGIES["Pd"]["W"]
+        min_seg_ener = RABAN1999_SEGREGATION_ENERGIES["Fe_100"]["Ag"]
+        # normalize and invert (so that this score is to be maximized)
+        norm_seg_ener_data = {}
+        for hsp in RABAN1999_SEGREGATION_ENERGIES:
+            norm_seg_ener_data[hsp] = {}
+            for dsp in RABAN1999_SEGREGATION_ENERGIES[hsp]:
+                norm_seg_ener_data[hsp][dsp] = 1.0 - (
+                    RABAN1999_SEGREGATION_ENERGIES[hsp][dsp] - min_seg_ener
+                ) / (max_seg_ener - min_seg_ener)
+    elif data_source == "rao2020":
+        norm_seg_ener_data = RAO2020_SEGREGATION_ENERGIES
+    else:
+        msg = f"Unknown data source {data_source}"
+        raise SequentialLearnerError(msg)
 
     seg_ener_scores = np.zeros(len(structures))
     for idx, struct in enumerate(structures):
