@@ -139,10 +139,10 @@ def generate_molecule(
 
 def generate_adsorbed_structures(
     surface: Union[str, Atoms] = None,
-    adsorbates: Union[Dict[str, Union[str, Atoms]], List[str]] = None,
+    adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
     adsorption_sites: Union[Dict[str, AdsorptionSite], AdsorptionSite] = None,
     use_all_sites: Union[Dict[str, bool], bool] = None,
-    site_types: Union[Dict[str, List[str]], List[str]] = None,
+    site_types: Union[Dict[str, Sequence[str]], Sequence[str]] = None,
     heights: Union[Dict[str, float], float] = None,
     anchor_atom_indices: Union[Dict[str, int], int] = None,
     rotations: Union[Dict[str, RotationOperations], RotationOperations] = None,
@@ -328,6 +328,9 @@ def generate_adsorbed_structures(
     if surface is None:
         msg = "Surface structure must be specified"
         raise AutocatAdsorptionGenerationError(msg)
+    elif not isinstance(surface, Atoms):
+        msg = f"Unrecognized input type for surface ({type(surface)})"
+        raise AutocatAdsorptionGenerationError(msg)
 
     # Input wrangling for the different types of parameter values allowed for
     # the same function arguments.
@@ -335,7 +338,7 @@ def generate_adsorbed_structures(
     if adsorbates is None or not adsorbates:
         msg = "Adsorbate molecules/intermediates must be specified"
         raise AutocatAdsorptionGenerationError(msg)
-    elif isinstance(adsorbates, list):
+    elif isinstance(adsorbates, (list, tuple)):
         adsorbates = {ads_key: ads_key for ads_key in adsorbates}
     elif not isinstance(adsorbates, dict):
         msg = f"Unrecognized input type for adsorbates ({type(adsorbates)})"
@@ -343,7 +346,7 @@ def generate_adsorbed_structures(
 
     if rotations is None:
         rotations = {}
-    elif isinstance(rotations, list):
+    elif isinstance(rotations, (list, tuple)):
         rotations = {ads_key: rotations for ads_key in adsorbates}
     elif not isinstance(rotations, dict):
         msg = f"Unrecognized input type for rotations ({type(rotations)})"
@@ -370,7 +373,7 @@ def generate_adsorbed_structures(
 
     if site_types is None:
         site_types = {}
-    elif isinstance(site_types, list):
+    elif isinstance(site_types, (list, tuple)):
         site_types = {ads_key: site_types for ads_key in adsorbates}
     elif not isinstance(site_types, dict):
         msg = f"Unrecognized input type for site_types ({type(site_types)})"
@@ -512,7 +515,7 @@ def place_adsorbate(
         adsorption_site = [0, 0]
 
     if rotations is None:
-        rotations = [[0.0, "x"]]
+        rotations = [(0.0, "x")]
 
     _surface = surface.copy()
     _adsorbate = adsorbate.copy()
@@ -585,9 +588,11 @@ def get_adsorbate_height_estimate(
         nearest-neighbor covalent radii fails.
     """
     if adsorption_site is None:
-        adsorption_site = [0, 0]
+        adsorption_site = (0, 0)
 
-    species, coords = get_adsorbate_slab_nn_list(surface, adsorption_site)
+    species, coords = get_adsorbate_slab_nn_list(
+        surface=surface, adsorption_site=adsorption_site
+    )
     ads_atom_radius = covalent_radii[
         atomic_numbers[adsorbate[anchor_atom_index].symbol]
     ]
@@ -624,9 +629,11 @@ def get_adsorbate_slab_nn_list(
         Atoms object the surface for which nearest neighbors of the adsorbate
         should be identified.
 
-    adsorption_site (REQUIRED):
+    adsorption_site:
         Tuple or list of the xy cartesian coordinates for where the adsorbate
         would be placed.
+
+        Defaults to [0, 0].
 
     height:
         Float with the height of the adsorbate molecule from the surface in
@@ -643,6 +650,9 @@ def get_adsorbate_slab_nn_list(
         Example:
         (["Fe", "Sr"], [[0.4, 0.6], [0.2, 0.9]])
     """
+    if adsorption_site is None:
+        adsorption_site = (0, 0)
+
     surf = surface.copy()
     conv = AseAtomsAdaptor()
     add_adsorbate(surf, "X", height=height, position=adsorption_site)
@@ -654,7 +664,7 @@ def get_adsorbate_slab_nn_list(
 
 
 def get_adsorption_sites(
-    surface: Atoms = None, site_types: List[str] = None, **kwargs
+    surface: Atoms = None, site_types: Sequence[str] = None, **kwargs
 ) -> Dict[str, Sequence[float]]:
     """
     For the given surface, returns all symmetrically unique sites of the
