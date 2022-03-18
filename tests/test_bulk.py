@@ -20,26 +20,22 @@ def test_generate_bulk_structures_defaults():
     # Test default ferromagnetic moment initialization
     # Test default write options
     bs = generate_bulk_structures(["Li", "Fe", "Ni"])
-    assert bs["Li"]["crystal_structure"].cell[0][0] == approx(-1.745)
-    magmoms = bs["Fe"]["crystal_structure"].get_initial_magnetic_moments()
+    assert bs["Li"]["structure"].cell[0][0] == approx(-1.745)
+    magmoms = bs["Fe"]["structure"].get_initial_magnetic_moments()
     assert magmoms == approx([4.0])
     assert bs["Li"]["traj_file_path"] is None
 
 
 def test_generate_bulk_structures_crystal_structures():
     species_list = ["Li", "Fe"]
-    crystal_structures_err = {"Li": "scc", "Fe": "hcp"}
-    crystal_structures_ok = {"Fe": "bcc"}
+    structures_err = {"Li": "scc", "Fe": "hcp"}
+    structures_ok = {"Fe": "bcc"}
     # Test lattice parameter not specified error from `ase.bulk`
     with raises(ValueError):
-        bs = generate_bulk_structures(
-            species_list, crystal_structures=crystal_structures_err
-        )
+        bs = generate_bulk_structures(species_list, crystal_structures=structures_err)
     # Test lattice parameter not specified error from `ase.bulk`
-    bs = generate_bulk_structures(
-        species_list, crystal_structures=crystal_structures_ok
-    )
-    assert bs["Fe"]["crystal_structure"].cell[0][0] == approx(-1.435)
+    bs = generate_bulk_structures(species_list, crystal_structures=structures_ok)
+    assert bs["Fe"]["structure"].cell[0][0] == approx(-1.435)
 
 
 def test_generate_bulk_structures_lattice_parameters():
@@ -49,8 +45,8 @@ def test_generate_bulk_structures_lattice_parameters():
         a_dict={"Fe": 3.2},
         c_dict={"Fe": 4.5},
     )
-    assert bs["Fe"]["crystal_structure"].cell[0][0] == approx(3.2)
-    assert bs["Fe"]["crystal_structure"].cell[2][2] == approx(4.5)
+    assert bs["Fe"]["structure"].cell[0][0] == approx(3.2)
+    assert bs["Fe"]["structure"].cell[2][2] == approx(4.5)
 
 
 def test_generate_bulk_structures_ref_library():
@@ -58,24 +54,24 @@ def test_generate_bulk_structures_ref_library():
     bs = generate_bulk_structures(
         ["W", "Pd"], a_dict={"Pd": 3.94}, default_lat_param_lib="pbe_fd"
     )
-    assert bs["W"]["crystal_structure"].cell[0][0] == approx(-1.590292)
-    assert bs["Pd"]["crystal_structure"].cell[1][0] == approx(1.97)
+    assert bs["W"]["structure"].cell[0][0] == approx(-1.590292)
+    assert bs["Pd"]["structure"].cell[1][0] == approx(1.97)
     # Tests pulling lattice parameters from beefvdw_pw ref library
     bs = generate_bulk_structures(["Ru"], default_lat_param_lib="beefvdw_pw")
-    assert bs["Ru"]["crystal_structure"].cell[0][0] == approx(2.738748)
-    assert bs["Ru"]["crystal_structure"].cell[2][2] == approx(4.316834)
+    assert bs["Ru"]["structure"].cell[0][0] == approx(2.738748)
+    assert bs["Ru"]["structure"].cell[2][2] == approx(4.316834)
 
 
 def test_generate_bulk_structures_magnetic_moments():
     # Test ground state magnetic moments from `ase.data`
     bs = generate_bulk_structures(["Cu"], set_magnetic_moments=["Cu"])
-    magmoms = bs["Cu"]["crystal_structure"].get_initial_magnetic_moments()
+    magmoms = bs["Cu"]["structure"].get_initial_magnetic_moments()
     assert magmoms == approx([1.0])
     # Test user-specified magnetic moments
     bs = generate_bulk_structures(
         ["Cu"], set_magnetic_moments=["Cu"], magnetic_moments={"Cu": 2.1}
     )
-    magmoms = bs["Cu"]["crystal_structure"].get_initial_magnetic_moments()
+    magmoms = bs["Cu"]["structure"].get_initial_magnetic_moments()
     assert magmoms == approx([2.1])
 
 

@@ -18,9 +18,9 @@ setup(
     license="MIT",
     classifiers=[
         "Development Status :: 3 - Alpha",
-        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
     package_dir={"": "src"},
     packages=find_packages(where="src"),
-    install_requires=["numpy", "ase", "pymatgen", "fire", "icet"],
+    install_requires=["numpy", "ase", "pymatgen", "fire"],
 )
