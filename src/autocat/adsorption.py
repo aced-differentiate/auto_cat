@@ -440,7 +440,8 @@ def generate_adsorbed_structures(
                     traj_file_path = os.path.join(dir_path, "input.traj")
                     adsorbed_structure.write(traj_file_path)
                     print(
-                        f"Structure with {ads_key} adsorbed at {site}/{scoords} written to {traj_file_path}"
+                        f"Structure with {ads_key} adsorbed at {site}/{scoords}"
+                        f" written to {traj_file_path}"
                     )
 
                 ads_structures[ads_key][site].update(
