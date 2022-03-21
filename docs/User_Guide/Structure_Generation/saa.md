@@ -13,8 +13,8 @@ be generated simultaneously.
 ```py
 >>> from autocat.saa import generate_saa_structures
 >>> saa_dict = generate_saa_structures(
-...     ["Fe", "Cu"],
-...     ["Pt", "Au"],
+...     host_species=["Fe", "Cu"],
+...     dopant_species=["Pt", "Au"],
 ...     facets={"Fe": ["110"], "Cu": ["111"]},
 ...     n_fixed_layers=2,
 ...     write_to_disk=True,
