@@ -12,7 +12,7 @@ from matminer.featurizers.site import ChemicalSRO
 from matminer.featurizers.site import OPSiteFingerprint
 from matminer.featurizers.site import CrystalNNFingerprint
 
-from autocat.adsorption import place_adsorbate
+from autocat.adsorption import generate_adsorbed_structures
 from autocat.surface import generate_surface_structures
 from autocat.saa import generate_saa_structures
 from autocat.learning.featurizers import Featurizer
@@ -177,7 +177,14 @@ def test_featurizer_featurize_single():
     assert np.array_equal(acf, manual_cm)
 
     # TEST SITE FEATURIZERS
-    ads_struct = extract_structures(place_adsorbate(saa, "OH", position=(0.0, 0.0)))[0]
+    ads_struct = extract_structures(
+        generate_adsorbed_structures(
+            surface=saa,
+            adsorbates=["OH"],
+            adsorption_sites={"custom": [(0.0, 0.0)]},
+            use_all_sites=False,
+        )
+    )[0]
     f.max_size = len(ads_struct)
     species = np.unique(ads_struct.get_chemical_symbols()).tolist()
     f.species_list = species
@@ -271,7 +278,14 @@ def test_featurizer_featurize_multiple():
     ads_structs = []
     for struct in saas:
         ads_structs.append(
-            extract_structures(place_adsorbate(struct, "NNH", position=(0.0, 0.0)))[0]
+            extract_structures(
+                generate_adsorbed_structures(
+                    surface=struct,
+                    adsorbates=["NNH"],
+                    adsorption_sites={"custom": [(0.0, 0.0)]},
+                    use_all_sites=False,
+                )
+            )[0]
         )
     species_list = []
     for s in ads_structs:

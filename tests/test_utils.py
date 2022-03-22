@@ -7,7 +7,7 @@ from ase.build import bcc110
 
 from autocat.surface import generate_surface_structures
 from autocat.saa import generate_saa_structures
-from autocat.adsorption import generate_rxn_structures
+from autocat.adsorption import generate_adsorbed_structures
 from autocat.utils import extract_structures
 
 
@@ -48,8 +48,11 @@ def test_extract_adsorption():
     saa = generate_saa_structures(["Ru"], ["Pd"], supercell_dim=(2, 2, 5),)["Ru"]["Pd"][
         "hcp0001"
     ]["structure"]
-    ads_dict = generate_rxn_structures(
-        saa, ads=["NH2", "Li"], sites={"custom": [(0.0, 0.0)]}, all_sym_sites=False
+    ads_dict = generate_adsorbed_structures(
+        saa,
+        adsorbates=["NH2", "Li"],
+        adsorption_sites={"custom": [(0.0, 0.0)]},
+        use_all_sites=False,
     )
     ex_structures = extract_structures(ads_dict)
     assert all(isinstance(struct, Atoms) for struct in ex_structures)

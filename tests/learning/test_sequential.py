@@ -15,6 +15,7 @@ from matminer.featurizers.composition import ElementProperty
 
 from scipy import stats
 from ase.io.jsonio import decode as ase_decoder
+from ase import Atoms
 from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
 from autocat.data.segregation_energies import (
@@ -45,15 +46,15 @@ def test_sequential_learner_from_json():
     sub1 = generate_surface_structures(["Au"], facets={"Au": ["110"]})["Au"]["fcc110"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "C")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("C"))
     sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "Mg")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("Mg"))
     sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
         "hcp0001"
     ]["structure"]
-    sub3 = place_adsorbate(sub3, "N")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("N"))
     structs = [sub1, sub2, sub3]
     labels = np.array([0.1, np.nan, 0.3])
     acds = DesignSpace(structs, labels)
@@ -114,15 +115,15 @@ def test_sequential_learner_write_json():
     sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "B")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("B"))
     sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "Al")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("Al"))
     sub3 = generate_surface_structures(["Ti"], facets={"Ti": ["0001"]})["Ti"][
         "hcp0001"
     ]["structure"]
-    sub3 = place_adsorbate(sub3, "H")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("H"))
     structs = [sub1, sub2, sub3]
     labels = np.array([0.1, 0.2, np.nan])
     featurization_kwargs = {"preset": "magpie"}
@@ -152,7 +153,7 @@ def test_sequential_learner_write_json():
             "GaussianProcessRegressor",
         ]
         predictor_kwargs["featurizer_class"] = [
-            "matminer.featurizers.composition",
+            "matminer.featurizers.composition.composite",
             "ElementProperty",
         ]
         del predictor_kwargs["featurization_kwargs"]["design_space_structures"]
@@ -187,7 +188,7 @@ def test_sequential_learner_write_json():
             "GaussianProcessRegressor",
         ]
         predictor_kwargs["featurizer_class"] = [
-            "matminer.featurizers.composition",
+            "matminer.featurizers.composition.composite",
             "ElementProperty",
         ]
         assert sl[4] == predictor_kwargs
@@ -219,19 +220,19 @@ def test_sequential_learner_iterate():
     sub1 = generate_surface_structures(["Ca"], facets={"Ca": ["111"]})["Ca"]["fcc111"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "Na")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("Na"))
     sub2 = generate_surface_structures(["Nb"], facets={"Nb": ["110"]})["Nb"]["bcc110"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "K")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("K"))
     sub3 = generate_surface_structures(["Ta"], facets={"Ta": ["110"]})["Ta"]["bcc110"][
         "structure"
     ]
-    sub3 = place_adsorbate(sub3, "H")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("H"))
     sub4 = generate_surface_structures(["Sr"], facets={"Sr": ["110"]})["Sr"]["fcc110"][
         "structure"
     ]
-    sub4 = place_adsorbate(sub4, "Fe")["custom"]["structure"]
+    sub4 = place_adsorbate(sub4, Atoms("Fe"))
     structs = [sub1, sub2, sub3, sub4]
     labels = np.array([11.0, 25.0, np.nan, np.nan])
     acds = DesignSpace(structs, labels)
@@ -286,19 +287,19 @@ def test_sequential_learner_setup():
     sub1 = generate_surface_structures(["Ir"], facets={"Ir": ["100"]})["Ir"]["fcc100"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("S"))
     sub2 = generate_surface_structures(["Mo"], facets={"Mo": ["110"]})["Mo"]["bcc110"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "H")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("H"))
     sub3 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
         "structure"
     ]
-    sub3 = place_adsorbate(sub3, "O")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("O"))
     sub4 = generate_surface_structures(["Re"], facets={"Re": ["0001"]})["Re"][
         "hcp0001"
     ]["structure"]
-    sub4 = place_adsorbate(sub4, "N")["custom"]["structure"]
+    sub4 = place_adsorbate(sub4, Atoms("N"))
     structs = [sub1, sub2, sub3, sub4]
     labels = np.array([4.0, np.nan, 6.0, np.nan])
     acds = DesignSpace(structs, labels)
@@ -341,11 +342,11 @@ def test_design_space_setup():
     sub1 = generate_surface_structures(
         ["Pt"], supercell_dim=[2, 2, 5], facets={"Pt": ["100"]}
     )["Pt"]["fcc100"]["structure"]
-    sub1 = place_adsorbate(sub1, "H2")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("H"))
     sub2 = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"]["bcc110"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "F")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("F"))
     structs = [sub1, sub2]
     labels = np.array([3.0, 7.0])
     acds = DesignSpace(structs, labels)
@@ -364,19 +365,19 @@ def test_delitem_design_space():
     sub0 = generate_surface_structures(["Pd"], facets={"Pd": ["100"]})["Pd"]["fcc100"][
         "structure"
     ]
-    sub0 = place_adsorbate(sub0, "O")["custom"]["structure"]
+    sub0 = place_adsorbate(sub0, Atoms("O"))
     sub1 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "H")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("H"))
     sub2 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "S")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("S"))
     sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
         "hcp0001"
     ]["structure"]
-    sub3 = place_adsorbate(sub3, "P")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("P"))
     structs = [sub0, sub1, sub2]
     labels = np.array([-2.5, np.nan, 600.0])
     # test deleting by single idx
@@ -420,19 +421,19 @@ def test_eq_design_space():
     sub0 = generate_surface_structures(["Pd"], facets={"Pd": ["100"]})["Pd"]["fcc100"][
         "structure"
     ]
-    sub0 = place_adsorbate(sub0, "O")["custom"]["structure"]
+    sub0 = place_adsorbate(sub0, Atoms("O"))
     sub1 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "H")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("H"))
     sub2 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "S")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("S"))
     sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
         "hcp0001"
     ]["structure"]
-    sub3 = place_adsorbate(sub3, "P")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("P"))
     structs = [sub0, sub1, sub2]
     labels = np.array([-2.5, np.nan, 600.0])
 
@@ -546,9 +547,9 @@ def test_simulated_sequential_histories():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
-    base_struct3 = place_adsorbate(sub2, "H")["custom"]["structure"]
+    base_struct1 = place_adsorbate(sub1, Atoms("O"))
+    base_struct2 = place_adsorbate(sub2, Atoms("N"))
+    base_struct3 = place_adsorbate(sub2, Atoms("H"))
     ds_structs = [
         base_struct1,
         base_struct2,
@@ -595,8 +596,8 @@ def test_simulated_sequential_batch_added():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
+    base_struct1 = place_adsorbate(sub1, Atoms("O"))
+    base_struct2 = place_adsorbate(sub2, Atoms("N"))
     candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
     predictor_kwargs = {"featurizer_class": SineMatrix}
     num_loops = 2
@@ -624,8 +625,8 @@ def test_simulated_sequential_num_loops():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "H")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "N")["custom"]["structure"]
+    base_struct1 = place_adsorbate(sub1, Atoms("H"))
+    base_struct2 = place_adsorbate(sub2, Atoms("N"))
     predictor_kwargs = {"featurizer_class": SineMatrix}
     candidate_selection_kwargs = {"num_candidates_to_pick": 3, "aq": "Random"}
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
@@ -676,9 +677,9 @@ def test_simulated_sequential_write_to_disk():
         sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"][
             "fcc100"
         ]["structure"]
-        base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-        base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
-        base_struct3 = place_adsorbate(sub2, "N")["custom"]["structure"]
+        base_struct1 = place_adsorbate(sub1, Atoms("O"))
+        base_struct2 = place_adsorbate(sub2, Atoms("S"))
+        base_struct3 = place_adsorbate(sub2, Atoms("N"))
         predictor_kwargs = {"featurizer_class": SineMatrix}
         candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
         ds_structs = [base_struct1, base_struct2, base_struct3]
@@ -727,8 +728,8 @@ def test_simulated_sequential_learning_fully_explored():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
+    base_struct1 = place_adsorbate(sub1, Atoms("OH"))
+    base_struct2 = place_adsorbate(sub2, Atoms("NH"))
     predictor_kwargs = {"structure_featurizer": "elemental_property"}
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([0.0, np.nan, 4.0])
@@ -749,7 +750,7 @@ def test_multiple_sequential_learning_serial():
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
+    base_struct1 = place_adsorbate(sub1, Atoms("O"))
     predictor_kwargs = {"featurizer_class": SineMatrix}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
@@ -773,7 +774,7 @@ def test_multiple_sequential_learning_parallel():
     sub1 = generate_surface_structures(["Cu"], facets={"Cu": ["111"]})["Cu"]["fcc111"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "Li")["custom"]["structure"]
+    base_struct1 = place_adsorbate(sub1, Atoms("Li"))
     predictor_kwargs = {"featurizer_class": SineMatrix}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
@@ -799,7 +800,7 @@ def test_multiple_sequential_learning_write_to_disk():
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "N")["custom"]["structure"]
+    base_struct1 = place_adsorbate(sub1, Atoms("N"))
     predictor_kwargs = {"featurizer_class": SineMatrix}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])

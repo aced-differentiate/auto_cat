@@ -14,7 +14,9 @@ from dscribe.descriptors import SOAP
 
 from matminer.featurizers.composition import ElementProperty
 
-from autocat.adsorption import place_adsorbate
+from ase import Atoms
+
+from autocat.adsorption import generate_adsorbed_structures, place_adsorbate
 from autocat.surface import generate_surface_structures
 from autocat.learning.predictors import Predictor
 from autocat.learning.predictors import PredictorError
@@ -24,7 +26,17 @@ from autocat.utils import extract_structures
 def test_fit():
     # Test returns a fit model
     subs = extract_structures(generate_surface_structures(["Pt", "Fe", "Ru"]))
-    structs = [extract_structures(place_adsorbate(s, "OH"))[0] for s in subs]
+    structs = []
+    for sub in subs:
+        ads_struct = extract_structures(
+            generate_adsorbed_structures(
+                surface=sub,
+                adsorbates=["OH"],
+                adsorption_sites={"origin": [(0.0, 0.0)]},
+                use_all_sites=False,
+            )
+        )[0]
+        structs.append(ads_struct)
     labels = np.random.rand(len(structs))
     acsc = Predictor(
         featurizer_class=SOAP,
@@ -84,7 +96,17 @@ def test_fit():
 def test_predict():
     # Test outputs are returned as expected
     subs = extract_structures(generate_surface_structures(["Pt", "Fe", "Ru"]))
-    structs = [extract_structures(place_adsorbate(s, "OH"))[0] for s in subs]
+    structs = []
+    for sub in subs:
+        ads_struct = extract_structures(
+            generate_adsorbed_structures(
+                surface=sub,
+                adsorbates=["OH"],
+                adsorption_sites={"origin": [(0.0, 0.0)]},
+                use_all_sites=False,
+            )
+        )[0]
+        structs.append(ads_struct)
     labels = np.random.rand(len(structs))
     acsc = Predictor(
         featurizer_class=SOAP,
@@ -120,7 +142,17 @@ def test_predict():
 def test_score():
     # Tests the score method
     subs = extract_structures(generate_surface_structures(["Pt", "Fe", "Ru"]))
-    structs = [extract_structures(place_adsorbate(s, "OH"))[0] for s in subs]
+    structs = []
+    for sub in subs:
+        ads_struct = extract_structures(
+            generate_adsorbed_structures(
+                surface=sub,
+                adsorbates=["OH"],
+                adsorption_sites={"origin": [(0.0, 0.0)]},
+                use_all_sites=False,
+            )
+        )[0]
+        structs.append(ads_struct)
     labels = np.random.rand(len(structs))
     acsc = Predictor(
         featurizer_class=SOAP,
