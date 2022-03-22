@@ -2,3 +2,6 @@ numpy==1.22.0
 ase==3.21.1
 pymatgen==2022.0.17
 fire==0.4.0
+matminer==0.7.3
+dscribe==0.4.0
+prettytable==3.2.0
