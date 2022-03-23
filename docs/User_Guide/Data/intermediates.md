@@ -1,6 +1,6 @@
 When characterizing a surface in the context of a 
 specific reaction, calculating adsorption energies
-for all of the intermediates is often important.
+for all of the reaction intermediates is often important.
 
 Here, AutoCat has default structures for adsorbates 
 of both the oxygen reduction reaction (ORR) and 
@@ -14,13 +14,21 @@ AutoCat functions:
 >>> from autocat.data.intermediates import NRR_INTERMEDIATE_NAMES
 >>> from autocat.surface import generate_surface_structures
 >>> from autocat.utils import extract_structures
->>> from autocat.adsorption import generate_rxn_structures
+>>> from autocat.adsorption import generate_adsorbed_structures
 >>> pt_dict = generate_surface_structures(["Pt"])
 >>> pt_struct = extract_structures(pt_dict)[0]
->>> orr_dict = generate_rxn_structures(pt_struct, ads=ORR_INTERMEDIATE_NAMES)
->>> nrr_dict = generate_rxn_structures(pt_struct, ads=NRR_INTERMEDIATE_NAMES)
+>>> orr_structs = generate_adsorbed_structures(
+...     surface=pt_struct, 
+...     adsorbates=ORR_INTERMEDIATE_NAMES,
+...     use_all_sites=True
+... )
+>>> nrr_structs = generate_adsorbed_structures(
+...     surface=pt_struct,
+...     ads=NRR_INTERMEDIATE_NAMES,
+...     use_all_sites=True
+... )
 ```
-In the above example, `orr_dict` and `nrr_dict` have all of the corresponding
+In the above example, `orr_structs` and `nrr_structs` have all of the corresponding
 intermediates at every identified unique surface site.
 
 Alternatively, if you would like to access the 

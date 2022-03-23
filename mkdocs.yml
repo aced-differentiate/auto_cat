@@ -47,7 +47,7 @@ nav:
             - HHI: User_Guide/Data/hhi.md
             - Segregation Energies: User_Guide/Data/segregation_energies.md
             - Lattice Parameters: User_Guide/Data/lattice_parameters.md
-            - Intermediates: User_Guide/Data/intermediates.md
+            - Reaction Intermediates: User_Guide/Data/intermediates.md
     - Tutorials:
         - Training a Predictor on hydrogen adsorption energies: Tutorials/pred_h.md
         - Conducting a simulated sequential learning run: Tutorials/sl.md
