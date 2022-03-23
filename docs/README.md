@@ -2,27 +2,26 @@
 
 ![AutoCat Logo](img/autocat_logo.png){ align=right }
 
-AutoCat is a suite of python tools for sequential learning with arbitrary 
-candidate metrics for materials applications. It additionally has tools 
-for automated structure generation related to catalysis.
+AutoCat is a suite of python tools for **sequential learning for materials applications** 
+and **automating structure generation for DFT catalysis studies.**
 
 Development of this package stems from [ACED](https://www.cmu.edu/aced/), as part of the 
 ARPA-E DIFFERENTIATE program.
 
 Below we provide an overview of the key functionalities of AutoCat. 
-For additional details please see the User Guide and API sections.
+For additional details please see the User Guide, Tutorials, and API sections.
 
 ## Sequential Learning
 
 One of the core philosophies of AutoCat is to provide modular and extensible tooling to
-facilitate accelerated computational materials discovery workflows. Within this submodule 
-are object types for defining a design space, featurizing materials systems, 
-training a regression model, and defining a closed-loop sequential learning iterator. The 
-key objects intended for each of these purposes are:
+facilitate closed-loop computational materials discovery workflows. Within this submodule 
+are classes for defining a design space, featurization, 
+regression, and defining a closed-loop sequential learning iterator. The 
+key classes intended for each of these purposes are:
 
 - [**`DesignSpace`**](User_Guide/Learning/sequential#designspace): define a design space to explore
 
-- [**`Featurizer`**](User_Guide/Learning/featurizers): specify how to featurize the materials for regression
+- [**`Featurizer`**](User_Guide/Learning/featurizers): featurize the systems for regression
 
 - [**`Predictor`**](User_Guide/Learning/predictors): a regressor for predicting materials properties
 
@@ -52,8 +51,8 @@ Structures generated or read with this package are typically of the form of
 [`ase.Atoms`](https://wiki.fysik.dtu.dk/ase/ase/atoms.html#module-ase.atoms) 
 objects.
 
-When opting to write to 
-disk using these functions, they are automatically organized into a clean, scalable directory structure. 
+When opting to write structures to 
+disk using these functions, they are automatically organized into a clean, scalable directory organization. 
 All structures are written in the 
 [`ase.io.Trajectory`](https://wiki.fysik.dtu.dk/ase/ase/io/trajectory.html#trajectory) 
 file format. 
@@ -67,7 +66,7 @@ There are two options for installation, either via `pip` or from the repo direct
 
 If you are planning on strictly using AutoCat rather than contributing to development,
  we recommend using `pip` within a virtual environment (e.g. 
- [`conda`](https://www.anaconda.com/products/individual)
+ [`conda`](https://docs.conda.io/en/latest/)
  ). This can be done
 as follows:
 

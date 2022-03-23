@@ -1,8 +1,7 @@
 # AutoCat 
 
-AutoCat is a suite of python tools for sequential learning with 
-candidate selection metrics for materials applications. It additionally has tools 
-for automated structure generation related to catalysis.
+AutoCat is a suite of python tools for **sequential learning for materials applications** 
+and **automating structure generation for DFT catalysis studies.**
 
 Development of this package stems from [ACED](https://www.cmu.edu/aced/), as part of the 
 ARPA-E DIFFERENTIATE program.
@@ -15,7 +14,7 @@ There are two options for installation, either via `pip` or from the repo direct
 
 If you are planning on strictly using AutoCat rather than contributing to development,
  we recommend using `pip` within a virtual environment (e.g. 
- [`conda`](https://www.anaconda.com/products/individual)
+ [`conda`](https://docs.conda.io/en/latest/)
  ). This can be done
 as follows:
 
