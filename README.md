@@ -33,3 +33,6 @@ via:
 ```
 pip install -e .
 ```
+## Contributing
+Contributions through issues, feature requests, and pull requests are welcome. 
+Guidelines are provided [here](CONTRIBUTING.MD).
