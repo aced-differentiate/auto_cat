@@ -22,13 +22,6 @@ setup(
     ],
     package_dir={"": "src"},
     packages=find_packages(where="src"),
-    install_requires=[
-        "numpy<=1.22.0",
-        "ase",
-        "pymatgen<=2022.0.17",
-        "fire",
-        "matminer<=0.7.3",
-        "dscribe",
-        "prettytable",
-    ],
+    install_requires=["numpy<=1.22.0", "ase", "pymatgen<=2022.0.17", "fire",],
+    include_package_data=True,
 )
