@@ -1,1 +1,2 @@
 include src/autocat/data/*.json
+include src/autocat/VERSION.txt

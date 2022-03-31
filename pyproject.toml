@@ -1,3 +1,7 @@
+[project]
+name = "autocat"
+license = "MIT"
+
 [tool.black]
 include = '\.pyi?$'
 exclude = '''

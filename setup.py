@@ -11,7 +11,7 @@ with open(version_file, "r") as fr:
 setup(
     name="autocat",
     version=version,
-    description="Tools for automated generation of catalyst structures",
+    description="Tools for automated generation of catalyst structures and sequential learning",
     url="https://github.com/aced-differentiate/auto_cat",
     author="Lance Kavalsky",
     author_email="lkavalsk@andrew.cmu.edu",
@@ -22,5 +22,13 @@ setup(
     ],
     package_dir={"": "src"},
     packages=find_packages(where="src"),
-    install_requires=["numpy", "ase", "pymatgen", "fire"],
+    install_requires=[
+        "numpy<=1.22.0",
+        "ase",
+        "pymatgen<=2022.0.17",
+        "fire",
+        "matminer<=0.7.3",
+        "dscribe",
+        "prettytable",
+    ],
 )
