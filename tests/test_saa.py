@@ -10,6 +10,7 @@ import numpy as np
 from autocat.saa import generate_saa_structures
 from autocat.saa import substitute_single_atom_on_surface
 from autocat.saa import _find_dopant_index
+from autocat.saa import _find_all_surface_atom_indices
 from autocat.saa import AutocatSaaGenerationError
 from autocat.surface import generate_surface_structures
 
@@ -128,3 +129,31 @@ def test_find_dopant_index():
     host[32].symbol = "Au"
     with raises(NotImplementedError):
         _find_dopant_index(host, "Au")
+
+
+def test_find_all_surface_atom_indices():
+    # Test helper function for finding all surface atoms
+    # clean elemental surface
+    ru = generate_surface_structures(["Ru"], supercell_dim=(2, 2, 4))["Ru"]["hcp0001"][
+        "structure"
+    ]
+    indices = _find_all_surface_atom_indices(ru)
+    assert indices == [12, 13, 14, 15]
+
+    pt110 = generate_surface_structures(["Pt"], supercell_dim=(1, 1, 4))["Pt"][
+        "fcc110"
+    ]["structure"]
+    indices = _find_all_surface_atom_indices(pt110)
+    assert indices == [3]
+
+    # check increasing tolerance
+    indices = _find_all_surface_atom_indices(pt110, tol=1.4)
+    assert indices == [2, 3]
+
+    pt100 = generate_surface_structures(["Pt"], supercell_dim=(3, 3, 4))["Pt"][
+        "fcc100"
+    ]["structure"]
+    pt100[27].z += 0.3
+    pt100[30].z -= 0.4
+    indices = _find_all_surface_atom_indices(pt100, tol=0.6)
+    assert indices == [27, 28, 29, 31, 32, 33, 34, 35]
