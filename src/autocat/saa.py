@@ -10,6 +10,7 @@ from ase.data import atomic_numbers
 from ase.data import ground_state_magnetic_moments
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
+from pymatgen.analysis.structure_matcher import StructureMatcher
 from autocat.surface import generate_surface_structures
 
 
@@ -32,6 +33,21 @@ def _find_dopant_index(structure, dopant_element):
         msg = f"More than one atom of {dopant_element} found in structure"
         raise NotImplementedError(msg)
     return dopant_index[0][0]
+
+
+def _find_all_surface_atom_indices(structure, tol=None) -> List[int]:
+    """Helper function to find all surface atom indices
+    within a tolerance distance of the highest atom"""
+    if tol is None:
+        tol = 0.5
+    all_heights = structure.positions[:, 2]
+    highest_atom_idx = np.argmax(all_heights)
+    height_of_highest_atom = structure[highest_atom_idx].z
+    surface_atom_indices = []
+    for idx, atom in enumerate(structure):
+        if height_of_highest_atom - atom.z < tol:
+            surface_atom_indices.append(idx)
+    return surface_atom_indices
 
 
 def generate_saa_structures(
@@ -310,33 +326,34 @@ def substitute_single_atom_on_surface(
         substitution functionality is folded into a more general form.
 
     """
-    tags = host_structure.get_tags()
-    constraints = host_structure.constraints
-    host_magmoms = host_structure.get_initial_magnetic_moments()
+
+    all_surface_indices = _find_all_surface_atom_indices(host_structure)
+
+    ase_all_doped_structures = []
+    for idx in all_surface_indices:
+        dop_struct = host_structure.copy()
+        dop_struct[idx].symbol = dopant_element
+        dop_struct[idx].magmom = dopant_magnetic_moment
+        ase_all_doped_structures.append(dop_struct)
 
     # convert ase substrate to pymatgen structure
     converter = AseAtomsAdaptor()
-    pmg_structure = converter.get_structure(host_structure)
+    pmg_doped_structures = [
+        converter.get_structure(struct) for struct in ase_all_doped_structures
+    ]
 
-    # find all symmetrically unique site to substitute on
-    finder = AdsorbateSiteFinder(pmg_structure)
-
-    # collect all substitution structures and convert them back into ase.Atoms
-    pmg_substituted_structures = finder.generate_substitution_structures(dopant_element)
-    if len(pmg_substituted_structures) > 1:
+    # check that only one unique surface doped structure
+    matcher = StructureMatcher()
+    pmg_symm_equiv_doped_structure = [
+        s[0] for s in matcher.group_structures(pmg_doped_structures)
+    ]
+    if len(pmg_symm_equiv_doped_structure) > 1:
         msg = "Multiple symmetrically unique sites to dope found."
         raise NotImplementedError(msg)
 
-    ase_substituted_structure = converter.get_atoms(pmg_substituted_structures[0])
-    ase_substituted_structure.set_tags(tags)
-    # ensure pbc in xy only
-    ase_substituted_structure.pbc = (1, 1, 0)
-    # propagate constraints and host magnetization
-    ase_substituted_structure.constraints = constraints
-    ase_substituted_structure.set_initial_magnetic_moments(host_magmoms)
-    # set initial magnetic moment for the dopant atom
-    dopant_idx = _find_dopant_index(ase_substituted_structure, dopant_element)
-    ase_substituted_structure[dopant_idx].magmom = dopant_magnetic_moment
+    # assumes only a single unique doped structure
+    ase_substituted_structure = ase_all_doped_structures[0]
+
     # center the single-atom dopant
     if place_dopant_at_center:
         cent_x = (
