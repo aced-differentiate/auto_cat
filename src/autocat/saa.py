@@ -9,7 +9,6 @@ from ase import Atoms
 from ase.data import atomic_numbers
 from ase.data import ground_state_magnetic_moments
 from pymatgen.io.ase import AseAtomsAdaptor
-from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from autocat.surface import generate_surface_structures
 
