@@ -22,6 +22,6 @@ setup(
     ],
     package_dir={"": "src"},
     packages=find_packages(where="src"),
-    install_requires=["numpy<=1.22.0", "ase", "pymatgen<=2022.0.17", "fire",],
+    install_requires=["numpy", "ase", "pymatgen", "fire",],
     include_package_data=True,
 )
