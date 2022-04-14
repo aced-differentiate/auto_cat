@@ -34,11 +34,9 @@ def _find_dopant_index(structure, dopant_element):
     return dopant_index[0][0]
 
 
-def _find_all_surface_atom_indices(structure, tol=None) -> List[int]:
+def _find_all_surface_atom_indices(structure, tol: float = 0.5) -> List[int]:
     """Helper function to find all surface atom indices
     within a tolerance distance of the highest atom"""
-    if tol is None:
-        tol = 0.5
     all_heights = structure.positions[:, 2]
     highest_atom_idx = np.argmax(all_heights)
     height_of_highest_atom = structure[highest_atom_idx].z
