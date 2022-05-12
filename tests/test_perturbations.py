@@ -7,6 +7,7 @@ import numpy as np
 import tempfile
 
 from ase import Atoms
+from ase.build import molecule
 
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
@@ -19,7 +20,8 @@ def test_perturb_structure_directions():
     sub = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
     ]
-    base_struct = place_adsorbate(sub, "H")["custom"]["structure"]
+    mol = molecule("H")
+    base_struct = place_adsorbate(surface=sub, adsorbate=mol)
     # free in all directions
     p_struct = perturb_structure(base_struct,)
     assert (p_struct["structure"].positions[-1] != base_struct.positions[-1]).all()
@@ -36,7 +38,8 @@ def test_perturb_structure_sign_constraint():
     sub = generate_surface_structures(["Cu"], facets={"Cu": ["111"]})["Cu"]["fcc111"][
         "structure"
     ]
-    base_struct = place_adsorbate(sub, "O")["custom"]["structure"]
+    mol = molecule("O")
+    base_struct = place_adsorbate(surface=sub, adsorbate=mol)
     # free in +z
     base_struct[-1].tag = -1
     p_struct = perturb_structure(base_struct, direction_sign_constraint=1)
@@ -60,7 +63,8 @@ def test_perturb_structure_matrix():
     sub = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
     ]
-    base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
+    mol = molecule("OH")
+    base_struct = place_adsorbate(surface=sub, adsorbate=mol)
     p_struct = perturb_structure(base_struct)
     o_pert = base_struct.positions[-2] + p_struct["perturbation_matrix"][-2]
     assert np.allclose(p_struct["structure"].positions[-2], o_pert)
@@ -73,7 +77,8 @@ def test_generate_perturbed_dataset_num_of_perturbations():
     sub = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
     ]
-    base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
+    mol = molecule("OH")
+    base_struct = place_adsorbate(surface=sub, adsorbate=mol)
     p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=15,)
     assert len(p_set["HOPt36_0"].keys()) == 15
 
@@ -86,8 +91,10 @@ def test_generate_perturbed_dataset_multiple_base_structures():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
+    mol = molecule("OH")
+    base_struct1 = place_adsorbate(surface=sub1, adsorbate=mol)
+    mol = molecule("NH")
+    base_struct2 = place_adsorbate(surface=sub2, adsorbate=mol)
     base_struct1[-2].tag = 1
     base_struct1[-1].tag = -1
     base_struct2[-1].tag = 1
@@ -108,7 +115,8 @@ def test_generate_perturbed_dataset_write_location():
     sub = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
     ]
-    base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
+    mol = molecule("OH")
+    base_struct = place_adsorbate(surface=sub, adsorbate=mol)
     p_set = generate_perturbed_dataset(
         [base_struct], write_to_disk=True, write_location=_tmp_dir,
     )
@@ -131,7 +139,8 @@ def test_generate_perturbed_dataset_correction_matrix():
     sub = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
     ]
-    base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
+    mol = molecule("OH")
+    base_struct = place_adsorbate(surface=sub, adsorbate=mol)
     p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=5,)
     manual_collect = np.zeros((5, 6))
     for idx, struct in enumerate(p_set["HOPt36_0"]):
@@ -154,8 +163,9 @@ def test_generate_perturbed_dataset_correction_matrix_multiple():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "OH")["custom"]["structure"]
+    mol = molecule("OH")
+    base_struct1 = place_adsorbate(surface=sub1, adsorbate=mol)
+    base_struct2 = place_adsorbate(surface=sub2, adsorbate=mol)
     base_struct2[-1].tag = 1
     p_set = generate_perturbed_dataset(
         [base_struct1, base_struct2], num_of_perturbations=5,
@@ -177,8 +187,10 @@ def test_generate_perturbed_dataset_correction_matrix_multiple():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "H")["custom"]["structure"]
+    mol = molecule("OH")
+    base_struct1 = place_adsorbate(surface=sub1, adsorbate=mol)
+    mol = molecule("H")
+    base_struct2 = place_adsorbate(surface=sub2, adsorbate=mol)
     base_struct1[-2].tag = 1
     p_set = generate_perturbed_dataset(
         [base_struct1, base_struct2], num_of_perturbations=5,
@@ -204,7 +216,8 @@ def test_generate_perturbed_dataset_collected_structure_paths():
     sub = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
     ]
-    base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
+    mol = molecule("OH")
+    base_struct = place_adsorbate(surface=sub, adsorbate=mol)
     p_set = generate_perturbed_dataset(
         [base_struct], write_to_disk=True, write_location=_tmp_dir,
     )
@@ -226,8 +239,9 @@ def test_generate_perturbed_dataset_collected_structures():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "OH")["custom"]["structure"]
+    mol = molecule("OH")
+    base_struct1 = place_adsorbate(surface=sub1, adsorbate=mol)
+    base_struct2 = place_adsorbate(surface=sub2, adsorbate=mol)
     base_struct1[-2].tag = 1
     base_struct2[-1].tag = 1
     p_set = generate_perturbed_dataset(
