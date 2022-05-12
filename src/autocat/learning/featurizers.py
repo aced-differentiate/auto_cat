@@ -1,3 +1,9 @@
+from typing import List, Dict
+import copy
+
+import numpy as np
+from prettytable import PrettyTable
+
 from dscribe.descriptors import SineMatrix
 from dscribe.descriptors import CoulombMatrix
 from dscribe.descriptors import ACSF
@@ -7,12 +13,6 @@ from matminer.featurizers.composition import ElementProperty
 from matminer.featurizers.site import ChemicalSRO
 from matminer.featurizers.site import OPSiteFingerprint
 from matminer.featurizers.site import CrystalNNFingerprint
-
-import numpy as np
-import copy
-from prettytable import PrettyTable
-
-from typing import List, Dict
 
 from ase import Atoms
 from pymatgen.io.ase import AseAtomsAdaptor
