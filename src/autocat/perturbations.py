@@ -1,11 +1,11 @@
-from ase.io import read, write
-from ase import Atoms
-from typing import List
-from typing import Union
-from typing import Dict
-import numpy as np
 import os
 import json
+from typing import List
+from typing import Union
+
+import numpy as np
+from ase.io import read
+from ase import Atoms
 
 
 class AutocatPerturbationError(Exception):
