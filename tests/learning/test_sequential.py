@@ -17,10 +17,7 @@ from scipy import stats
 from ase.io.jsonio import decode as ase_decoder
 from ase import Atoms
 from autocat.data.hhi import HHI
-from autocat.data.segregation_energies import (
-    RABAN1999_SEGREGATION_ENERGIES,
-    RAO2020_SEGREGATION_ENERGIES,
-)
+from autocat.data.segregation_energies import SEGREGATION_ENERGIES
 from autocat.learning.predictors import Predictor
 from autocat.learning.sequential import (
     DesignSpace,
@@ -1036,24 +1033,26 @@ def test_calculate_segregation_energy_scores():
     # test calculating scores from RABAN1999
     se_scores = calculate_segregation_energy_scores(saa_structs)
     assert np.isclose(se_scores[-1], 0.0)
-    min_seg = RABAN1999_SEGREGATION_ENERGIES["Fe_100"]["Ag"]
-    max_seg = RABAN1999_SEGREGATION_ENERGIES["Pd"]["W"]
+    min_seg = SEGREGATION_ENERGIES["raban1999"]["Fe_100"]["Ag"]
+    max_seg = SEGREGATION_ENERGIES["raban1999"]["Pd"]["W"]
     assert np.isclose(
         se_scores[0],
         1.0
-        - (RABAN1999_SEGREGATION_ENERGIES["Ag"]["Pt"] - min_seg) / (max_seg - min_seg),
+        - (SEGREGATION_ENERGIES["raban1999"]["Ag"]["Pt"] - min_seg)
+        / (max_seg - min_seg),
     )
     assert np.isclose(
         se_scores[1],
         1.0
-        - (RABAN1999_SEGREGATION_ENERGIES["Ni"]["Pt"] - min_seg) / (max_seg - min_seg),
+        - (SEGREGATION_ENERGIES["raban1999"]["Ni"]["Pt"] - min_seg)
+        / (max_seg - min_seg),
     )
 
     # test getting scores from RAO2020
     se_scores = calculate_segregation_energy_scores(saa_structs, data_source="rao2020")
-    assert np.isclose(se_scores[0], RAO2020_SEGREGATION_ENERGIES["Ag"]["Pt"])
+    assert np.isclose(se_scores[0], SEGREGATION_ENERGIES["rao2020"]["Ag"]["Pt"])
     assert np.isclose(se_scores[0], 0.8)
-    assert np.isclose(se_scores[1], RAO2020_SEGREGATION_ENERGIES["Ni"]["Pt"])
+    assert np.isclose(se_scores[1], SEGREGATION_ENERGIES["rao2020"]["Ni"]["Pt"])
     assert np.isclose(se_scores[1], 1.0)
-    assert np.isclose(se_scores[-1], RAO2020_SEGREGATION_ENERGIES["Pd"]["W"])
+    assert np.isclose(se_scores[-1], SEGREGATION_ENERGIES["rao2020"]["Pd"]["W"])
     assert np.isclose(se_scores[-1], 0.0)

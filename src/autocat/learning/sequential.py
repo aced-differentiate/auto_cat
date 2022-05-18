@@ -17,12 +17,8 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from dscribe.descriptors import SineMatrix
 
 from autocat.learning.predictors import Predictor
-
 from autocat.data.hhi import HHI
-
-# TODO: convert RABAN1999_SEGREGATION_ENERGIES to SEGREGATION_ENERGIES["raban1999"]
-from autocat.data.segregation_energies import RABAN1999_SEGREGATION_ENERGIES
-from autocat.data.segregation_energies import RAO2020_SEGREGATION_ENERGIES
+from autocat.data.segregation_energies import SEGREGATION_ENERGIES
 
 
 Array = List[float]
@@ -1105,18 +1101,18 @@ def calculate_segregation_energy_scores(
 
     if data_source == "raban1999":
         # won't consider surface energies (ie. dop == host) for normalization
-        max_seg_ener = RABAN1999_SEGREGATION_ENERGIES["Pd"]["W"]
-        min_seg_ener = RABAN1999_SEGREGATION_ENERGIES["Fe_100"]["Ag"]
+        max_seg_ener = SEGREGATION_ENERGIES["raban1999"]["Pd"]["W"]
+        min_seg_ener = SEGREGATION_ENERGIES["raban1999"]["Fe_100"]["Ag"]
         # normalize and invert (so that this score is to be maximized)
         norm_seg_ener_data = {}
-        for hsp in RABAN1999_SEGREGATION_ENERGIES:
+        for hsp in SEGREGATION_ENERGIES["raban1999"]:
             norm_seg_ener_data[hsp] = {}
-            for dsp in RABAN1999_SEGREGATION_ENERGIES[hsp]:
+            for dsp in SEGREGATION_ENERGIES["raban1999"][hsp]:
                 norm_seg_ener_data[hsp][dsp] = 1.0 - (
-                    RABAN1999_SEGREGATION_ENERGIES[hsp][dsp] - min_seg_ener
+                    SEGREGATION_ENERGIES["raban1999"][hsp][dsp] - min_seg_ener
                 ) / (max_seg_ener - min_seg_ener)
     elif data_source == "rao2020":
-        norm_seg_ener_data = RAO2020_SEGREGATION_ENERGIES
+        norm_seg_ener_data = SEGREGATION_ENERGIES["rao2020"]
     else:
         msg = f"Unknown data source {data_source}"
         raise SequentialLearnerError(msg)
