@@ -283,8 +283,8 @@ class SequentialLearner:
             self.sl_kwargs.update({"candidate_indices": None})
         if "candidate_index_history" not in self.sl_kwargs:
             self.sl_kwargs.update({"candidate_index_history": None})
-        if "aq_scores" not in self.sl_kwargs:
-            self.sl_kwargs.update({"aq_scores": None})
+        if "acquisition_scores" not in self.sl_kwargs:
+            self.sl_kwargs.update({"acquisition_scores": None})
 
     def __repr__(self) -> str:
         pt = PrettyTable()

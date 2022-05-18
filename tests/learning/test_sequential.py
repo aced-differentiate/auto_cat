@@ -166,7 +166,7 @@ def test_sequential_learner_write_json():
             "uncertainties_history": None,
             "candidate_indices": None,
             "candidate_index_history": None,
-            "aq_scores": None,
+            "acquisition_scores": None,
         }
 
     # test after iteration
@@ -209,6 +209,7 @@ def test_sequential_learner_write_json():
             c.tolist() for c in acsl.candidate_index_history
         ]
         assert sl[-1].get("acquisition_scores") == acsl.acquisition_scores.tolist()
+        assert sl[-1].get("acquisition_scores") is not None
 
 
 def test_sequential_learner_to_jsonified_list():
@@ -268,7 +269,7 @@ def test_sequential_learner_to_jsonified_list():
         "uncertainties_history": None,
         "candidate_indices": None,
         "candidate_index_history": None,
-        "aq_scores": None,
+        "acquisition_scores": None,
     }
 
     # test after iteration
@@ -312,6 +313,7 @@ def test_sequential_learner_to_jsonified_list():
     assert (
         jsonified_list[-1].get("acquisition_scores") == acsl.acquisition_scores.tolist()
     )
+    assert jsonified_list[-1].get("acquisition_scores") is not None
 
 
 def test_sequential_learner_iterate():
