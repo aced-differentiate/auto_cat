@@ -171,20 +171,28 @@ class DesignSpace:
                         self.design_space_labels, labels[i]
                     )
 
-    # TODO: split generating a dictionary representation and writing to desk
-    def write_json(
-        self,
-        json_name: str = None,
-        write_location: str = ".",
-        write_to_disk: bool = True,
-        return_jsonified_list: bool = False,
-    ):
+    def to_jsonified_list(self) -> List:
+        """
+        Returns a jsonified list representation
+        """
         collected_jsons = []
         for struct in self.design_space_structures:
             collected_jsons.append(atoms_encoder(struct))
         # append labels to list of collected jsons
         jsonified_labels = [float(x) for x in self.design_space_labels]
         collected_jsons.append(jsonified_labels)
+        return collected_jsons
+
+    def write_json_to_disk(
+        self,
+        json_name: str = None,
+        write_location: str = ".",
+        write_to_disk: bool = True,
+    ):
+        """
+        Writes DesignSpace to disk as a json
+        """
+        collected_jsons = self.to_jsonified_list()
         # set default json name if needed
         if json_name is None:
             json_name = "acds.json"
@@ -193,9 +201,6 @@ class DesignSpace:
             json_path = os.path.join(write_location, json_name)
             with open(json_path, "w") as f:
                 json.dump(collected_jsons, f)
-        # write jsonified list to memory
-        if return_jsonified_list:
-            return collected_jsons
 
     @staticmethod
     def from_json(json_name: str):
@@ -494,15 +499,11 @@ class SequentialLearner:
         itc = self.sl_kwargs.get("iteration_count", 0)
         self.sl_kwargs.update({"iteration_count": itc + 1})
 
-    # TODO: separate dictionary representation and writing to disk
-    def write_json(self, write_location: str = ".", json_name: str = None):
+    def to_jsonified_list(self) -> List:
         """
-        Writes `AutocatSequentialLearner` to disk as a json
+        Returns a jsonified list representation
         """
-        jsonified_list = self.design_space.write_json(
-            write_to_disk=False, return_jsonified_list=True
-        )
-
+        jsonified_list = self.design_space.to_jsonified_list()
         # append kwargs for predictor
         jsonified_pred_kwargs = {}
         for k in self.predictor_kwargs:
@@ -531,6 +532,13 @@ class SequentialLearner:
             elif self.sl_kwargs[k] is None:
                 jsonified_sl_kwargs[k] = None
         jsonified_list.append(jsonified_sl_kwargs)
+        return jsonified_list
+
+    def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
+        """
+        Writes `SequentialLearner` to disk as a json
+        """
+        jsonified_list = self.to_jsonified_list()
 
         if json_name is None:
             json_name = "acsl.json"
@@ -696,7 +704,7 @@ def multiple_simulated_sequential_learning_runs(
             json_name_prefix = "acsl_run"
         for i, run in enumerate(runs_history):
             name = json_name_prefix + "_" + str(i) + ".json"
-            run.write_json(write_location=write_location, json_name=name)
+            run.write_json_to_disk(write_location=write_location, json_name=name)
         print(f"SL histories written to {write_location}")
 
     return runs_history
@@ -828,7 +836,7 @@ def simulated_sequential_learning(
             sl.iterate()
 
     if write_to_disk:
-        sl.write_json(write_location=write_location, json_name=json_name)
+        sl.write_json_to_disk(write_location=write_location, json_name=json_name)
         print(f"SL dictionary written to {write_location}")
 
     return sl

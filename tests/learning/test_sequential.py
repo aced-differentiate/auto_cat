@@ -69,7 +69,7 @@ def test_sequential_learner_from_json():
     )
     acsl.iterate()
     with tempfile.TemporaryDirectory() as _tmp_dir:
-        acsl.write_json(_tmp_dir, "testing_acsl.json")
+        acsl.write_json_to_disk(_tmp_dir, "testing_acsl.json")
         json_path = os.path.join(_tmp_dir, "testing_acsl.json")
         written_acsl = SequentialLearner.from_json(json_path)
         assert np.array_equal(
@@ -137,7 +137,7 @@ def test_sequential_learner_write_json():
         candidate_selection_kwargs=candidate_selection_kwargs,
     )
     with tempfile.TemporaryDirectory() as _tmp_dir:
-        acsl.write_json(_tmp_dir, "testing_acsl.json")
+        acsl.write_json_to_disk(_tmp_dir, "testing_acsl.json")
         with open(os.path.join(_tmp_dir, "testing_acsl.json"), "r") as f:
             sl = json.load(f)
         written_structs = [ase_decoder(sl[i]) for i in range(3)]
@@ -172,7 +172,7 @@ def test_sequential_learner_write_json():
     # test after iteration
     acsl.iterate()
     with tempfile.TemporaryDirectory() as _tmp_dir:
-        acsl.write_json(_tmp_dir, "testing_acsl.json")
+        acsl.write_json_to_disk(_tmp_dir, "testing_acsl.json")
         with open(os.path.join(_tmp_dir, "testing_acsl.json"), "r") as f:
             sl = json.load(f)
         written_structs = [ase_decoder(sl[i]) for i in range(3)]
@@ -209,6 +209,109 @@ def test_sequential_learner_write_json():
             c.tolist() for c in acsl.candidate_index_history
         ]
         assert sl[-1].get("acquisition_scores") == acsl.acquisition_scores.tolist()
+
+
+def test_sequential_learner_to_jsonified_list():
+    # Tests writing a SequentialLearner to disk as a json
+    sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, Atoms("B"))
+    sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, Atoms("Al"))
+    sub3 = generate_surface_structures(["Ti"], facets={"Ti": ["0001"]})["Ti"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("H"))
+    structs = [sub1, sub2, sub3]
+    labels = np.array([0.1, 0.2, np.nan])
+    featurization_kwargs = {"preset": "magpie"}
+    predictor_kwargs = {
+        "model_class": GaussianProcessRegressor,
+        "featurizer_class": ElementProperty,
+        "featurization_kwargs": featurization_kwargs,
+    }
+
+    candidate_selection_kwargs = {"aq": "MU", "num_candidates_to_pick": 2}
+    acds = DesignSpace(structs, labels)
+    acsl = SequentialLearner(
+        acds,
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
+    )
+    jsonified_list = acsl.to_jsonified_list()
+    json_structs = [ase_decoder(jsonified_list[i]) for i in range(3)]
+    assert structs == json_structs
+    assert np.array_equal(labels, jsonified_list[3], equal_nan=True)
+    # check predictor kwargs kept
+    predictor_kwargs["model_class"] = [
+        "sklearn.gaussian_process._gpr",
+        "GaussianProcessRegressor",
+    ]
+    predictor_kwargs["featurizer_class"] = [
+        "matminer.featurizers.composition.composite",
+        "ElementProperty",
+    ]
+    del predictor_kwargs["featurization_kwargs"]["design_space_structures"]
+    assert jsonified_list[4] == predictor_kwargs
+    # check candidate selection kwargs kept
+    assert jsonified_list[-2] == candidate_selection_kwargs
+    assert jsonified_list[-1] == {
+        "iteration_count": 0,
+        "train_idx": None,
+        "train_idx_history": None,
+        "predictions": None,
+        "predictions_history": None,
+        "uncertainties": None,
+        "uncertainties_history": None,
+        "candidate_indices": None,
+        "candidate_index_history": None,
+        "aq_scores": None,
+    }
+
+    # test after iteration
+    acsl.iterate()
+    jsonified_list = acsl.to_jsonified_list()
+    json_structs = [ase_decoder(jsonified_list[i]) for i in range(3)]
+    assert structs == json_structs
+    assert np.array_equal(labels, jsonified_list[3], equal_nan=True)
+    # check predictor kwargs kept
+    predictor_kwargs["model_class"] = [
+        "sklearn.gaussian_process._gpr",
+        "GaussianProcessRegressor",
+    ]
+    predictor_kwargs["featurizer_class"] = [
+        "matminer.featurizers.composition.composite",
+        "ElementProperty",
+    ]
+    assert jsonified_list[4] == predictor_kwargs
+    # check candidate selection kwargs kept
+    assert jsonified_list[-2] == candidate_selection_kwargs
+    assert jsonified_list[-1].get("iteration_count") == 1
+    assert jsonified_list[-1].get("train_idx") == acsl.train_idx.tolist()
+    assert jsonified_list[-1].get("train_idx_history") == [
+        ti.tolist() for ti in acsl.train_idx_history
+    ]
+    assert isinstance(jsonified_list[-1].get("train_idx_history")[0][0], bool)
+    assert jsonified_list[-1].get("predictions") == acsl.predictions.tolist()
+    assert jsonified_list[-1].get("predictions_history") == [
+        p.tolist() for p in acsl.predictions_history
+    ]
+    assert jsonified_list[-1].get("uncertainties") == acsl.uncertainties.tolist()
+    assert jsonified_list[-1].get("uncertainties_history") == [
+        u.tolist() for u in acsl.uncertainties_history
+    ]
+    assert (
+        jsonified_list[-1].get("candidate_indices") == acsl.candidate_indices.tolist()
+    )
+    assert jsonified_list[-1].get("candidate_index_history") == [
+        c.tolist() for c in acsl.candidate_index_history
+    ]
+    assert (
+        jsonified_list[-1].get("acquisition_scores") == acsl.acquisition_scores.tolist()
+    )
 
 
 def test_sequential_learner_iterate():
@@ -501,13 +604,30 @@ def test_write_design_space_as_json():
     labels = np.array([0.3, 0.8])
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acds = DesignSpace(design_space_structures=structs, design_space_labels=labels,)
-        acds.write_json(write_location=_tmp_dir)
+        acds.write_json_to_disk(write_location=_tmp_dir)
         # loads back written json
         with open(os.path.join(_tmp_dir, "acds.json"), "r") as f:
             ds = json.load(f)
         written_structs = [ase_decoder(ds[i]) for i in range(2)]
         assert structs == written_structs
         assert np.array_equal(labels, ds[-1])
+
+
+def test_design_space_to_jsonified_list():
+    # Tests returning the DesignSpace as a jsonified list
+    sub1 = generate_surface_structures(["Pd"], facets={"Pd": ["111"]})["Pd"]["fcc111"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
+        "structure"
+    ]
+    structs = [sub1, sub2]
+    labels = np.array([0.3, 0.8])
+    acds = DesignSpace(design_space_structures=structs, design_space_labels=labels,)
+    jsonified_list = acds.to_jsonified_list()
+    json_structs = [ase_decoder(jsonified_list[i]) for i in range(2)]
+    assert structs == json_structs
+    assert np.array_equal(labels, jsonified_list[-1])
 
 
 def test_get_design_space_from_json():
@@ -525,7 +645,7 @@ def test_get_design_space_from_json():
     labels = np.array([30.0, 900.0, np.nan])
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acds = DesignSpace(design_space_structures=structs, design_space_labels=labels,)
-        acds.write_json("testing.json", write_location=_tmp_dir)
+        acds.write_json_to_disk("testing.json", write_location=_tmp_dir)
 
         tmp_json_dir = os.path.join(_tmp_dir, "testing.json")
         acds_from_json = DesignSpace.from_json(tmp_json_dir)
