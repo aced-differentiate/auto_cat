@@ -1,28 +1,31 @@
 import copy
-import numpy as np
 import os
 import json
 import importlib
-from joblib import Parallel, delayed
 from typing import List
 from typing import Dict
 from typing import Union
-from prettytable import PrettyTable
 
+import numpy as np
+from joblib import Parallel, delayed
+from prettytable import PrettyTable
 from ase import Atoms
 from ase.io.jsonio import encode as atoms_encoder
 from ase.io.jsonio import decode as atoms_decoder
 from scipy import stats
-
 from sklearn.gaussian_process import GaussianProcessRegressor
-
 from dscribe.descriptors import SineMatrix
 
 from autocat.learning.predictors import Predictor
+
+# TODO: convert HHI_PRODUCTION to HHI["production"]?
 from autocat.data.hhi import HHI_PRODUCTION
 from autocat.data.hhi import HHI_RESERVES
+
+# TODO: convert RABAN1999_SEGREGATION_ENERGIES to SEGREGATION_ENERGIES["raban1999"]
 from autocat.data.segregation_energies import RABAN1999_SEGREGATION_ENERGIES
 from autocat.data.segregation_energies import RAO2020_SEGREGATION_ENERGIES
+
 
 Array = List[float]
 
@@ -75,6 +78,7 @@ class DesignSpace:
     def __len__(self):
         return len(self.design_space_structures)
 
+    # TODO: non-dunder method for deleting systems
     def __delitem__(self, i):
         """
         Deletes systems from the design space. If mask provided, deletes wherever True
@@ -173,6 +177,7 @@ class DesignSpace:
                         self.design_space_labels, labels[i]
                     )
 
+    # TODO: split generating a dictionary representation and writing to desk
     def write_json(
         self,
         json_name: str = None,
@@ -216,6 +221,7 @@ class SequentialLearnerError(Exception):
     pass
 
 
+# TODO: "kwargs" -> "options"?
 class SequentialLearner:
     def __init__(
         self,
@@ -494,6 +500,7 @@ class SequentialLearner:
         itc = self.sl_kwargs.get("iteration_count", 0)
         self.sl_kwargs.update({"iteration_count": itc + 1})
 
+    # TODO: separate dictionary representation and writing to disk
     def write_json(self, write_location: str = ".", json_name: str = None):
         """
         Writes `AutocatSequentialLearner` to disk as a json
@@ -687,6 +694,7 @@ def multiple_simulated_sequential_learning_runs(
             for i in range(number_of_runs)
         ]
 
+    # TODO: separate dictionary representation and writing to disk
     if write_to_disk:
         if not os.path.isdir(write_location):
             os.makedirs(write_location)
@@ -783,7 +791,10 @@ def simulated_sequential_learning(
 
     # check that specified number of loops is feasible
     if number_of_sl_loops > max_num_sl_loops:
-        msg = f"Number of SL loops ({number_of_sl_loops}) cannot be greater than ({max_num_sl_loops})"
+        msg = (
+            f"Number of SL loops ({number_of_sl_loops}) cannot be greater than"
+            f" ({max_num_sl_loops})"
+        )
         raise SequentialLearnerError(msg)
 
     # generate initial training set

@@ -27,8 +27,8 @@ class Predictor:
     def __init__(
         self,
         model_class=None,
-        model_kwargs: Dict = None,
-        featurizer_class=None,
+        model_kwargs: Dict = None,  # TODO: kwargs -> options?
+        featurizer_class=None,  # black
         featurization_kwargs: Dict = None,
     ):
         """
@@ -255,6 +255,9 @@ class Predictor:
 
         return predicted_labels, unc
 
+    # TODO: "score" -> "get_scores"?
+    # TODO: "testing_structures" -> "structures"
+    # TODO: "y" -> labels
     def score(
         self,
         testing_structures: List[Atoms],

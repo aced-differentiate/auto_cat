@@ -1,22 +1,21 @@
-from typing import List, Dict
 import copy
+from typing import List, Dict
 
 import numpy as np
 from prettytable import PrettyTable
 
+from ase import Atoms
 from dscribe.descriptors import SineMatrix
 from dscribe.descriptors import CoulombMatrix
 from dscribe.descriptors import ACSF
 from dscribe.descriptors import SOAP
-
 from matminer.featurizers.composition import ElementProperty
 from matminer.featurizers.site import ChemicalSRO
 from matminer.featurizers.site import OPSiteFingerprint
 from matminer.featurizers.site import CrystalNNFingerprint
-
-from ase import Atoms
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.core.periodic_table import Element
+
 
 SUPPORTED_MATMINER_CLASSES = [
     ElementProperty,
@@ -35,7 +34,7 @@ class FeaturizerError(Exception):
 class Featurizer:
     def __init__(
         self,
-        featurizer_class=None,
+        featurizer_class=None,  # black
         design_space_structures: List[Atoms] = None,
         species_list: List[str] = None,
         max_size: int = None,
@@ -204,6 +203,7 @@ class Featurizer:
             )
             self._species_list = sorted_species_list
 
+    # TODO: "get_featurization_object" -> "get_featurizer"
     @property
     def featurization_object(self):
         return self._get_featurization_object()
