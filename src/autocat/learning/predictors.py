@@ -256,12 +256,10 @@ class Predictor:
         return predicted_labels, unc
 
     # TODO: "score" -> "get_scores"?
-    # TODO: "testing_structures" -> "structures"
-    # TODO: "y" -> labels
     def score(
         self,
-        testing_structures: List[Atoms],
-        y: np.ndarray,
+        structures: List[Atoms],
+        labels: np.ndarray,
         metric: str = "mae",
         return_predictions: bool = False,
         **kwargs,
@@ -272,10 +270,10 @@ class Predictor:
         Parameters
         ----------
 
-        testing_structures:
+        structures:
             List of Atoms objects of structures to be tested on
 
-        y:
+        labels:
             Labels for the testing structures
 
         metric:
@@ -296,7 +294,7 @@ class Predictor:
         """
         assert self.is_fit
 
-        pred_label, unc = self.predict(testing_structures)
+        pred_label, unc = self.predict(structures)
 
         score_func = {"mae": mean_absolute_error, "mse": mean_squared_error}
 
@@ -304,7 +302,7 @@ class Predictor:
             msg = f"Metric: {metric} is not supported"
             raise PredictorError(msg)
 
-        score = score_func[metric](y, pred_label, **kwargs)
+        score = score_func[metric](labels, pred_label, **kwargs)
 
         if return_predictions:
             return score, pred_label, unc
