@@ -18,9 +18,7 @@ from dscribe.descriptors import SineMatrix
 
 from autocat.learning.predictors import Predictor
 
-# TODO: convert HHI_PRODUCTION to HHI["production"]?
-from autocat.data.hhi import HHI_PRODUCTION
-from autocat.data.hhi import HHI_RESERVES
+from autocat.data.hhi import HHI
 
 # TODO: convert RABAN1999_SEGREGATION_ENERGIES to SEGREGATION_ENERGIES["raban1999"]
 from autocat.data.segregation_energies import RABAN1999_SEGREGATION_ENERGIES
@@ -1053,7 +1051,7 @@ def calculate_hhi_scores(structures: List[Atoms], hhi_type: str = "production"):
         msg = "To include HHI, the structures must be provided"
         raise SequentialLearnerError(msg)
 
-    raw_hhi_data = {"production": HHI_PRODUCTION, "reserves": HHI_RESERVES}
+    raw_hhi_data = HHI
     max_hhi = np.max([raw_hhi_data[hhi_type][r] for r in raw_hhi_data[hhi_type]])
     min_hhi = np.min([raw_hhi_data[hhi_type][r] for r in raw_hhi_data[hhi_type]])
     # normalize and invert (so that this score is to be maximized)

@@ -16,8 +16,7 @@ from matminer.featurizers.composition import ElementProperty
 from scipy import stats
 from ase.io.jsonio import decode as ase_decoder
 from ase import Atoms
-from autocat.data.hhi import HHI_PRODUCTION
-from autocat.data.hhi import HHI_RESERVES
+from autocat.data.hhi import HHI
 from autocat.data.segregation_energies import (
     RABAN1999_SEGREGATION_ENERGIES,
     RAO2020_SEGREGATION_ENERGIES,
@@ -982,7 +981,7 @@ def test_calculate_hhi_scores():
     # test production
     hhi_prod_scores = calculate_hhi_scores(saa_structs)
     norm_hhi_prod = {
-        el: 1.0 - (HHI_PRODUCTION[el] - 500.0) / 9300.0 for el in HHI_PRODUCTION
+        el: 1.0 - (HHI["production"][el] - 500.0) / 9300.0 for el in HHI["production"]
     }
     # check approach properly normalizes and inverts
     assert np.isclose(norm_hhi_prod["Y"], 0.0)
@@ -1003,7 +1002,7 @@ def test_calculate_hhi_scores():
     # test reserves
     hhi_res_scores = calculate_hhi_scores(saa_structs, "reserves")
     norm_hhi_res = {
-        el: 1.0 - (HHI_RESERVES[el] - 500.0) / 8600.0 for el in HHI_RESERVES
+        el: 1.0 - (HHI["reserves"][el] - 500.0) / 8600.0 for el in HHI["reserves"]
     }
     # check approach properly normalizes and inverts
     assert np.isclose(norm_hhi_res["Pt"], 0.0)
