@@ -92,6 +92,7 @@ class Featurizer:
                 self.design_space_structures is not None,
             ]
         )
+        pt.max_width = 70
         return str(pt)
 
     def copy(self):

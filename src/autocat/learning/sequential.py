@@ -67,6 +67,7 @@ class DesignSpace:
         pt.add_row(["maximum label", max_label])
         min_label = min(self.design_space_labels)
         pt.add_row(["minimum label", min_label])
+        pt.max_width = 70
         return str(pt)
 
     def __len__(self):
