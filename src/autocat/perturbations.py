@@ -1,11 +1,11 @@
-from ase.io import read, write
-from ase import Atoms
-from typing import List
-from typing import Union
-from typing import Dict
-import numpy as np
 import os
 import json
+from typing import List
+from typing import Union
+
+import numpy as np
+from ase.io import read
+from ase import Atoms
 
 
 class AutocatPerturbationError(Exception):
@@ -116,7 +116,7 @@ def generate_perturbed_dataset(
         elif isinstance(structure, str):
             name = ".".join(structure.split(".")[:-1])
         else:
-            raise TypeError(f"Structure needs to be either a str or ase.Atoms object")
+            raise TypeError("Structure needs to be either a str or ase.Atoms object")
 
         # make sure no base_structures with the same name
         if name in perturbed_dict:
@@ -140,7 +140,7 @@ def generate_perturbed_dataset(
             if write_to_disk:
                 dir_path = os.path.join(write_location, f"{name}/{str(i)}")
                 os.makedirs(dir_path, exist_ok=dirs_exist_ok)
-                traj_file_path = os.path.join(dir_path, f"perturbed_structure.traj")
+                traj_file_path = os.path.join(dir_path, "perturbed_structure.traj")
                 # write perturbed structure to disk
                 perturbed_dict[name][str(i)]["structure"].write(traj_file_path)
                 print(
@@ -286,7 +286,10 @@ def perturb_structure(
         signs = np.array([-1, -1, -1]) ** np.random.randint(low=1, high=11, size=(1, 3))
         if direction_sign_constraint is not None:
             if direction_sign_constraint not in [-1, 1]:
-                msg = f"direction_sign_constraint must be either -1 or 1, got {direction_sign_constraint}"
+                msg = (
+                    f"direction_sign_constraint must be either -1 or 1,"
+                    f" got {direction_sign_constraint} instead"
+                )
                 raise AutocatPerturbationError(msg)
             signs = direction_sign_constraint * abs(signs)
         # generate perturbation matrix

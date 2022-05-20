@@ -1,157 +1,229 @@
 """Unit tests for the `autocat.learning.predictors` module"""
 
-import os
 import pytest
 import numpy as np
 
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.linear_model import BayesianRidge
+from sklearn.gaussian_process.kernels import RBF
+from sklearn.utils.validation import check_is_fitted
+from sklearn.exceptions import NotFittedError
+
+from dscribe.descriptors import SineMatrix
+from dscribe.descriptors import SOAP
+
+from matminer.featurizers.composition import ElementProperty
 
 from ase import Atoms
 
-from autocat.adsorption import place_adsorbate
+from autocat.adsorption import generate_adsorbed_structures, place_adsorbate
 from autocat.surface import generate_surface_structures
-from autocat.perturbations import generate_perturbed_dataset
-from autocat.learning.featurizers import get_X
-from autocat.learning.featurizers import catalyst_featurization
 from autocat.learning.predictors import Predictor
 from autocat.learning.predictors import PredictorError
+from autocat.utils import extract_structures
 
 
-def test_fit_model_on_perturbed_systems():
+def test_fit():
     # Test returns a fit model
-    sub = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
-        "structure"
-    ]
-    base_struct = place_adsorbate(sub, "OH")["custom"]["structure"]
-    p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=15,)
-    p_structures = p_set["collected_structures"]
-    correction_matrix = p_set["correction_matrix"]
+    subs = extract_structures(generate_surface_structures(["Pt", "Fe", "Ru"]))
+    structs = []
+    for sub in subs:
+        ads_struct = extract_structures(
+            generate_adsorbed_structures(
+                surface=sub,
+                adsorbates=["OH"],
+                adsorption_sites={"origin": [(0.0, 0.0)]},
+                use_all_sites=False,
+            )
+        )[0]
+        structs.append(ads_struct)
+    labels = np.random.rand(len(structs))
     acsc = Predictor(
-        structure_featurizer="sine_matrix",
-        adsorbate_featurizer="soap",
-        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
+        featurizer_class=SOAP,
+        featurization_kwargs={
+            "species_list": ["Pt", "Fe", "Ru", "O", "H"],
+            "kwargs": {"rcut": 6.0, "nmax": 6, "lmax": 6},
+        },
+        model_class=GaussianProcessRegressor,
     )
     acsc.fit(
-        p_structures, y=correction_matrix,
+        training_structures=structs, y=labels,
     )
-    assert acsc.adsorbate_featurizer == "soap"
     assert acsc.is_fit
+    assert check_is_fitted(acsc.regressor) is None
 
-    # check no longer fit after changing setting
-    acsc.adsorbate_featurizer = "acsf"
-    assert acsc.adsorbate_featurizer == "acsf"
+    # check no longer fit after changing featurization kwargs
+    acsc.featurization_kwargs = {
+        "species_list": ["Pt", "Fe", "Ru", "O", "H", "N"],
+        "kwargs": {"rcut": 7.0, "nmax": 8, "lmax": 8},
+    }
     assert not acsc.is_fit
+    with pytest.raises(NotFittedError):
+        check_is_fitted(acsc.regressor)
 
-    # check can be fit on corrections list
-    p_set["corrections_list"]
-    acsc.adsorbate_featurizer = "soap"
-    acsc.adsorbate_featurization_kwargs = {"rcut": 3.0, "nmax": 6, "lmax": 6}
     acsc.fit(
-        p_structures, y=correction_matrix,
+        training_structures=structs, y=labels,
     )
-    assert acsc.is_fit
+
+    # check no longer fit after changing featurization class
+    acsc.featurizer_class = SineMatrix
+    assert not acsc.is_fit
+    with pytest.raises(NotFittedError):
+        check_is_fitted(acsc.regressor)
+
+    acsc.fit(
+        training_structures=structs, y=labels,
+    )
+
+    # check no longer fit after changing model class
+    acsc.model_class = KernelRidge
+    assert not acsc.is_fit
+    with pytest.raises(NotFittedError):
+        check_is_fitted(acsc.regressor)
+
+    acsc.fit(
+        training_structures=structs, y=labels,
+    )
+
+    # check no longer fit after changing model kwargs
+    kernel = RBF()
+    acsc.model_kwargs = {"kernel": kernel}
+    assert not acsc.is_fit
+    with pytest.raises(NotFittedError):
+        check_is_fitted(acsc.regressor)
 
 
-def test_predict_initial_configuration_formats():
+def test_predict():
     # Test outputs are returned as expected
-    sub = generate_surface_structures(["Fe"], facets={"Fe": ["100"]})["Fe"]["bcc100"][
-        "structure"
-    ]
-    base_struct = place_adsorbate(sub, "CO")["custom"]["structure"]
-    p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
-    p_structures = p_set["collected_structures"]
-    correction_matrix = p_set["correction_matrix"]
+    subs = extract_structures(generate_surface_structures(["Pt", "Fe", "Ru"]))
+    structs = []
+    for sub in subs:
+        ads_struct = extract_structures(
+            generate_adsorbed_structures(
+                surface=sub,
+                adsorbates=["OH"],
+                adsorption_sites={"origin": [(0.0, 0.0)]},
+                use_all_sites=False,
+            )
+        )[0]
+        structs.append(ads_struct)
+    labels = np.random.rand(len(structs))
     acsc = Predictor(
-        structure_featurizer="sine_matrix",
-        adsorbate_featurizer="soap",
-        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
+        featurizer_class=SOAP,
+        featurization_kwargs={
+            "species_list": ["Pt", "Fe", "Ru", "O", "H"],
+            "kwargs": {"rcut": 6.0, "nmax": 6, "lmax": 6},
+        },
+        model_class=GaussianProcessRegressor,
     )
     acsc.fit(
-        p_structures[:15], correction_matrix[:15, :],
+        training_structures=structs[:-3], y=labels[:-3],
     )
-    predicted_corrections, uncs = acsc.predict(p_structures[15:],)
-    assert len(predicted_corrections) == 5
+    pred, unc = acsc.predict([structs[-3]],)
+    assert len(pred) == 1
     # check dimension of uncertainty estimates
-    assert len(uncs) == 5
+    assert len(unc) == 1
+
+    pred, unc = acsc.predict(structs[-3:],)
+    assert len(pred) == 3
+    # check dimension of uncertainty estimates
+    assert len(unc) == 3
+
+    # Test prediction on model without uncertainty
+    acsc.model_class = KernelRidge
+    acsc.fit(
+        training_structures=structs[:-3], y=labels[:-3],
+    )
+    pred, unc = acsc.predict([structs[-2]],)
+    assert len(pred) == 1
+    assert unc is None
 
 
-def test_score_on_perturbed_systems():
-    # Tests that the score metric yields floats
-    sub = generate_surface_structures(["Fe"], facets={"Fe": ["100"]})["Fe"]["bcc100"][
-        "structure"
-    ]
-    base_struct = place_adsorbate(sub, "CO")["custom"]["structure"]
-    p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
-    p_structures = p_set["collected_structures"]
-    correction_matrix = p_set["correction_matrix"][:, 0]
+def test_score():
+    # Tests the score method
+    subs = extract_structures(generate_surface_structures(["Pt", "Fe", "Ru"]))
+    structs = []
+    for sub in subs:
+        ads_struct = extract_structures(
+            generate_adsorbed_structures(
+                surface=sub,
+                adsorbates=["OH"],
+                adsorption_sites={"origin": [(0.0, 0.0)]},
+                use_all_sites=False,
+            )
+        )[0]
+        structs.append(ads_struct)
+    labels = np.random.rand(len(structs))
     acsc = Predictor(
-        structure_featurizer="sine_matrix",
-        adsorbate_featurizer="soap",
-        adsorbate_featurization_kwargs={"rcut": 5.0, "nmax": 8, "lmax": 6},
+        featurizer_class=SOAP,
+        featurization_kwargs={
+            "species_list": ["Pt", "Fe", "Ru", "O", "H"],
+            "kwargs": {"rcut": 6.0, "nmax": 6, "lmax": 6},
+        },
+        model_class=GaussianProcessRegressor,
     )
     acsc.fit(
-        p_structures[:15], correction_matrix[:15],
+        training_structures=structs[:-3], y=labels[:-3],
     )
-    mae = acsc.score(p_structures[15:], correction_matrix[15:])
+    mae = acsc.score(structs[-3:], labels[-3:])
     assert isinstance(mae, float)
-    mse = acsc.score(p_structures[15:], correction_matrix[15:], metric="mse")
+    mse = acsc.score(structs[-2:], labels[-2:], metric="mse")
     assert isinstance(mse, float)
 
     # Test returning predictions
-    score, pred_corr, unc = acsc.score(
-        p_structures[15:], correction_matrix[15:], return_predictions=True
-    )
-    assert len(pred_corr) == 5
-    assert len(unc) == 5
-    assert mae != mse
+    _, preds, uncs = acsc.score(structs[-2:], labels[-2:], return_predictions=True)
+    assert len(preds) == 2
+    assert len(uncs) == 2
+    # check catches unknown metric
     with pytest.raises(PredictorError):
-        acsc.score(p_structures[15:], correction_matrix, metric="msd")
-
-    # Test with single target
-    acsc.fit(
-        p_structures[:15], np.arange(15),
-    )
-
-    mae = acsc.score(p_structures[15:], np.arange(5))
-    assert isinstance(mae, float)
+        acsc.score(structs, labels, metric="msd")
 
 
-def test_model_class_and_kwargs():
+def test_class_and_kwargs_logic():
     # Tests providing regression model class and kwargs
-    acsc = Predictor(KernelRidge, model_kwargs={"gamma": 0.5})
-    assert isinstance(acsc.regressor, KernelRidge)
-    # check that regressor created with correct kwarg
-    assert acsc.regressor.gamma == 0.5
-    assert acsc.model_kwargs == {"gamma": 0.5}
-    acsc.model_class = GaussianProcessRegressor
-    # check that kwargs are removed when class is changed
-    assert acsc.model_kwargs is None
-    acsc = Predictor()
-    acsc.model_kwargs = {"alpha": 2.5}
-    assert acsc.model_kwargs == {"alpha": 2.5}
-    assert acsc.regressor.alpha == 2.5
-
-
-def test_model_without_unc():
-    # Test that predictions are still made when the model class
-    # provided does not have uncertainty
-    sub = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
-        "structure"
-    ]
-    base_struct = place_adsorbate(sub, "S")["custom"]["structure"]
-    p_set = generate_perturbed_dataset([base_struct], num_of_perturbations=20,)
-    p_structures = p_set["collected_structures"]
-    correction_matrix = p_set["correction_matrix"]
+    featurization_kwargs = {
+        "species_list": ["Pt", "Fe", "Ru", "O", "H"],
+        "kwargs": {"rcut": 6.0, "nmax": 6, "lmax": 6, "sparse": True},
+    }
     acsc = Predictor(
         model_class=KernelRidge,
-        structure_featurizer="sine_matrix",
-        adsorbate_featurizer=None,
+        model_kwargs={"gamma": 0.5},
+        featurizer_class=SOAP,
+        featurization_kwargs=featurization_kwargs,
     )
-    acsc.fit(
-        p_structures[:15], correction_matrix[:15, :],
+    assert isinstance(acsc.regressor, KernelRidge)
+    # check that regressor created with correct kwargs
+    assert acsc.regressor.gamma == 0.5
+    assert acsc.model_kwargs == {"gamma": 0.5}
+    assert acsc.featurization_kwargs == featurization_kwargs
+    assert acsc.featurizer.featurization_object.sparse
+
+    # check that model kwargs are removed when model class is changed
+    acsc.model_class = GaussianProcessRegressor
+    assert acsc.model_kwargs is None
+    assert acsc.featurizer_class == SOAP
+    assert acsc.featurization_kwargs == featurization_kwargs
+
+    # check that regressor is updated when model kwargs updated
+    acsc.model_kwargs = {"alpha": 5e-10}
+    assert acsc.regressor.alpha == 5e-10
+
+    # check that featurization kwargs removed when featurization class changed
+    acsc.featurizer_class = ElementProperty
+    assert acsc.featurization_kwargs is None
+
+    # check that featurizer is updated when featurization kwargs updated
+    acsc.featurization_kwargs = {"preset": "magpie"}
+    assert "Electronegativity" in acsc.featurizer.featurization_object.features
+
+    acsc.featurization_kwargs = {"preset": "matminer"}
+    assert (
+        "coefficient_of_linear_thermal_expansion"
+        in acsc.featurizer.featurization_object.features
     )
-    predicted_corrections, uncs = acsc.predict(p_structures[15:],)
-    assert uncs is None
-    assert predicted_corrections is not None
+
+    acsc.featurizer_class = SineMatrix
+    acsc.featurization_kwargs = {"kwargs": {"flatten": False}}
+    assert not acsc.featurizer.featurization_object.flatten
+    acsc.featurization_kwargs = {"kwargs": {"flatten": True}}
+    assert acsc.featurizer.featurization_object.flatten

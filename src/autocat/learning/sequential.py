@@ -1,22 +1,25 @@
 import copy
-import numpy as np
 import os
 import json
-from joblib import Parallel, delayed
-import tempfile
+import importlib
 from typing import List
 from typing import Dict
 from typing import Union
 
+import numpy as np
+from joblib import Parallel, delayed
+from prettytable import PrettyTable
 from ase import Atoms
-from ase.io import read as ase_read
+from ase.io.jsonio import encode as atoms_encoder
+from ase.io.jsonio import decode as atoms_decoder
 from scipy import stats
+from sklearn.gaussian_process import GaussianProcessRegressor
+from dscribe.descriptors import SineMatrix
 
 from autocat.learning.predictors import Predictor
-from autocat.data.hhi import HHI_PRODUCTION
-from autocat.data.hhi import HHI_RESERVES
-from autocat.data.segregation_energies import RABAN1999_SEGREGATION_ENERGIES
-from autocat.data.segregation_energies import RAO2020_SEGREGATION_ENERGIES
+from autocat.data.hhi import HHI
+from autocat.data.segregation_energies import SEGREGATION_ENERGIES
+
 
 Array = List[float]
 
@@ -44,7 +47,8 @@ class DesignSpace:
 
         """
         if len(design_space_structures) != design_space_labels.shape[0]:
-            msg = f"Number of structures ({len(design_space_structures)}) and labels ({design_space_labels.shape[0]}) must match"
+            msg = f"Number of structures ({len(design_space_structures)})\
+                 and labels ({design_space_labels.shape[0]}) must match"
             raise DesignSpaceError(msg)
 
         self._design_space_structures = [
@@ -52,9 +56,24 @@ class DesignSpace:
         ]
         self._design_space_labels = design_space_labels.copy()
 
+    def __repr__(self) -> str:
+        pt = PrettyTable()
+        pt.field_names = ["", "DesignSpace"]
+        pt.add_row(["total # of systems", len(self)])
+        num_unknown = sum(np.isnan(self.design_space_labels))
+        pt.add_row(["# of unlabelled systems", num_unknown])
+        pt.add_row(["unique species present", self.species_list])
+        max_label = max(self.design_space_labels)
+        pt.add_row(["maximum label", max_label])
+        min_label = min(self.design_space_labels)
+        pt.add_row(["minimum label", min_label])
+        pt.max_width = 70
+        return str(pt)
+
     def __len__(self):
         return len(self.design_space_structures)
 
+    # TODO: non-dunder method for deleting systems
     def __delitem__(self, i):
         """
         Deletes systems from the design space. If mask provided, deletes wherever True
@@ -114,6 +133,16 @@ class DesignSpace:
         msg = "Please use `update` method to update the design space."
         raise DesignSpaceError(msg)
 
+    @property
+    def species_list(self):
+        species_list = []
+        for s in self.design_space_structures:
+            # get all unique species
+            found_species = np.unique(s.get_chemical_symbols()).tolist()
+            new_species = [spec for spec in found_species if spec not in species_list]
+            species_list.extend(new_species)
+        return species_list
+
     def update(self, structures: List[Atoms], labels: Array):
         """
         Updates design space given structures and corresponding labels.
@@ -143,53 +172,45 @@ class DesignSpace:
                         self.design_space_labels, labels[i]
                     )
 
-    def write_json(
+    def to_jsonified_list(self) -> List:
+        """
+        Returns a jsonified list representation
+        """
+        collected_jsons = []
+        for struct in self.design_space_structures:
+            collected_jsons.append(atoms_encoder(struct))
+        # append labels to list of collected jsons
+        jsonified_labels = [float(x) for x in self.design_space_labels]
+        collected_jsons.append(jsonified_labels)
+        return collected_jsons
+
+    def write_json_to_disk(
         self,
         json_name: str = None,
         write_location: str = ".",
         write_to_disk: bool = True,
-        return_jsonified_list: bool = False,
     ):
-        with tempfile.TemporaryDirectory() as _tmp_dir:
-            # write out all individual structure jsons
-            for i, struct in enumerate(self.design_space_structures):
-                tmp_filename = os.path.join(_tmp_dir, f"{i}.json")
-                struct.write(tmp_filename)
-            # load individual jsons and collect in list
-            collected_jsons = []
-            for i in range(len(self.design_space_structures)):
-                tmp_filename = os.path.join(_tmp_dir, f"{i}.json")
-                with open(tmp_filename, "r") as f:
-                    collected_jsons.append(json.load(f))
-            # append labels to list of collected jsons
-            jsonified_labels = [float(x) for x in self.design_space_labels]
-            collected_jsons.append(jsonified_labels)
-            # set default json name if needed
-            if json_name is None:
-                json_name = "acds.json"
-            # write out single json
-            if write_to_disk:
-                json_path = os.path.join(write_location, json_name)
-                with open(json_path, "w") as f:
-                    json.dump(collected_jsons, f)
-            # write jsonified list to memory
-            if return_jsonified_list:
-                return collected_jsons
+        """
+        Writes DesignSpace to disk as a json
+        """
+        collected_jsons = self.to_jsonified_list()
+        # set default json name if needed
+        if json_name is None:
+            json_name = "acds.json"
+        # write out single json
+        if write_to_disk:
+            json_path = os.path.join(write_location, json_name)
+            with open(json_path, "w") as f:
+                json.dump(collected_jsons, f)
 
     @staticmethod
     def from_json(json_name: str):
         with open(json_name, "r") as f:
             all_data = json.load(f)
         structures = []
-        with tempfile.TemporaryDirectory() as _tmp_dir:
-            for i in range(len(all_data) - 1):
-                # write temp json for each individual structure
-                _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-                with open(_tmp_json, "w") as tmp:
-                    json.dump(all_data[i], tmp)
-                # read individual tmp json using ase
-                atoms = ase_read(_tmp_json, format="json")
-                structures.append(atoms)
+        for i in range(len(all_data) - 1):
+            atoms = atoms_decoder(all_data[i])
+            structures.append(atoms)
         labels = np.array(all_data[-1])
         return DesignSpace(
             design_space_structures=structures, design_space_labels=labels,
@@ -200,6 +221,7 @@ class SequentialLearnerError(Exception):
     pass
 
 
+# TODO: "kwargs" -> "options"?
 class SequentialLearner:
     def __init__(
         self,
@@ -215,8 +237,21 @@ class SequentialLearner:
         self.design_space = design_space.copy()
 
         # predictor arguments to use throughout the SL process
-        if not predictor_kwargs:
-            predictor_kwargs = {"structure_featurizer": "sine_matrix"}
+        if predictor_kwargs is None:
+            predictor_kwargs = {
+                "model_class": GaussianProcessRegressor,
+                "featurizer_class": SineMatrix,
+            }
+        if "model_class" not in predictor_kwargs:
+            predictor_kwargs["model_class"] = GaussianProcessRegressor
+        if "featurizer_class" not in predictor_kwargs:
+            predictor_kwargs["featurizer_class"] = SineMatrix
+        if "featurization_kwargs" not in predictor_kwargs:
+            predictor_kwargs["featurization_kwargs"] = {}
+        ds_structs_kwargs = {
+            "design_space_structures": design_space.design_space_structures
+        }
+        predictor_kwargs["featurization_kwargs"].update(ds_structs_kwargs)
         self._predictor_kwargs = None
         self.predictor_kwargs = predictor_kwargs
         self._predictor = Predictor(**predictor_kwargs)
@@ -249,8 +284,44 @@ class SequentialLearner:
             self.sl_kwargs.update({"candidate_indices": None})
         if "candidate_index_history" not in self.sl_kwargs:
             self.sl_kwargs.update({"candidate_index_history": None})
-        if "aq_scores" not in self.sl_kwargs:
-            self.sl_kwargs.update({"aq_scores": None})
+        if "acquisition_scores" not in self.sl_kwargs:
+            self.sl_kwargs.update({"acquisition_scores": None})
+
+    def __repr__(self) -> str:
+        pt = PrettyTable()
+        pt.field_names = ["", "Sequential Learner"]
+        pt.add_row(["iteration count", self.iteration_count])
+        if self.candidate_structures is not None:
+            cand_formulas = [
+                s.get_chemical_formula() for s in self.candidate_structures
+            ]
+        else:
+            cand_formulas = None
+        pt.add_row(["next candidate system structures", cand_formulas])
+        pt.add_row(["next candidate system indices", self.candidate_indices])
+        pt.add_row(["acquisition function", self.candidate_selection_kwargs.get("aq")])
+        pt.add_row(
+            [
+                "# of candidates to pick",
+                self.candidate_selection_kwargs.get("num_candidates_to_pick", 1),
+            ]
+        )
+        pt.add_row(
+            ["target maximum", self.candidate_selection_kwargs.get("target_max")]
+        )
+        pt.add_row(
+            ["target minimum", self.candidate_selection_kwargs.get("target_min")]
+        )
+        pt.add_row(
+            ["include hhi?", self.candidate_selection_kwargs.get("include_hhi", False)]
+        )
+        pt.add_row(
+            [
+                "include segregation energies?",
+                self.candidate_selection_kwargs.get("include_seg_ener", False),
+            ]
+        )
+        return str(pt) + "\n" + str(self.design_space) + "\n" + str(self.predictor)
 
     @property
     def design_space(self):
@@ -266,9 +337,22 @@ class SequentialLearner:
 
     @predictor_kwargs.setter
     def predictor_kwargs(self, predictor_kwargs):
-        if not predictor_kwargs:
-            predictor_kwargs = {}
-        self._predictor_kwargs = predictor_kwargs
+        if predictor_kwargs is None:
+            predictor_kwargs = {
+                "model_class": GaussianProcessRegressor,
+                "featurizer_class": SineMatrix,
+            }
+        if "model_class" not in predictor_kwargs:
+            predictor_kwargs["model_class"] = GaussianProcessRegressor
+        if "featurizer_class" not in predictor_kwargs:
+            predictor_kwargs["featurizer_class"] = SineMatrix
+        if "featurization_kwargs" not in predictor_kwargs:
+            predictor_kwargs["featurization_kwargs"] = {}
+        ds_structs_kwargs = {
+            "design_space_structures": self.design_space.design_space_structures
+        }
+        predictor_kwargs["featurization_kwargs"].update(ds_structs_kwargs)
+        self._predictor_kwargs = copy.deepcopy(predictor_kwargs)
         self._predictor = Predictor(**predictor_kwargs)
 
     @property
@@ -283,7 +367,7 @@ class SequentialLearner:
     def candidate_selection_kwargs(self, candidate_selection_kwargs):
         if not candidate_selection_kwargs:
             candidate_selection_kwargs = {}
-        self._candidate_selection_kwargs = candidate_selection_kwargs
+        self._candidate_selection_kwargs = candidate_selection_kwargs.copy()
 
     @property
     def iteration_count(self):
@@ -416,16 +500,25 @@ class SequentialLearner:
         itc = self.sl_kwargs.get("iteration_count", 0)
         self.sl_kwargs.update({"iteration_count": itc + 1})
 
-    def write_json(self, write_location: str = ".", json_name: str = None):
+    def to_jsonified_list(self) -> List:
         """
-        Writes `AutocatSequentialLearner` to disk as a json
+        Returns a jsonified list representation
         """
-        jsonified_list = self.design_space.write_json(
-            write_to_disk=False, return_jsonified_list=True
-        )
-
+        jsonified_list = self.design_space.to_jsonified_list()
         # append kwargs for predictor
-        jsonified_list.append(self.predictor_kwargs)
+        jsonified_pred_kwargs = {}
+        for k in self.predictor_kwargs:
+            if k in ["model_class", "featurizer_class"]:
+                mod_string = self.predictor_kwargs[k].__module__
+                class_string = self.predictor_kwargs[k].__name__
+                jsonified_pred_kwargs[k] = [mod_string, class_string]
+            elif k == "featurization_kwargs":
+                jsonified_pred_kwargs[k] = copy.deepcopy(self.predictor_kwargs[k])
+                # assumes design space will always match DesignSpace
+                del jsonified_pred_kwargs[k]["design_space_structures"]
+            else:
+                jsonified_pred_kwargs[k] = self.predictor_kwargs[k]
+        jsonified_list.append(jsonified_pred_kwargs)
         # append kwargs for candidate selection
         jsonified_list.append(self.candidate_selection_kwargs)
         # append the acsl kwargs
@@ -440,6 +533,13 @@ class SequentialLearner:
             elif self.sl_kwargs[k] is None:
                 jsonified_sl_kwargs[k] = None
         jsonified_list.append(jsonified_sl_kwargs)
+        return jsonified_list
+
+    def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
+        """
+        Writes `SequentialLearner` to disk as a json
+        """
+        jsonified_list = self.to_jsonified_list()
 
         if json_name is None:
             json_name = "acsl.json"
@@ -454,20 +554,18 @@ class SequentialLearner:
         with open(json_name, "r") as f:
             all_data = json.load(f)
         structures = []
-        with tempfile.TemporaryDirectory() as _tmp_dir:
-            for i in range(len(all_data) - 4):
-                # write temp json for each individual structure
-                _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-                with open(_tmp_json, "w") as tmp:
-                    json.dump(all_data[i], tmp)
-                # read individual tmp json using ase
-                atoms = ase_read(_tmp_json, format="json")
-                structures.append(atoms)
+        for i in range(len(all_data) - 4):
+            atoms = atoms_decoder(all_data[i])
+            structures.append(atoms)
         labels = np.array(all_data[-4])
         acds = DesignSpace(
             design_space_structures=structures, design_space_labels=labels,
         )
         predictor_kwargs = all_data[-3]
+        for k in predictor_kwargs:
+            if k in ["model_class", "featurizer_class"]:
+                mod = importlib.import_module(predictor_kwargs[k][0])
+                predictor_kwargs[k] = getattr(mod, predictor_kwargs[k][1])
         candidate_selection_kwargs = all_data[-2]
         raw_sl_kwargs = all_data[-1]
         sl_kwargs = {}
@@ -599,6 +697,7 @@ def multiple_simulated_sequential_learning_runs(
             for i in range(number_of_runs)
         ]
 
+    # TODO: separate dictionary representation and writing to disk
     if write_to_disk:
         if not os.path.isdir(write_location):
             os.makedirs(write_location)
@@ -606,7 +705,7 @@ def multiple_simulated_sequential_learning_runs(
             json_name_prefix = "acsl_run"
         for i, run in enumerate(runs_history):
             name = json_name_prefix + "_" + str(i) + ".json"
-            run.write_json(write_location=write_location, json_name=name)
+            run.write_json_to_disk(write_location=write_location, json_name=name)
         print(f"SL histories written to {write_location}")
 
     return runs_history
@@ -695,7 +794,10 @@ def simulated_sequential_learning(
 
     # check that specified number of loops is feasible
     if number_of_sl_loops > max_num_sl_loops:
-        msg = f"Number of SL loops ({number_of_sl_loops}) cannot be greater than ({max_num_sl_loops})"
+        msg = (
+            f"Number of SL loops ({number_of_sl_loops}) cannot be greater than"
+            f" ({max_num_sl_loops})"
+        )
         raise SequentialLearnerError(msg)
 
     # generate initial training set
@@ -735,10 +837,7 @@ def simulated_sequential_learning(
             sl.iterate()
 
     if write_to_disk:
-        # for now does not write out model class
-        # serialization needs to be implemented
-        sl.predictor_kwargs.update({"model_class": None})
-        sl.write_json(write_location=write_location, json_name=json_name)
+        sl.write_json_to_disk(write_location=write_location, json_name=json_name)
         print(f"SL dictionary written to {write_location}")
 
     return sl
@@ -957,7 +1056,7 @@ def calculate_hhi_scores(structures: List[Atoms], hhi_type: str = "production"):
         msg = "To include HHI, the structures must be provided"
         raise SequentialLearnerError(msg)
 
-    raw_hhi_data = {"production": HHI_PRODUCTION, "reserves": HHI_RESERVES}
+    raw_hhi_data = HHI
     max_hhi = np.max([raw_hhi_data[hhi_type][r] for r in raw_hhi_data[hhi_type]])
     min_hhi = np.min([raw_hhi_data[hhi_type][r] for r in raw_hhi_data[hhi_type]])
     # normalize and invert (so that this score is to be maximized)
@@ -1011,18 +1110,18 @@ def calculate_segregation_energy_scores(
 
     if data_source == "raban1999":
         # won't consider surface energies (ie. dop == host) for normalization
-        max_seg_ener = RABAN1999_SEGREGATION_ENERGIES["Pd"]["W"]
-        min_seg_ener = RABAN1999_SEGREGATION_ENERGIES["Fe_100"]["Ag"]
+        max_seg_ener = SEGREGATION_ENERGIES["raban1999"]["Pd"]["W"]
+        min_seg_ener = SEGREGATION_ENERGIES["raban1999"]["Fe_100"]["Ag"]
         # normalize and invert (so that this score is to be maximized)
         norm_seg_ener_data = {}
-        for hsp in RABAN1999_SEGREGATION_ENERGIES:
+        for hsp in SEGREGATION_ENERGIES["raban1999"]:
             norm_seg_ener_data[hsp] = {}
-            for dsp in RABAN1999_SEGREGATION_ENERGIES[hsp]:
+            for dsp in SEGREGATION_ENERGIES["raban1999"][hsp]:
                 norm_seg_ener_data[hsp][dsp] = 1.0 - (
-                    RABAN1999_SEGREGATION_ENERGIES[hsp][dsp] - min_seg_ener
+                    SEGREGATION_ENERGIES["raban1999"][hsp][dsp] - min_seg_ener
                 ) / (max_seg_ener - min_seg_ener)
     elif data_source == "rao2020":
-        norm_seg_ener_data = RAO2020_SEGREGATION_ENERGIES
+        norm_seg_ener_data = SEGREGATION_ENERGIES["rao2020"]
     else:
         msg = f"Unknown data source {data_source}"
         raise SequentialLearnerError(msg)
