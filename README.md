@@ -2,6 +2,8 @@
 
 AutoCat is a suite of python tools for **sequential learning for materials applications**
 and **automating structure generation for DFT catalysis studies.**
+Documentation for the package can be found
+[here](https://aced-differentiate.github.io/auto_cat).
 
 Development of this package stems from [ACED](https://www.cmu.edu/aced/), as part of the
 ARPA-E DIFFERENTIATE program.
