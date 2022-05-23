@@ -13,11 +13,11 @@ def change_working_dir(new_dir: str):
         os.chdir(current_dir)
 
 
-def extract_structures(autocat_dict: dict):
+def flatten_structures_dict(autocat_dict: dict):
     structure_list = []
     for element in autocat_dict:
         if isinstance(autocat_dict[element], dict):
-            structure_list.extend(extract_structures(autocat_dict[element]))
+            structure_list.extend(flatten_structures_dict(autocat_dict[element]))
         elif isinstance(autocat_dict[element], Atoms):
             structure_list.append(autocat_dict[element])
     return structure_list

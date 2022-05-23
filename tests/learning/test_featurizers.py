@@ -16,7 +16,7 @@ from autocat.adsorption import generate_adsorbed_structures
 from autocat.surface import generate_surface_structures
 from autocat.saa import generate_saa_structures
 from autocat.learning.featurizers import Featurizer
-from autocat.utils import extract_structures
+from autocat.utils import flatten_structures_dict
 
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.local_env import VoronoiNN
@@ -42,9 +42,9 @@ def test_eq_featurizer():
     f1.kwargs.update({"rcut": 13})
     assert f != f1
 
-    surfs = extract_structures(generate_surface_structures(["Fe", "V"]))
+    surfs = flatten_structures_dict(generate_surface_structures(["Fe", "V"]))
     surfs.extend(
-        extract_structures(
+        flatten_structures_dict(
             generate_surface_structures(["Au", "Ag"], supercell_dim=(1, 1, 5))
         )
     )
@@ -64,8 +64,8 @@ def test_featurizer_species_list():
     assert f.species_list == ["K", "Na", "Li"]
 
     # test getting species list from design space structures
-    surfs = extract_structures(generate_surface_structures(["Fe", "V", "Ti"]))
-    saas = extract_structures(generate_saa_structures(["Cu", "Au"], ["Fe", "Pt"]))
+    surfs = flatten_structures_dict(generate_surface_structures(["Fe", "V", "Ti"]))
+    saas = flatten_structures_dict(generate_saa_structures(["Cu", "Au"], ["Fe", "Pt"]))
     surfs.extend(saas)
     f.design_space_structures = surfs
     assert f.species_list == ["Ti", "V", "Fe", "Pt", "Au", "Cu"]
@@ -81,11 +81,13 @@ def test_featurizer_max_size():
     assert f.max_size == 50
 
     # test getting max size from design space structures
-    surfs = extract_structures(
+    surfs = flatten_structures_dict(
         generate_surface_structures(["Ru"], supercell_dim=(2, 2, 4))
     )
     surfs.extend(
-        extract_structures(generate_surface_structures(["Fe"], supercell_dim=(4, 4, 4)))
+        flatten_structures_dict(
+            generate_surface_structures(["Fe"], supercell_dim=(4, 4, 4))
+        )
     )
     f.design_space_structures = surfs
     assert f.max_size == 64
@@ -93,9 +95,9 @@ def test_featurizer_max_size():
 
 def test_featurizer_design_space_structures():
     # tests giving design space structures
-    surfs = extract_structures(generate_surface_structures(["Li", "Na"]))
+    surfs = flatten_structures_dict(generate_surface_structures(["Li", "Na"]))
     surfs.extend(
-        extract_structures(
+        flatten_structures_dict(
             generate_surface_structures(["Cu", "Ni"], supercell_dim=(1, 1, 5))
         )
     )
@@ -154,7 +156,7 @@ def test_featurizer_featurize_single():
     # TEST STRUCTURE FEATURIZERS
 
     # test ElementProperty
-    saa = extract_structures(generate_saa_structures(["Cu"], ["Pt"]))[0]
+    saa = flatten_structures_dict(generate_saa_structures(["Cu"], ["Pt"]))[0]
     f = Featurizer(ElementProperty, preset="magpie", max_size=len(saa))
     acf = f.featurize_single(saa)
     ep = ElementProperty.from_preset("magpie")
@@ -177,7 +179,7 @@ def test_featurizer_featurize_single():
     assert np.array_equal(acf, manual_cm)
 
     # TEST SITE FEATURIZERS
-    ads_struct = extract_structures(
+    ads_struct = flatten_structures_dict(
         generate_adsorbed_structures(
             surface=saa,
             adsorbates=["OH"],
@@ -243,7 +245,7 @@ def test_featurizer_featurize_multiple():
     # TEST STRUCTURE FEATURIZER
 
     # test ElementProperty
-    saas = extract_structures(
+    saas = flatten_structures_dict(
         generate_saa_structures(
             ["Au", "Cu"], ["Pd", "Pt"], facets={"Au": ["111"], "Cu": ["111"]}
         )
@@ -278,7 +280,7 @@ def test_featurizer_featurize_multiple():
     ads_structs = []
     for struct in saas:
         ads_structs.append(
-            extract_structures(
+            flatten_structures_dict(
                 generate_adsorbed_structures(
                     surface=struct,
                     adsorbates=["NNH"],

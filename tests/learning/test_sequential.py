@@ -34,7 +34,7 @@ from autocat.learning.sequential import calculate_hhi_scores
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
-from autocat.utils import extract_structures
+from autocat.utils import flatten_structures_dict
 
 
 def test_sequential_learner_from_json():
@@ -1043,11 +1043,11 @@ def test_choose_next_candidate_segregation_energy_weighting():
     # Tests that the segregation energy weighting is properly applied
     unc = np.array([0.3, 0.3])
     pred = np.array([2.0, 2.0])
-    structs = extract_structures(
+    structs = flatten_structures_dict(
         generate_saa_structures(["Cr"], ["Rh"], facets={"Cr": ["110"]})
     )
     structs.extend(
-        extract_structures(
+        flatten_structures_dict(
             generate_saa_structures(["Co"], ["Re"], facets={"Co": ["0001"]})
         )
     )
@@ -1142,13 +1142,13 @@ def test_calculate_hhi_scores():
 
 def test_calculate_segregation_energy_scores():
     # Tests calculating segregation energy scores
-    saa_structs = extract_structures(
+    saa_structs = flatten_structures_dict(
         generate_saa_structures(
             ["Ag", "Ni"], ["Pt"], facets={"Ag": ["111"], "Ni": ["111"]},
         )
     )
     saa_structs.extend(
-        extract_structures(
+        flatten_structures_dict(
             generate_saa_structures(["Pd"], ["W"], facets={"Pd": ["111"]})
         )
     )

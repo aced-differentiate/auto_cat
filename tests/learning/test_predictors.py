@@ -20,15 +20,15 @@ from autocat.adsorption import generate_adsorbed_structures, place_adsorbate
 from autocat.surface import generate_surface_structures
 from autocat.learning.predictors import Predictor
 from autocat.learning.predictors import PredictorError
-from autocat.utils import extract_structures
+from autocat.utils import flatten_structures_dict
 
 
 def test_fit():
     # Test returns a fit model
-    subs = extract_structures(generate_surface_structures(["Pt", "Fe", "Ru"]))
+    subs = flatten_structures_dict(generate_surface_structures(["Pt", "Fe", "Ru"]))
     structs = []
     for sub in subs:
-        ads_struct = extract_structures(
+        ads_struct = flatten_structures_dict(
             generate_adsorbed_structures(
                 surface=sub,
                 adsorbates=["OH"],
@@ -95,10 +95,10 @@ def test_fit():
 
 def test_predict():
     # Test outputs are returned as expected
-    subs = extract_structures(generate_surface_structures(["Pt", "Fe", "Ru"]))
+    subs = flatten_structures_dict(generate_surface_structures(["Pt", "Fe", "Ru"]))
     structs = []
     for sub in subs:
-        ads_struct = extract_structures(
+        ads_struct = flatten_structures_dict(
             generate_adsorbed_structures(
                 surface=sub,
                 adsorbates=["OH"],
@@ -141,10 +141,10 @@ def test_predict():
 
 def test_score():
     # Tests the score method
-    subs = extract_structures(generate_surface_structures(["Pt", "Fe", "Ru"]))
+    subs = flatten_structures_dict(generate_surface_structures(["Pt", "Fe", "Ru"]))
     structs = []
     for sub in subs:
-        ads_struct = extract_structures(
+        ads_struct = flatten_structures_dict(
             generate_adsorbed_structures(
                 surface=sub,
                 adsorbates=["OH"],
