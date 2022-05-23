@@ -1,0 +1,1 @@
+::: autocat.bulk

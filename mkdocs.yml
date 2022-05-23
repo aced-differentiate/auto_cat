@@ -1,0 +1,63 @@
+site_name: AutoCat Documentation
+theme:
+    name: material
+    features:
+        - navigation.tabs
+        - navigation.tabs.sticky
+        - navigation.sections
+        - navigation.top
+        - toc.integrate
+    logo: img/autocat_icon.png
+markdown_extensions:
+    - pymdownx.highlight
+    - pymdownx.superfences  
+    - pymdownx.inlinehilite
+    - pymdownx.arithmatex:
+        generic: true
+    - attr_list
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+plugins:
+    - search
+    - mkdocstrings:
+        default_handler: python
+        handlers:
+            python:
+                selection:
+                    docstring_style: "numpy"
+                rendering:
+                    show_source: true
+
+nav:
+    - Home: README.md
+    - User Guide:
+        - Sequential Learning:
+            - Featurizers: User_Guide/Learning/featurizers.md
+            - Predictors: User_Guide/Learning/predictors.md
+            - Sequential: User_Guide/Learning/sequential.md
+        - Structure Generation:
+            - Bulk: User_Guide/Structure_Generation/bulk.md
+            - Surfaces: User_Guide/Structure_Generation/surface.md
+            - Adsorption: User_Guide/Structure_Generation/adsorption.md
+            - Single Atom Alloys: User_Guide/Structure_Generation/saa.md
+        - Data:
+            - HHI: User_Guide/Data/hhi.md
+            - Segregation Energies: User_Guide/Data/segregation_energies.md
+            - Lattice Parameters: User_Guide/Data/lattice_parameters.md
+            - Reaction Intermediates: User_Guide/Data/intermediates.md
+    - Tutorials:
+        - Training a Predictor on hydrogen adsorption energies: Tutorials/pred_h.md
+        - Conducting a simulated sequential learning run: Tutorials/sl.md
+    - API:
+        - Sequential Learning:
+            - autocat.learning.featurizers: API/Learning/featurizers.md
+            - autocat.learning.predictors: API/Learning/predictors.md
+            - autocat.learning.sequential: API/Learning/sequential.md
+        - Structure Generation:
+            - autocat.bulk: API/Structure_Generation/bulk.md
+            - autocat.surface: API/Structure_Generation/surface.md
+            - autocat.adsorption: API/Structure_Generation/adsorption.md
+            - autocat.saa: API/Structure_Generation/saa.md
