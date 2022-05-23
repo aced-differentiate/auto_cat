@@ -68,8 +68,8 @@ A pre-commit hook is available to auto-format code with
 3. Install pre-commit: ``$ pip install pre-commit``
 4. Intall git hooks in your ``.git`` directory: ``$ pre-commit install``
 
-Names for functions, arguments, classes, and methods should be as descriptive as possible, 
-even if it means making them a little longer. For example, `generate_surface_structures` is 
+Names for functions, arguments, classes, and methods should be as descriptive as possible,
+even if it means making them a little longer. For example, `generate_surface_structures` is
 a preferred function name to `gen_surfs`.
 All class names should adhere to [upper CamelCase](https://en.wikipedia.org/wiki/Camel_case).
 
@@ -86,16 +86,16 @@ A passing build requires the following:
 * Every line of code is executed by a test (100% coverage)
 * Documentation has been updated or extended (as needed) and builds
 
-PR descriptions should describe the motivation and context of the code changes in the PR, 
-both for the reviewer and also for future developers. If there's a Github issue, the PR should 
+PR descriptions should describe the motivation and context of the code changes in the PR,
+both for the reviewer and also for future developers. If there's a Github issue, the PR should
 be linked to the issue to provide that context.
 
 ## Documentation<a name="documentation"></a>
-`AutoCat` documentation is built using `mkdocs` via 
-[`mkdocs-material`](https://squidfunk.github.io/mkdocs-material/) 
-and 
+`AutoCat` documentation is built using `mkdocs` via
+[`mkdocs-material`](https://squidfunk.github.io/mkdocs-material/)
+and
 [`mkdocstrings`](https://mkdocstrings.github.io/).
-All custom documentation should be written as `.md` files, appropriately placed within 
+All custom documentation should be written as `.md` files, appropriately placed within
 `docs/`, and referenced within the `mkdocs.yml` file.
 
 With `mkdocs` the docs webpage can be hosted locally with the command:
@@ -106,3 +106,4 @@ which will give an `html` link that can be pasted in a web-browser.
 
 API documentation is automatically generated with `mkdocstrings` which parses the docstrings.
 Please ensure that all docstrings follow the Numpy style.
+
