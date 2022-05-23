@@ -7,10 +7,16 @@ import json
 
 import tempfile
 
+from sklearn.gaussian_process import GaussianProcessRegressor
+
+from dscribe.descriptors import SOAP
+from dscribe.descriptors import SineMatrix
+from matminer.featurizers.composition import ElementProperty
+
 from scipy import stats
-from ase.io import read as ase_read
-from autocat.data.hhi import HHI_PRODUCTION
-from autocat.data.hhi import HHI_RESERVES
+from ase.io.jsonio import decode as ase_decoder
+from ase import Atoms
+from autocat.data.hhi import HHI
 from autocat.data.segregation_energies import SEGREGATION_ENERGIES
 from autocat.learning.predictors import Predictor
 from autocat.learning.sequential import (
@@ -28,7 +34,7 @@ from autocat.learning.sequential import calculate_hhi_scores
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
-from autocat.utils import extract_structures
+from autocat.utils import flatten_structures_dict
 
 
 def test_sequential_learner_from_json():
@@ -36,27 +42,26 @@ def test_sequential_learner_from_json():
     sub1 = generate_surface_structures(["Au"], facets={"Au": ["110"]})["Au"]["fcc110"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "C")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("C"))
     sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "Mg")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("Mg"))
     sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
         "hcp0001"
     ]["structure"]
-    sub3 = place_adsorbate(sub3, "N")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("N"))
     structs = [sub1, sub2, sub3]
     labels = np.array([0.1, np.nan, 0.3])
+    acds = DesignSpace(structs, labels)
+    featurization_kwargs = {"kwargs": {"rcut": 5.0, "lmax": 6, "nmax": 6}}
     predictor_kwargs = {
-        "structure_featurizer": "coulomb_matrix",
-        "elementalproperty_preset": "megnet_el",
-        "adsorbate_featurizer": "soap",
-        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
-        "species_list": ["Au", "Li", "Mg", "C", "Ru", "N"],
+        "model_class": GaussianProcessRegressor,
+        "featurizer_class": SOAP,
+        "featurization_kwargs": featurization_kwargs,
     }
 
     candidate_selection_kwargs = {"aq": "Random", "num_candidates_to_pick": 3}
-    acds = DesignSpace(structs, labels)
     acsl = SequentialLearner(
         acds,
         predictor_kwargs=predictor_kwargs,
@@ -64,7 +69,7 @@ def test_sequential_learner_from_json():
     )
     acsl.iterate()
     with tempfile.TemporaryDirectory() as _tmp_dir:
-        acsl.write_json(_tmp_dir, "testing_acsl.json")
+        acsl.write_json_to_disk(_tmp_dir, "testing_acsl.json")
         json_path = os.path.join(_tmp_dir, "testing_acsl.json")
         written_acsl = SequentialLearner.from_json(json_path)
         assert np.array_equal(
@@ -76,6 +81,9 @@ def test_sequential_learner_from_json():
             written_acsl.design_space.design_space_structures
             == acds.design_space_structures
         )
+        predictor_kwargs["featurization_kwargs"][
+            "design_space_structures"
+        ] = acds.design_space_structures
         assert written_acsl.predictor_kwargs == predictor_kwargs
         assert written_acsl.candidate_selection_kwargs == candidate_selection_kwargs
         assert written_acsl.iteration_count == 1
@@ -103,23 +111,22 @@ def test_sequential_learner_write_json():
     sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "B")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("B"))
     sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "Al")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("Al"))
     sub3 = generate_surface_structures(["Ti"], facets={"Ti": ["0001"]})["Ti"][
         "hcp0001"
     ]["structure"]
-    sub3 = place_adsorbate(sub3, "H")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("H"))
     structs = [sub1, sub2, sub3]
     labels = np.array([0.1, 0.2, np.nan])
+    featurization_kwargs = {"preset": "magpie"}
     predictor_kwargs = {
-        "structure_featurizer": "sine_matrix",
-        "elementalproperty_preset": "deml",
-        "adsorbate_featurizer": "soap",
-        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
-        "species_list": ["Ag", "Li", "Al", "B", "Ti", "H"],
+        "model_class": GaussianProcessRegressor,
+        "featurizer_class": ElementProperty,
+        "featurization_kwargs": featurization_kwargs,
     }
 
     candidate_selection_kwargs = {"aq": "MU", "num_candidates_to_pick": 2}
@@ -130,23 +137,25 @@ def test_sequential_learner_write_json():
         candidate_selection_kwargs=candidate_selection_kwargs,
     )
     with tempfile.TemporaryDirectory() as _tmp_dir:
-        acsl.write_json(_tmp_dir, "testing_acsl.json")
+        acsl.write_json_to_disk(_tmp_dir, "testing_acsl.json")
         with open(os.path.join(_tmp_dir, "testing_acsl.json"), "r") as f:
             sl = json.load(f)
-        # collects structs by writing each json individually
-        # and reading with ase
-        written_structs = []
-        for i in range(3):
-            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-            with open(_tmp_json, "w") as tmp:
-                json.dump(sl[i], tmp)
-            written_structs.append(ase_read(_tmp_json))
+        written_structs = [ase_decoder(sl[i]) for i in range(3)]
         assert structs == written_structs
         assert np.array_equal(labels, sl[3], equal_nan=True)
         # check predictor kwargs kept
-        assert predictor_kwargs == sl[4]
+        predictor_kwargs["model_class"] = [
+            "sklearn.gaussian_process._gpr",
+            "GaussianProcessRegressor",
+        ]
+        predictor_kwargs["featurizer_class"] = [
+            "matminer.featurizers.composition.composite",
+            "ElementProperty",
+        ]
+        del predictor_kwargs["featurization_kwargs"]["design_space_structures"]
+        assert sl[4] == predictor_kwargs
         # check candidate selection kwargs kept
-        assert candidate_selection_kwargs == sl[-2]
+        assert sl[-2] == candidate_selection_kwargs
         assert sl[-1] == {
             "iteration_count": 0,
             "train_idx": None,
@@ -157,50 +166,30 @@ def test_sequential_learner_write_json():
             "uncertainties_history": None,
             "candidate_indices": None,
             "candidate_index_history": None,
-            "aq_scores": None,
+            "acquisition_scores": None,
         }
-
-    # test writing when no kwargs given
-    acsl = SequentialLearner(acds)
-    with tempfile.TemporaryDirectory() as _tmp_dir:
-        acsl.write_json(_tmp_dir)
-        with open(os.path.join(_tmp_dir, "acsl.json"), "r") as f:
-            sl = json.load(f)
-        # collects structs by writing each json individually
-        # and reading with ase
-        written_structs = []
-        for i in range(3):
-            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-            with open(_tmp_json, "w") as tmp:
-                json.dump(sl[i], tmp)
-            written_structs.append(ase_read(_tmp_json))
-        assert structs == written_structs
-        assert np.array_equal(labels, sl[3], equal_nan=True)
-        # check default predictor kwargs kept
-        assert sl[4] == {"structure_featurizer": "sine_matrix"}
-        # check default candidate selection kwargs kept
-        assert sl[-2] == {"aq": "Random"}
 
     # test after iteration
     acsl.iterate()
     with tempfile.TemporaryDirectory() as _tmp_dir:
-        acsl.write_json(_tmp_dir, "testing_acsl.json")
+        acsl.write_json_to_disk(_tmp_dir, "testing_acsl.json")
         with open(os.path.join(_tmp_dir, "testing_acsl.json"), "r") as f:
             sl = json.load(f)
-        # collects structs by writing each json individually
-        # and reading with ase
-        written_structs = []
-        for i in range(3):
-            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-            with open(_tmp_json, "w") as tmp:
-                json.dump(sl[i], tmp)
-            written_structs.append(ase_read(_tmp_json))
+        written_structs = [ase_decoder(sl[i]) for i in range(3)]
         assert structs == written_structs
         assert np.array_equal(labels, sl[3], equal_nan=True)
         # check predictor kwargs kept
-        assert sl[4] == {"structure_featurizer": "sine_matrix"}
+        predictor_kwargs["model_class"] = [
+            "sklearn.gaussian_process._gpr",
+            "GaussianProcessRegressor",
+        ]
+        predictor_kwargs["featurizer_class"] = [
+            "matminer.featurizers.composition.composite",
+            "ElementProperty",
+        ]
+        assert sl[4] == predictor_kwargs
         # check candidate selection kwargs kept
-        assert sl[-2] == {"aq": "Random"}
+        assert sl[-2] == candidate_selection_kwargs
         assert sl[-1].get("iteration_count") == 1
         assert sl[-1].get("train_idx") == acsl.train_idx.tolist()
         assert sl[-1].get("train_idx_history") == [
@@ -220,6 +209,111 @@ def test_sequential_learner_write_json():
             c.tolist() for c in acsl.candidate_index_history
         ]
         assert sl[-1].get("acquisition_scores") == acsl.acquisition_scores.tolist()
+        assert sl[-1].get("acquisition_scores") is not None
+
+
+def test_sequential_learner_to_jsonified_list():
+    # Tests writing a SequentialLearner to disk as a json
+    sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, Atoms("B"))
+    sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, Atoms("Al"))
+    sub3 = generate_surface_structures(["Ti"], facets={"Ti": ["0001"]})["Ti"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("H"))
+    structs = [sub1, sub2, sub3]
+    labels = np.array([0.1, 0.2, np.nan])
+    featurization_kwargs = {"preset": "magpie"}
+    predictor_kwargs = {
+        "model_class": GaussianProcessRegressor,
+        "featurizer_class": ElementProperty,
+        "featurization_kwargs": featurization_kwargs,
+    }
+
+    candidate_selection_kwargs = {"aq": "MU", "num_candidates_to_pick": 2}
+    acds = DesignSpace(structs, labels)
+    acsl = SequentialLearner(
+        acds,
+        predictor_kwargs=predictor_kwargs,
+        candidate_selection_kwargs=candidate_selection_kwargs,
+    )
+    jsonified_list = acsl.to_jsonified_list()
+    json_structs = [ase_decoder(jsonified_list[i]) for i in range(3)]
+    assert structs == json_structs
+    assert np.array_equal(labels, jsonified_list[3], equal_nan=True)
+    # check predictor kwargs kept
+    predictor_kwargs["model_class"] = [
+        "sklearn.gaussian_process._gpr",
+        "GaussianProcessRegressor",
+    ]
+    predictor_kwargs["featurizer_class"] = [
+        "matminer.featurizers.composition.composite",
+        "ElementProperty",
+    ]
+    del predictor_kwargs["featurization_kwargs"]["design_space_structures"]
+    assert jsonified_list[4] == predictor_kwargs
+    # check candidate selection kwargs kept
+    assert jsonified_list[-2] == candidate_selection_kwargs
+    assert jsonified_list[-1] == {
+        "iteration_count": 0,
+        "train_idx": None,
+        "train_idx_history": None,
+        "predictions": None,
+        "predictions_history": None,
+        "uncertainties": None,
+        "uncertainties_history": None,
+        "candidate_indices": None,
+        "candidate_index_history": None,
+        "acquisition_scores": None,
+    }
+
+    # test after iteration
+    acsl.iterate()
+    jsonified_list = acsl.to_jsonified_list()
+    json_structs = [ase_decoder(jsonified_list[i]) for i in range(3)]
+    assert structs == json_structs
+    assert np.array_equal(labels, jsonified_list[3], equal_nan=True)
+    # check predictor kwargs kept
+    predictor_kwargs["model_class"] = [
+        "sklearn.gaussian_process._gpr",
+        "GaussianProcessRegressor",
+    ]
+    predictor_kwargs["featurizer_class"] = [
+        "matminer.featurizers.composition.composite",
+        "ElementProperty",
+    ]
+    assert jsonified_list[4] == predictor_kwargs
+    # check candidate selection kwargs kept
+    assert jsonified_list[-2] == candidate_selection_kwargs
+    assert jsonified_list[-1].get("iteration_count") == 1
+    assert jsonified_list[-1].get("train_idx") == acsl.train_idx.tolist()
+    assert jsonified_list[-1].get("train_idx_history") == [
+        ti.tolist() for ti in acsl.train_idx_history
+    ]
+    assert isinstance(jsonified_list[-1].get("train_idx_history")[0][0], bool)
+    assert jsonified_list[-1].get("predictions") == acsl.predictions.tolist()
+    assert jsonified_list[-1].get("predictions_history") == [
+        p.tolist() for p in acsl.predictions_history
+    ]
+    assert jsonified_list[-1].get("uncertainties") == acsl.uncertainties.tolist()
+    assert jsonified_list[-1].get("uncertainties_history") == [
+        u.tolist() for u in acsl.uncertainties_history
+    ]
+    assert (
+        jsonified_list[-1].get("candidate_indices") == acsl.candidate_indices.tolist()
+    )
+    assert jsonified_list[-1].get("candidate_index_history") == [
+        c.tolist() for c in acsl.candidate_index_history
+    ]
+    assert (
+        jsonified_list[-1].get("acquisition_scores") == acsl.acquisition_scores.tolist()
+    )
+    assert jsonified_list[-1].get("acquisition_scores") is not None
 
 
 def test_sequential_learner_iterate():
@@ -227,23 +321,23 @@ def test_sequential_learner_iterate():
     sub1 = generate_surface_structures(["Ca"], facets={"Ca": ["111"]})["Ca"]["fcc111"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "Na")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("Na"))
     sub2 = generate_surface_structures(["Nb"], facets={"Nb": ["110"]})["Nb"]["bcc110"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "K")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("K"))
     sub3 = generate_surface_structures(["Ta"], facets={"Ta": ["110"]})["Ta"]["bcc110"][
         "structure"
     ]
-    sub3 = place_adsorbate(sub3, "H")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("H"))
     sub4 = generate_surface_structures(["Sr"], facets={"Sr": ["110"]})["Sr"]["fcc110"][
         "structure"
     ]
-    sub4 = place_adsorbate(sub4, "Fe")["custom"]["structure"]
+    sub4 = place_adsorbate(sub4, Atoms("Fe"))
     structs = [sub1, sub2, sub3, sub4]
     labels = np.array([11.0, 25.0, np.nan, np.nan])
     acds = DesignSpace(structs, labels)
-    acsl = SequentialLearner(acds)
+    acsl = SequentialLearner(acds, predictor_kwargs={"featurizer_class": SineMatrix})
 
     assert acsl.iteration_count == 0
 
@@ -294,23 +388,23 @@ def test_sequential_learner_setup():
     sub1 = generate_surface_structures(["Ir"], facets={"Ir": ["100"]})["Ir"]["fcc100"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("S"))
     sub2 = generate_surface_structures(["Mo"], facets={"Mo": ["110"]})["Mo"]["bcc110"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "H")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("H"))
     sub3 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
         "structure"
     ]
-    sub3 = place_adsorbate(sub3, "O")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("O"))
     sub4 = generate_surface_structures(["Re"], facets={"Re": ["0001"]})["Re"][
         "hcp0001"
     ]["structure"]
-    sub4 = place_adsorbate(sub4, "N")["custom"]["structure"]
+    sub4 = place_adsorbate(sub4, Atoms("N"))
     structs = [sub1, sub2, sub3, sub4]
     labels = np.array([4.0, np.nan, 6.0, np.nan])
     acds = DesignSpace(structs, labels)
-    acsl = SequentialLearner(acds)
+    acsl = SequentialLearner(acds, predictor_kwargs={"featurizer_class": SineMatrix})
 
     assert acsl.design_space.design_space_structures == acds.design_space_structures
     assert np.array_equal(
@@ -320,37 +414,24 @@ def test_sequential_learner_setup():
     assert acsl.predictions == None
     assert acsl.candidate_indices == None
     assert acsl.candidate_selection_kwargs == {"aq": "Random"}
-    # test default kwargs
-    assert acsl.predictor_kwargs == {"structure_featurizer": "sine_matrix"}
-    # test specifying kwargs
+    # test specifying more kwargs
+    predictor_kwargs = {
+        "featurizer_class": SOAP,
+        "model_kwargs": {"n_restarts_optimizer": 9},
+        "featurization_kwargs": {"kwargs": {"rcut": 5.0, "lmax": 6, "nmax": 6}},
+    }
     acsl = SequentialLearner(
         acds,
-        predictor_kwargs={
-            "structure_featurizer": "elemental_property",
-            "elementalproperty_preset": "pymatgen",
-            "adsorbate_featurizer": "soap",
-            "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
-            "species_list": ["Ir", "O", "H", "Mo", "Fe", "N", "Re"],
-            "model_kwargs": {"n_restarts_optimizer": 9},
-        },
+        predictor_kwargs=predictor_kwargs,
         candidate_selection_kwargs={"aq": "MU", "num_candidates_to_pick": 2},
     )
     # test passing predictor kwargs
-    assert acsl.predictor_kwargs == {
-        "structure_featurizer": "elemental_property",
-        "elementalproperty_preset": "pymatgen",
-        "adsorbate_featurizer": "soap",
-        "adsorbate_featurization_kwargs": {"rcut": 5.0, "nmax": 8, "lmax": 6},
-        "species_list": ["Ir", "O", "H", "Mo", "Fe", "N", "Re"],
-        "model_kwargs": {"n_restarts_optimizer": 9},
-    }
-    assert acsl.predictor.structure_featurizer == "elemental_property"
-    assert acsl.predictor.elementalproperty_preset == "pymatgen"
-    assert acsl.predictor.adsorbate_featurizer == "soap"
-    assert acsl.predictor.adsorbate_featurization_kwargs == {
+    assert acsl.predictor_kwargs == predictor_kwargs
+    assert isinstance(acsl.predictor.featurizer.featurization_object, SOAP)
+    assert acsl.predictor.featurization_kwargs["kwargs"] == {
         "rcut": 5.0,
-        "nmax": 8,
         "lmax": 6,
+        "nmax": 6,
     }
 
     # test passing candidate selection kwargs
@@ -362,11 +443,11 @@ def test_design_space_setup():
     sub1 = generate_surface_structures(
         ["Pt"], supercell_dim=[2, 2, 5], facets={"Pt": ["100"]}
     )["Pt"]["fcc100"]["structure"]
-    sub1 = place_adsorbate(sub1, "H2")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("H"))
     sub2 = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"]["bcc110"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "F")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("F"))
     structs = [sub1, sub2]
     labels = np.array([3.0, 7.0])
     acds = DesignSpace(structs, labels)
@@ -385,19 +466,19 @@ def test_delitem_design_space():
     sub0 = generate_surface_structures(["Pd"], facets={"Pd": ["100"]})["Pd"]["fcc100"][
         "structure"
     ]
-    sub0 = place_adsorbate(sub0, "O")["custom"]["structure"]
+    sub0 = place_adsorbate(sub0, Atoms("O"))
     sub1 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "H")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("H"))
     sub2 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "S")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("S"))
     sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
         "hcp0001"
     ]["structure"]
-    sub3 = place_adsorbate(sub3, "P")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("P"))
     structs = [sub0, sub1, sub2]
     labels = np.array([-2.5, np.nan, 600.0])
     # test deleting by single idx
@@ -441,19 +522,19 @@ def test_eq_design_space():
     sub0 = generate_surface_structures(["Pd"], facets={"Pd": ["100"]})["Pd"]["fcc100"][
         "structure"
     ]
-    sub0 = place_adsorbate(sub0, "O")["custom"]["structure"]
+    sub0 = place_adsorbate(sub0, Atoms("O"))
     sub1 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
         "structure"
     ]
-    sub1 = place_adsorbate(sub1, "H")["custom"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("H"))
     sub2 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
         "structure"
     ]
-    sub2 = place_adsorbate(sub2, "S")["custom"]["structure"]
+    sub2 = place_adsorbate(sub2, Atoms("S"))
     sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
         "hcp0001"
     ]["structure"]
-    sub3 = place_adsorbate(sub3, "P")["custom"]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("P"))
     structs = [sub0, sub1, sub2]
     labels = np.array([-2.5, np.nan, 600.0])
 
@@ -525,20 +606,30 @@ def test_write_design_space_as_json():
     labels = np.array([0.3, 0.8])
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acds = DesignSpace(design_space_structures=structs, design_space_labels=labels,)
-        acds.write_json(write_location=_tmp_dir)
+        acds.write_json_to_disk(write_location=_tmp_dir)
         # loads back written json
         with open(os.path.join(_tmp_dir, "acds.json"), "r") as f:
             ds = json.load(f)
-        # collects structs by writing each json individually
-        # and reading with ase
-        written_structs = []
-        for i in range(2):
-            _tmp_json = os.path.join(_tmp_dir, "tmp.json")
-            with open(_tmp_json, "w") as tmp:
-                json.dump(ds[i], tmp)
-            written_structs.append(ase_read(_tmp_json))
+        written_structs = [ase_decoder(ds[i]) for i in range(2)]
         assert structs == written_structs
-        assert (labels == ds[-1]).all()
+        assert np.array_equal(labels, ds[-1])
+
+
+def test_design_space_to_jsonified_list():
+    # Tests returning the DesignSpace as a jsonified list
+    sub1 = generate_surface_structures(["Pd"], facets={"Pd": ["111"]})["Pd"]["fcc111"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
+        "structure"
+    ]
+    structs = [sub1, sub2]
+    labels = np.array([0.3, 0.8])
+    acds = DesignSpace(design_space_structures=structs, design_space_labels=labels,)
+    jsonified_list = acds.to_jsonified_list()
+    json_structs = [ase_decoder(jsonified_list[i]) for i in range(2)]
+    assert structs == json_structs
+    assert np.array_equal(labels, jsonified_list[-1])
 
 
 def test_get_design_space_from_json():
@@ -556,7 +647,7 @@ def test_get_design_space_from_json():
     labels = np.array([30.0, 900.0, np.nan])
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acds = DesignSpace(design_space_structures=structs, design_space_labels=labels,)
-        acds.write_json("testing.json", write_location=_tmp_dir)
+        acds.write_json_to_disk("testing.json", write_location=_tmp_dir)
 
         tmp_json_dir = os.path.join(_tmp_dir, "testing.json")
         acds_from_json = DesignSpace.from_json(tmp_json_dir)
@@ -574,9 +665,9 @@ def test_simulated_sequential_histories():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
-    base_struct3 = place_adsorbate(sub2, "H")["custom"]["structure"]
+    base_struct1 = place_adsorbate(sub1, Atoms("O"))
+    base_struct2 = place_adsorbate(sub2, Atoms("N"))
+    base_struct3 = place_adsorbate(sub2, Atoms("H"))
     ds_structs = [
         base_struct1,
         base_struct2,
@@ -592,7 +683,7 @@ def test_simulated_sequential_histories():
         "aq": "MLI",
         "num_candidates_to_pick": 2,
     }
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     sl = simulated_sequential_learning(
         full_design_space=acds,
         init_training_size=1,
@@ -623,10 +714,10 @@ def test_simulated_sequential_batch_added():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
+    base_struct1 = place_adsorbate(sub1, Atoms("O"))
+    base_struct2 = place_adsorbate(sub2, Atoms("N"))
     candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     num_loops = 2
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
@@ -652,9 +743,9 @@ def test_simulated_sequential_num_loops():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "H")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "N")["custom"]["structure"]
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    base_struct1 = place_adsorbate(sub1, Atoms("H"))
+    base_struct2 = place_adsorbate(sub2, Atoms("N"))
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     candidate_selection_kwargs = {"num_candidates_to_pick": 3, "aq": "Random"}
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
@@ -704,10 +795,10 @@ def test_simulated_sequential_write_to_disk():
         sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"][
             "fcc100"
         ]["structure"]
-        base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-        base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
-        base_struct3 = place_adsorbate(sub2, "N")["custom"]["structure"]
-        predictor_kwargs = {"structure_featurizer": "elemental_property"}
+        base_struct1 = place_adsorbate(sub1, Atoms("O"))
+        base_struct2 = place_adsorbate(sub2, Atoms("S"))
+        base_struct3 = place_adsorbate(sub2, Atoms("N"))
+        predictor_kwargs = {"featurizer_class": SineMatrix}
         candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
         ds_structs = [base_struct1, base_struct2, base_struct3]
         ds_labels = np.array([0, 1, 2])
@@ -755,8 +846,8 @@ def test_simulated_sequential_learning_fully_explored():
     sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    base_struct2 = place_adsorbate(sub2, "NH")["custom"]["structure"]
+    base_struct1 = place_adsorbate(sub1, Atoms("OH"))
+    base_struct2 = place_adsorbate(sub2, Atoms("NH"))
     predictor_kwargs = {"structure_featurizer": "elemental_property"}
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([0.0, np.nan, 4.0])
@@ -777,8 +868,8 @@ def test_multiple_sequential_learning_serial():
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "OH")["custom"]["structure"]
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    base_struct1 = place_adsorbate(sub1, Atoms("O"))
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
@@ -801,8 +892,8 @@ def test_multiple_sequential_learning_parallel():
     sub1 = generate_surface_structures(["Cu"], facets={"Cu": ["111"]})["Cu"]["fcc111"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "Li")["custom"]["structure"]
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    base_struct1 = place_adsorbate(sub1, Atoms("Li"))
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
@@ -827,8 +918,8 @@ def test_multiple_sequential_learning_write_to_disk():
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
         "structure"
     ]
-    base_struct1 = place_adsorbate(sub1, "N")["custom"]["structure"]
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    base_struct1 = place_adsorbate(sub1, Atoms("N"))
+    predictor_kwargs = {"featurizer_class": SineMatrix}
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
@@ -952,11 +1043,11 @@ def test_choose_next_candidate_segregation_energy_weighting():
     # Tests that the segregation energy weighting is properly applied
     unc = np.array([0.3, 0.3])
     pred = np.array([2.0, 2.0])
-    structs = extract_structures(
+    structs = flatten_structures_dict(
         generate_saa_structures(["Cr"], ["Rh"], facets={"Cr": ["110"]})
     )
     structs.extend(
-        extract_structures(
+        flatten_structures_dict(
             generate_saa_structures(["Co"], ["Re"], facets={"Co": ["0001"]})
         )
     )
@@ -1009,7 +1100,7 @@ def test_calculate_hhi_scores():
     # test production
     hhi_prod_scores = calculate_hhi_scores(saa_structs)
     norm_hhi_prod = {
-        el: 1.0 - (HHI_PRODUCTION[el] - 500.0) / 9300.0 for el in HHI_PRODUCTION
+        el: 1.0 - (HHI["production"][el] - 500.0) / 9300.0 for el in HHI["production"]
     }
     # check approach properly normalizes and inverts
     assert np.isclose(norm_hhi_prod["Y"], 0.0)
@@ -1030,7 +1121,7 @@ def test_calculate_hhi_scores():
     # test reserves
     hhi_res_scores = calculate_hhi_scores(saa_structs, "reserves")
     norm_hhi_res = {
-        el: 1.0 - (HHI_RESERVES[el] - 500.0) / 8600.0 for el in HHI_RESERVES
+        el: 1.0 - (HHI["reserves"][el] - 500.0) / 8600.0 for el in HHI["reserves"]
     }
     # check approach properly normalizes and inverts
     assert np.isclose(norm_hhi_res["Pt"], 0.0)
@@ -1051,26 +1142,39 @@ def test_calculate_hhi_scores():
 
 def test_calculate_segregation_energy_scores():
     # Tests calculating segregation energy scores
-    saa_structs = extract_structures(
+    saa_structs = flatten_structures_dict(
         generate_saa_structures(
             ["Ag", "Ni"], ["Pt"], facets={"Ag": ["111"], "Ni": ["111"]},
         )
     )
     saa_structs.extend(
-        extract_structures(
+        flatten_structures_dict(
             generate_saa_structures(["Pd"], ["W"], facets={"Pd": ["111"]})
         )
     )
-    # saa_structs = [saa_dict[host]["Pt"]["fcc111"]["structure"] for host in saa_dict]
+    # test calculating scores from RABAN1999
     se_scores = calculate_segregation_energy_scores(saa_structs)
     assert np.isclose(se_scores[-1], 0.0)
-    min_seg = SEGREGATION_ENERGIES["Fe_100"]["Ag"]
-    max_seg = SEGREGATION_ENERGIES["Pd"]["W"]
+    min_seg = SEGREGATION_ENERGIES["raban1999"]["Fe_100"]["Ag"]
+    max_seg = SEGREGATION_ENERGIES["raban1999"]["Pd"]["W"]
     assert np.isclose(
         se_scores[0],
-        1.0 - (SEGREGATION_ENERGIES["Ag"]["Pt"] - min_seg) / (max_seg - min_seg),
+        1.0
+        - (SEGREGATION_ENERGIES["raban1999"]["Ag"]["Pt"] - min_seg)
+        / (max_seg - min_seg),
     )
     assert np.isclose(
         se_scores[1],
-        1.0 - (SEGREGATION_ENERGIES["Ni"]["Pt"] - min_seg) / (max_seg - min_seg),
+        1.0
+        - (SEGREGATION_ENERGIES["raban1999"]["Ni"]["Pt"] - min_seg)
+        / (max_seg - min_seg),
     )
+
+    # test getting scores from RAO2020
+    se_scores = calculate_segregation_energy_scores(saa_structs, data_source="rao2020")
+    assert np.isclose(se_scores[0], SEGREGATION_ENERGIES["rao2020"]["Ag"]["Pt"])
+    assert np.isclose(se_scores[0], 0.8)
+    assert np.isclose(se_scores[1], SEGREGATION_ENERGIES["rao2020"]["Ni"]["Pt"])
+    assert np.isclose(se_scores[1], 1.0)
+    assert np.isclose(se_scores[-1], SEGREGATION_ENERGIES["rao2020"]["Pd"]["W"])
+    assert np.isclose(se_scores[-1], 0.0)

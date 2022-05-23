@@ -7,8 +7,8 @@ from ase.build import bcc110
 
 from autocat.surface import generate_surface_structures
 from autocat.saa import generate_saa_structures
-from autocat.adsorption import generate_rxn_structures
-from autocat.utils import extract_structures
+from autocat.adsorption import generate_adsorbed_structures
+from autocat.utils import flatten_structures_dict
 
 
 def test_extract_surfaces():
@@ -16,7 +16,7 @@ def test_extract_surfaces():
     surfaces = generate_surface_structures(
         ["Pt", "Cu", "Li"], facets={"Pt": ["100", "111"], "Cu": ["111"], "Li": ["110"]}
     )
-    ex_structures = extract_structures(surfaces)
+    ex_structures = flatten_structures_dict(surfaces)
     assert all(isinstance(struct, Atoms) for struct in ex_structures)
     # checks atoms objects left untouched during extraction
     pt_struct100 = fcc100("Pt", size=(3, 3, 4), vacuum=10)
@@ -37,7 +37,7 @@ def test_extract_saas():
         facets={"Cu": ["110"], "Au": ["100"]},
         supercell_dim=(2, 2, 5),
     )
-    ex_structures = extract_structures(saas)
+    ex_structures = flatten_structures_dict(saas)
     assert all(isinstance(struct, Atoms) for struct in ex_structures)
     assert saas["Cu"]["Fe"]["fcc110"]["structure"] in ex_structures
     assert saas["Au"]["Fe"]["fcc100"]["structure"] in ex_structures
@@ -48,10 +48,13 @@ def test_extract_adsorption():
     saa = generate_saa_structures(["Ru"], ["Pd"], supercell_dim=(2, 2, 5),)["Ru"]["Pd"][
         "hcp0001"
     ]["structure"]
-    ads_dict = generate_rxn_structures(
-        saa, ads=["NH2", "Li"], sites={"custom": [(0.0, 0.0)]}, all_sym_sites=False
+    ads_dict = generate_adsorbed_structures(
+        saa,
+        adsorbates=["NH2", "Li"],
+        adsorption_sites={"custom": [(0.0, 0.0)]},
+        use_all_sites=False,
     )
-    ex_structures = extract_structures(ads_dict)
+    ex_structures = flatten_structures_dict(ads_dict)
     assert all(isinstance(struct, Atoms) for struct in ex_structures)
     assert ads_dict["NH2"]["custom"]["0.0_0.0"]["structure"] in ex_structures
     assert ads_dict["Li"]["custom"]["0.0_0.0"]["structure"] in ex_structures
