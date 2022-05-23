@@ -777,7 +777,10 @@ def simulated_sequential_learning(
     # check fully explored
     if True in np.isnan(full_design_space.design_space_labels):
         missing_label_idx = np.where(np.isnan(full_design_space.design_space_labels))[0]
-        msg = f"Design space must be fully explored. Missing labels at indices: {missing_label_idx}"
+        msg = (
+            f"Design space must be fully explored."
+            f" Missing labels at indices: {missing_label_idx}"
+        )
         raise SequentialLearnerError(msg)
 
     # check that specified initial training size makes sense
