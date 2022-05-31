@@ -28,6 +28,15 @@ setup(
     ],
     package_dir={"": "src"},
     packages=find_packages(where="src"),
-    install_requires=["numpy", "ase", "pymatgen", "fire"],
+    install_requires=[
+        "numpy",
+        "ase",
+        "pymatgen",
+        "fire",
+        "matminer",
+        "dscribe",
+        "prettytable",
+        "joblib",
+    ],
     include_package_data=True,
 )
