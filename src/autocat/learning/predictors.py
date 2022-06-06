@@ -2,21 +2,16 @@ import copy
 import numpy as np
 
 from typing import List
-from typing import Dict
 from typing import Union
 from prettytable import PrettyTable
 
 from ase import Atoms
 
-from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
 
 from autocat.learning.featurizers import Featurizer
-from autocat.learning.featurizers import (
-    SUPPORTED_DSCRIBE_CLASSES,
-    SUPPORTED_MATMINER_CLASSES,
-)
 
 
 class PredictorError(Exception):
@@ -25,11 +20,7 @@ class PredictorError(Exception):
 
 class Predictor:
     def __init__(
-        self,
-        model_class=None,
-        model_kwargs: Dict = None,  # TODO: kwargs -> options?
-        featurizer_class=None,  # black
-        featurization_kwargs: Dict = None,
+        self, regressor=None, featurizer: Featurizer = None,
     ):
         """
         Constructor.
@@ -37,158 +28,70 @@ class Predictor:
         Parameters
         ----------
 
-        model_class:
-            Class of regression model to be used for training and prediction.
-            If this is changed after initialization, all previously set
-            model_kwargs will be removed.
-            N.B. must have fit and predict methods
+        regressor:
+            Regressor object that can be used to make predictions
+            (e.g. from scikit-learn) with `fit` and `predict` methods.
+            **N.B**: If you want to make any changes to the parameters
+            of this object after instantiation, please do so as follows:
+            `predictor.regressor = updated_regressor`
 
-        structure_featurizer:
-            String giving featurizer to be used for full structure which will be
-            fed into `autocat.learning.featurizers.full_structure_featurization`
-
-        adsorbate_featurizer:
-            String giving featurizer to be used for full structure which will be
-            fed into `autocat.learning.featurizers.adsorbate_structure_featurization
-
-        maximum_structure_size:
-            Size of the largest structure to be supported by the representation.
-            Default: number of atoms in largest structure within `structures`
-
-        maximum_adsorbate_size:
-            Integer giving the maximum adsorbate size to be encountered
-            (ie. this determines if zero-padding should be applied and how much).
-            If the provided value is less than the adsorbate size given by
-            `adsorbate_indices`, representation will remain size of the adsorbate.
-            Default: size of adsorbate provided
-
-        species_list:
-            List of species that could be encountered for featurization.
-            Default: Parses over all `structures` and collects all encountered species
-
-        refine_structures:
-            Bool indicating whether the structures should be refined to include
-            only the adsorbate and surface layer. Requires tags for all structures
-            to have adsorbate atoms and surface atoms as 0 and 1, respectively
+        featurizer:
+            `Featurizer` to be used for featurizing the structures
+            when training and predicting.
+            **N.B**: If you want to make any changes to the parameters
+            of this object after instantiation, please do so as follows:
+            `predictor.featurizer = updated_featurizer`
 
         """
         self.is_fit = False
 
-        self._model_class = GaussianProcessRegressor
-        self.model_class = model_class
+        self._regressor = RandomForestRegressor()
+        self.regressor = regressor
 
-        self._model_kwargs = None
-        self.model_kwargs = model_kwargs
-
-        self.regressor = self.model_class(
-            **self.model_kwargs if self.model_kwargs else {}
-        )
-
-        self._featurizer_class = None
-        self._featurization_kwargs = None
-
-        self.featurizer_class = featurizer_class
-
-        self.featurization_kwargs = featurization_kwargs
-
-        self.featurizer = Featurizer(
-            featurizer_class=self.featurizer_class,
-            **self.featurization_kwargs if self.featurization_kwargs else {},
-        )
+        self._featurizer = Featurizer()
+        self.featurizer = featurizer
 
     def __repr__(self) -> str:
         pt = PrettyTable()
         pt.field_names = ["", "Predictor"]
-        model_class_name = self.model_class.__module__ + "." + self.model_class.__name__
-        pt.add_row(["class", model_class_name])
-        pt.add_row(["kwargs", self.model_kwargs])
+        regressor_name = type(self.regressor)
+        pt.add_row(["regressor", regressor_name])
         pt.add_row(["is fit?", self.is_fit])
         feat_str = str(self.featurizer)
         return str(pt) + "\n" + feat_str
 
     @property
-    def model_class(self):
-        return self._model_class
+    def regressor(self):
+        return self._regressor
 
-    @model_class.setter
-    def model_class(self, model_class):
-        if model_class is not None:
-            self._model_class = model_class
-            # removes any model kwargs from previous model
-            # if changed
-            self._model_kwargs = None
+    @regressor.setter
+    def regressor(self, regressor):
+        if regressor is not None:
+            self._regressor = copy.deepcopy(regressor)
             if self.is_fit:
                 self.is_fit = False
                 self.X_ = None
                 self.y_ = None
-            # generates new regressor with default settings
-            self.regressor = self._model_class()
 
     @property
-    def model_kwargs(self):
-        return self._model_kwargs
+    def featurizer(self):
+        return self._featurizer
 
-    @model_kwargs.setter
-    def model_kwargs(self, model_kwargs):
-        if model_kwargs is not None:
-            self._model_kwargs = copy.deepcopy(model_kwargs)
+    @featurizer.setter
+    def featurizer(self, featurizer):
+        if featurizer is not None and isinstance(featurizer, Featurizer):
+            self._featurizer = copy.deepcopy(featurizer)
             if self.is_fit:
                 self.is_fit = False
                 self.X_ = None
                 self.y_ = None
-            self.regressor = self.model_class(**model_kwargs)
-
-    @property
-    def featurizer_class(self):
-        return self._featurizer_class
-
-    @featurizer_class.setter
-    def featurizer_class(self, featurizer_class):
-        if featurizer_class is not None:
-            assert (
-                featurizer_class in SUPPORTED_DSCRIBE_CLASSES
-                or featurizer_class in SUPPORTED_MATMINER_CLASSES
-            )
-            self._featurizer_class = featurizer_class
-            self._featurization_kwargs = None
-            self.featurizer = Featurizer(featurizer_class,)
-            if self.is_fit:
-                self.is_fit = False
-                self.X_ = None
-                self.y_ = None
-            self.regressor = self.model_class(
-                **self.model_kwargs if self.model_kwargs else {}
-            )
-
-    @property
-    def featurization_kwargs(self):
-        return self._featurization_kwargs
-
-    @featurization_kwargs.setter
-    def featurization_kwargs(self, featurization_kwargs):
-        if featurization_kwargs is not None:
-            assert isinstance(featurization_kwargs, dict)
-            self._featurization_kwargs = featurization_kwargs.copy()
-            self.featurizer = Featurizer(self.featurizer_class, **featurization_kwargs)
-            if self.is_fit:
-                self.is_fit = False
-                self.X_ = None
-                self.y_ = None
-            self.regressor = self.model_class(
-                **self.model_kwargs if self.model_kwargs else {}
-            )
 
     def copy(self):
         """
         Returns a copy
         """
-        acp = self.__class__(
-            model_class=self.model_class, featurizer_class=self.featurizer_class,
-        )
-        acp.regressor = copy.deepcopy(self.regressor)
+        acp = self.__class__(regressor=self.regressor, featurizer=self.featurizer,)
         acp.is_fit = self.is_fit
-        acp.featurization_kwargs = copy.deepcopy(self.featurization_kwargs)
-        acp.model_kwargs = copy.deepcopy(self.model_kwargs)
 
         return acp
 
