@@ -114,6 +114,7 @@ class Featurizer:
             design_space_structures=ds_structs_copy,
             species_list=self.species_list.copy(),
             max_size=self.max_size,
+            preset=self.preset,
             kwargs=copy.deepcopy(self.kwargs) if self.kwargs else None,
         )
         return feat
