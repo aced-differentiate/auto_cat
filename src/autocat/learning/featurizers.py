@@ -1,10 +1,15 @@
 import copy
+import os
+import importlib
 from typing import List, Dict
 
 import numpy as np
+import json
 from prettytable import PrettyTable
 
 from ase import Atoms
+from ase.io.jsonio import encode as atoms_encoder
+from ase.io.jsonio import decode as atoms_decoder
 from dscribe.descriptors import SineMatrix
 from dscribe.descriptors import CoulombMatrix
 from dscribe.descriptors import ACSF
@@ -112,6 +117,61 @@ class Featurizer:
             kwargs=copy.deepcopy(self.kwargs) if self.kwargs else None,
         )
         return feat
+
+    def to_jsonified_list(self) -> List:
+        collected_jsons = []
+        # collect design space structures
+        for struct in self.design_space_structures:
+            collected_jsons.append(atoms_encoder(struct))
+        collected_jsons.append(self.species_list)
+        collected_jsons.append(self.preset)
+        collected_jsons.append(self.max_size)
+        collected_jsons.append(self.kwargs)
+        mod_string = self.featurizer_class.__module__
+        class_string = self.featurizer_class.__name__
+        collected_jsons.append([mod_string, class_string])
+        return collected_jsons
+
+    def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
+        """
+        Writes `Featurizer` to disk as a json
+        """
+        jsonified_list = self.to_jsonified_list()
+
+        if json_name is None:
+            json_name = "featurizer.json"
+
+        json_path = os.path.join(write_location, json_name)
+
+        with open(json_path, "w") as f:
+            json.dump(jsonified_list, f)
+
+    @staticmethod
+    def from_jsonified_list(all_data: List):
+        structures = []
+        for i in range(len(all_data) - 5):
+            atoms = atoms_decoder(all_data[i])
+            structures.append(atoms)
+        species_list = all_data[-5]
+        preset = all_data[-4]
+        max_size = all_data[-3]
+        kwargs = all_data[-2]
+        mod = importlib.import_module(all_data[-1][0])
+        featurizer_class = getattr(mod, all_data[-1][1])
+        return Featurizer(
+            featurizer_class=featurizer_class,
+            design_space_structures=structures,
+            species_list=species_list,
+            preset=preset,
+            max_size=max_size,
+            kwargs=kwargs,
+        )
+
+    @staticmethod
+    def from_json(json_name: str):
+        with open(json_name, "r") as f:
+            all_data = json.load(f)
+        Featurizer.from_jsonified_list(all_data=all_data)
 
     @property
     def featurizer_class(self):
