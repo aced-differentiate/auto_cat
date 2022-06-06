@@ -169,17 +169,15 @@ class DesignSpace:
                         self.design_space_labels, labels[i]
                     )
 
-    def to_jsonified_list(self) -> List:
+    def to_jsonified_dict(self) -> Dict:
         """
-        Returns a jsonified list representation
+        Returns a jsonified dict representation
         """
-        collected_jsons = []
+        collected_structs = []
         for struct in self.design_space_structures:
-            collected_jsons.append(atoms_encoder(struct))
-        # append labels to list of collected jsons
+            collected_structs.append(atoms_encoder(struct))
         jsonified_labels = [float(x) for x in self.design_space_labels]
-        collected_jsons.append(jsonified_labels)
-        return collected_jsons
+        return {"structures": collected_structs, "labels": jsonified_labels}
 
     def write_json_to_disk(
         self, json_name: str = None, write_location: str = ".",
@@ -187,7 +185,7 @@ class DesignSpace:
         """
         Writes DesignSpace to disk as a json
         """
-        collected_jsons = self.to_jsonified_list()
+        collected_jsons = self.to_jsonified_dict()
         # set default json name if needed
         if json_name is None:
             json_name = "acds.json"
@@ -197,12 +195,12 @@ class DesignSpace:
             json.dump(collected_jsons, f)
 
     @staticmethod
-    def from_jsonified_list(all_data: List):
+    def from_jsonified_dict(all_data: Dict):
         structures = []
-        for i in range(len(all_data) - 1):
-            atoms = atoms_decoder(all_data[i])
+        for i in range(len(all_data["structures"])):
+            atoms = atoms_decoder(all_data["structures"][i])
             structures.append(atoms)
-        labels = np.array(all_data[-1])
+        labels = np.array(all_data["labels"])
         return DesignSpace(
             design_space_structures=structures, design_space_labels=labels,
         )
@@ -211,7 +209,7 @@ class DesignSpace:
     def from_json(json_name: str):
         with open(json_name, "r") as f:
             all_data = json.load(f)
-        DesignSpace.from_jsonified_list(all_data)
+        DesignSpace.from_jsonified_dict(all_data)
 
 
 class SequentialLearnerError(Exception):
@@ -466,17 +464,15 @@ class SequentialLearner:
         itc = self.sl_kwargs.get("iteration_count", 0)
         self.sl_kwargs.update({"iteration_count": itc + 1})
 
-    def to_jsonified_list(self) -> List:
+    def to_jsonified_dict(self) -> Dict:
         """
-        Returns a jsonified list representation
+        Returns a jsonified dict representation
         """
         # get jsonified design space
-        jsonified_list = [self.design_space.to_jsonified_list()]
-        # append jsonified predictor
-        jsonified_list.append(self.predictor.to_jsonified_list())
-        # append kwargs for candidate selection
-        jsonified_list.append(self.candidate_selection_kwargs)
-        # append the acsl kwargs
+        jsonified_ds = self.design_space.to_jsonified_dict()
+        # get jsonified predictor
+        jsonified_pred = self.predictor.to_jsonified_dict()
+        # jsonify the sl kwargs
         jsonified_sl_kwargs = {}
         for k in self.sl_kwargs:
             if k != "iteration_count" and self.sl_kwargs[k] is not None:
@@ -487,14 +483,18 @@ class SequentialLearner:
                 ]
             elif self.sl_kwargs[k] is None:
                 jsonified_sl_kwargs[k] = None
-        jsonified_list.append(jsonified_sl_kwargs)
-        return jsonified_list
+        return {
+            "design_space": jsonified_ds,
+            "predictor": jsonified_pred,
+            "candidate_selection_kwargs": self.candidate_selection_kwargs,
+            "sl_kwargs": jsonified_sl_kwargs,
+        }
 
     def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
         """
         Writes `SequentialLearner` to disk as a json
         """
-        jsonified_list = self.to_jsonified_list()
+        jsonified_list = self.to_jsonified_dict()
 
         if json_name is None:
             json_name = "sequential_learner.json"
@@ -505,11 +505,11 @@ class SequentialLearner:
             json.dump(jsonified_list, f)
 
     @staticmethod
-    def from_jsonified_list(all_data: List):
-        design_space = DesignSpace.from_jsonified_list(all_data[0])
-        predictor = Predictor.from_jsonified_list(all_data[-3])
-        candidate_selection_kwargs = all_data[-2]
-        raw_sl_kwargs = all_data[-1]
+    def from_jsonified_dict(all_data: Dict):
+        design_space = DesignSpace.from_jsonified_dict(all_data["design_space"])
+        predictor = Predictor.from_jsonified_dict(all_data["predictor"])
+        candidate_selection_kwargs = all_data["candidate_selection_kwargs"]
+        raw_sl_kwargs = all_data["sl_kwargs"]
         sl_kwargs = {}
         for k in raw_sl_kwargs:
             if raw_sl_kwargs[k] is not None:
@@ -546,7 +546,7 @@ class SequentialLearner:
     def from_json(json_name: str):
         with open(json_name, "r") as f:
             all_data = json.load(f)
-        SequentialLearner.from_jsonified_list(all_data)
+        return SequentialLearner.from_jsonified_dict(all_data)
 
 
 def multiple_simulated_sequential_learning_runs(
