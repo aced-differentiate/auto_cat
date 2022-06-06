@@ -1,4 +1,8 @@
 import copy
+import os
+import pickle
+import json
+import base64
 import numpy as np
 
 from typing import List
@@ -94,6 +98,43 @@ class Predictor:
         acp.is_fit = self.is_fit
 
         return acp
+
+    def to_jsonified_list(self) -> List:
+        collected_jsons = []
+        collected_jsons.append(self.featurizer.to_jsonified_list())
+        regressor = self.regressor
+        byte_regressor = pickle.dumps(regressor)
+        str_regressor = base64.b64encode(byte_regressor).decode("utf-8")
+        collected_jsons.append(str_regressor)
+
+    def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
+        """
+        Writes `Predictor` to disk as a json
+        """
+        jsonified_list = self.to_jsonified_list()
+
+        if json_name is None:
+            json_name = "predictor.json"
+
+        json_path = os.path.join(write_location, json_name)
+
+        with open(json_path, "w") as f:
+            json.dump(jsonified_list, f)
+
+    @staticmethod
+    def from_jsonified_list(all_data: List):
+        # get regressor
+        byte_regressor = base64.b64decode(all_data[1])
+        regressor = pickle.loads(byte_regressor)
+        # get featurizer
+        featurizer = Featurizer.from_jsonified_list(all_data[0])
+        return Predictor(regressor=regressor, featurizer=featurizer)
+
+    @staticmethod
+    def from_json(json_name: str):
+        with open(json_name, "r") as f:
+            all_data = json.load(f)
+        Predictor.from_jsonified_list(all_data=all_data)
 
     def fit(
         self, training_structures: List[Union[Atoms, str]], y: np.ndarray,
