@@ -118,25 +118,30 @@ class Featurizer:
         )
         return feat
 
-    def to_jsonified_list(self) -> List:
-        collected_jsons = []
+    def to_jsonified_dict(self) -> Dict:
         # collect design space structures
-        for struct in self.design_space_structures:
-            collected_jsons.append(atoms_encoder(struct))
-        collected_jsons.append(self.species_list)
-        collected_jsons.append(self.preset)
-        collected_jsons.append(self.max_size)
-        collected_jsons.append(self.kwargs)
+        if self.design_space_structures is not None:
+            collected_structs = []
+            for struct in self.design_space_structures:
+                collected_structs.append(atoms_encoder(struct))
+        else:
+            collected_structs = "none"
         mod_string = self.featurizer_class.__module__
         class_string = self.featurizer_class.__name__
-        collected_jsons.append([mod_string, class_string])
-        return collected_jsons
+        return {
+            "design_space_structures": collected_structs,
+            "species_list": self.species_list if self.species_list else "none",
+            "preset": self.preset if self.preset else "none",
+            "kwargs": self.kwargs if self.kwargs else "none",
+            "max_size": self.max_size if self.max_size else "none",
+            "featurizer_class": [mod_string, class_string],
+        }
 
     def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
         """
         Writes `Featurizer` to disk as a json
         """
-        jsonified_list = self.to_jsonified_list()
+        jsonified_list = self.to_jsonified_dict()
 
         if json_name is None:
             json_name = "featurizer.json"
@@ -147,31 +152,41 @@ class Featurizer:
             json.dump(jsonified_list, f)
 
     @staticmethod
-    def from_jsonified_list(all_data: List):
-        structures = []
-        for i in range(len(all_data) - 5):
-            atoms = atoms_decoder(all_data[i])
-            structures.append(atoms)
-        species_list = all_data[-5]
-        preset = all_data[-4]
-        max_size = all_data[-3]
-        kwargs = all_data[-2]
-        mod = importlib.import_module(all_data[-1][0])
-        featurizer_class = getattr(mod, all_data[-1][1])
+    def from_jsonified_dict(all_data: Dict):
+        extracted_dict = {}
+        for prop in [
+            "species_list",
+            "preset",
+            "kwargs",
+            "max_size",
+        ]:
+            if all_data[prop] != "none":
+                extracted_dict[prop] = all_data[prop]
+            else:
+                extracted_dict[prop] = None
+        if all_data["design_space_structures"] != "none":
+            structures = []
+            for i in range(len(all_data["design_space_structures"])):
+                atoms = atoms_decoder(all_data["design_space_structures"][i])
+                structures.append(atoms)
+        else:
+            structures = None
+        mod = importlib.import_module(all_data["featurizer_class"][0])
+        featurizer_class = getattr(mod, all_data["featurizer_class"][1])
         return Featurizer(
             featurizer_class=featurizer_class,
             design_space_structures=structures,
-            species_list=species_list,
-            preset=preset,
-            max_size=max_size,
-            kwargs=kwargs,
+            species_list=extracted_dict["species_list"],
+            preset=extracted_dict["preset"],
+            max_size=extracted_dict["max_size"],
+            kwargs=extracted_dict["kwargs"],
         )
 
     @staticmethod
     def from_json(json_name: str):
         with open(json_name, "r") as f:
             all_data = json.load(f)
-        Featurizer.from_jsonified_list(all_data=all_data)
+        return Featurizer.from_jsonified_dict(all_data=all_data)
 
     @property
     def featurizer_class(self):
