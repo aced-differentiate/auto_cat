@@ -209,7 +209,7 @@ class DesignSpace:
     def from_json(json_name: str):
         with open(json_name, "r") as f:
             all_data = json.load(f)
-        DesignSpace.from_jsonified_dict(all_data)
+        return DesignSpace.from_jsonified_dict(all_data)
 
 
 class SequentialLearnerError(Exception):
