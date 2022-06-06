@@ -186,6 +186,8 @@ class Featurizer:
             self._featurizer_class = featurizer_class
             self._preset = None
             self._kwargs = None
+        elif featurizer_class is None:
+            pass
         else:
             msg = f"Featurization class {featurizer_class} is not currently supported."
             raise FeaturizerError(msg)
