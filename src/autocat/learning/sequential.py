@@ -553,7 +553,7 @@ def multiple_simulated_sequential_learning_runs(
     full_design_space: DesignSpace,
     number_of_runs: int = 5,
     number_parallel_jobs: int = None,
-    predictor_kwargs: Dict[str, Union[str, float]] = None,
+    predictor: Predictor = None,
     candidate_selection_kwargs: Dict[str, Union[str, float]] = None,
     init_training_size: int = 10,
     number_of_sl_loops: int = None,
@@ -571,10 +571,8 @@ def multiple_simulated_sequential_learning_runs(
         Fully labelled DesignSpace to simulate
         being searched over
 
-    predictor_kwargs:
-        Kwargs to be used in setting up the predictor.
-        This is where model class, model hyperparameters, etc.
-        are specified.
+    predictor:
+        Predictor to be used for predicting properties while iterating.
 
     candidate_selection_kwargs:
         Kwargs that specify that settings for candidate selection.
@@ -625,7 +623,7 @@ def multiple_simulated_sequential_learning_runs(
         runs_history = Parallel(n_jobs=number_parallel_jobs)(
             delayed(simulated_sequential_learning)(
                 full_design_space=full_design_space,
-                predictor_kwargs=predictor_kwargs,
+                predictor=predictor,
                 candidate_selection_kwargs=candidate_selection_kwargs,
                 number_of_sl_loops=number_of_sl_loops,
                 init_training_size=init_training_size,
@@ -637,7 +635,7 @@ def multiple_simulated_sequential_learning_runs(
         runs_history = [
             simulated_sequential_learning(
                 full_design_space=full_design_space,
-                predictor_kwargs=predictor_kwargs,
+                predictor=predictor,
                 candidate_selection_kwargs=candidate_selection_kwargs,
                 number_of_sl_loops=number_of_sl_loops,
                 init_training_size=init_training_size,
@@ -661,7 +659,7 @@ def multiple_simulated_sequential_learning_runs(
 
 def simulated_sequential_learning(
     full_design_space: DesignSpace,
-    predictor_kwargs: Dict[str, Union[str, float]] = None,
+    predictor: Predictor = None,
     candidate_selection_kwargs: Dict[str, Union[str, float]] = None,
     init_training_size: int = 10,
     number_of_sl_loops: int = None,
@@ -680,10 +678,8 @@ def simulated_sequential_learning(
         Fully labelled DesignSpace to simulate
         being searched over
 
-    predictor_kwargs:
-        Kwargs to be used in setting up the predictor.
-        This is where model class, model hyperparameters, etc.
-        are specified.
+    predictor:
+        Predictor to be used for predicting properties while iterating.
 
     candidate_selection_kwargs:
         Kwargs that specify that settings for candidate selection.
@@ -763,6 +759,10 @@ def simulated_sequential_learning(
     init_labels = full_design_space.design_space_labels.copy()
     init_labels = init_labels[np.where(init_idx)]
 
+    # default predictor settings
+    if predictor is None:
+        predictor = Predictor()
+
     # set up learner that is used for iteration
     dummy_labels = np.empty(len(full_design_space))
     dummy_labels[:] = np.nan
@@ -770,7 +770,7 @@ def simulated_sequential_learning(
     ds.update(init_structs, init_labels)
     sl = SequentialLearner(
         design_space=ds,
-        predictor_kwargs=predictor_kwargs,
+        predictor=predictor,
         candidate_selection_kwargs=candidate_selection_kwargs,
     )
     # first iteration on initial dataset
