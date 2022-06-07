@@ -476,7 +476,12 @@ class SequentialLearner:
         jsonified_sl_kwargs = {}
         for k in self.sl_kwargs:
             if k != "iteration_count" and self.sl_kwargs[k] is not None:
-                jsonified_sl_kwargs[k] = [arr.tolist() for arr in self.sl_kwargs[k]]
+                jsonified_sl_kwargs[k] = []
+                for arr in self.sl_kwargs[k]:
+                    if arr is not None:
+                        jsonified_sl_kwargs[k].append(arr.tolist())
+                    else:
+                        jsonified_sl_kwargs[k].append(None)
             elif k == "iteration_count":
                 jsonified_sl_kwargs["iteration_count"] = self.sl_kwargs[
                     "iteration_count"
