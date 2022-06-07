@@ -799,6 +799,245 @@ def simulated_sequential_learning(
     return sl
 
 
+class CandidateSelectorError(Exception):
+    pass
+
+
+class CandidateSelector:
+    def __init__(
+        self,
+        acquisition_function: str = None,
+        num_candidates_to_pick: int = None,
+        target_window: Array = None,
+        include_hhi: bool = None,
+        hhi_type: str = "production",
+        include_segregation_energies: bool = None,
+    ):
+        """
+        Constructor.
+
+        Parameters
+        ----------
+
+        acquisition_function:
+            Acquisition function to be used to select the next candidates
+            Options
+            - MLI: maximum likelihood of improvement (default)
+            - Random
+            - MU: maximum uncertainty
+
+        num_candidates_to_pick:
+            Number of candidates to choose from the dataset
+
+        target_window:
+            Target window that the candidate should ideally fall within
+
+        include_hhi:
+            Whether HHI scores should be used to weight aq scores
+
+        hhi_type:
+            Type of HHI index to be used for weighting
+            Options
+            - production (default)
+            - reserves
+
+        include_segregation_energies:
+            Whether segregation energies should be used to weight aq scores
+        """
+        self._acquisition_function = "MLI"
+        self.acquisition_function = acquisition_function
+
+        self._num_candidates_to_pick = 1
+        self.num_candidates_to_pick = num_candidates_to_pick
+
+        self._target_window = None
+        self.target_window = target_window
+
+        self._include_hhi = False
+        self.include_hhi = include_hhi
+
+        self._hhi_type = "production"
+        self.hhi_type = hhi_type
+
+        self._include_segregation_energies = False
+        self.include_segregation_energies = include_segregation_energies
+
+    @property
+    def acquisition_function(self):
+        return self._acquisition_function
+
+    @acquisition_function.setter
+    def acquisition_function(self, acquisition_function):
+        if acquisition_function is not None:
+            if acquisition_function in ["MLI", "MU", "Random"]:
+                self._acquisition_function = acquisition_function
+            else:
+                msg = f"Unrecognized acquisition function {acquisition_function}\
+                     Please select one of 'MLI', 'MU', or 'Random'"
+                raise CandidateSelectorError(msg)
+
+    @property
+    def num_candidates_to_pick(self):
+        return self._num_candidates_to_pick
+
+    @num_candidates_to_pick.setter
+    def num_candidates_to_pick(self, num_candidates_to_pick):
+        if num_candidates_to_pick is not None:
+            self._num_candidates_to_pick = num_candidates_to_pick
+
+    @property
+    def target_window(self):
+        return self._target_window
+
+    @target_window.setter
+    def target_window(self, target_window):
+        if target_window is not None:
+            assert len(target_window) == 2
+            # ensure not setting infinite window
+            if np.array_equal(target_window, np.array([-np.inf, np.inf])):
+                msg = "Cannot have an inifite target window"
+                raise CandidateSelectorError(msg)
+            # sorts window bounds so min is first entry
+            sorted_window = np.sort(target_window)
+            self._target_window = sorted_window
+
+    @property
+    def include_hhi(self):
+        return self._include_hhi
+
+    @include_hhi.setter
+    def include_hhi(self, include_hhi):
+        if include_hhi is not None:
+            self._include_hhi = include_hhi
+
+    @property
+    def hhi_type(self):
+        return self._hhi_type
+
+    @hhi_type.setter
+    def hhi_type(self, hhi_type):
+        if hhi_type is not None:
+            if hhi_type in ["production", "reserves"]:
+                self._hhi_type = hhi_type
+            else:
+                msg = f"Unrecognized HHI type {hhi_type}.\
+                     Please select one of 'production' or 'reserves'"
+                raise CandidateSelectorError(msg)
+
+    @property
+    def include_segregation_energies(self):
+        return self._include_segregation_energies
+
+    @include_segregation_energies.setter
+    def include_segregation_energies(self, include_segregation_energies):
+        if include_segregation_energies is not None:
+            self._include_segregation_energies = include_segregation_energies
+
+    def choose_candidate(
+        self,
+        design_space: DesignSpace,
+        allowed_idx: Array = None,
+        predictions: Array = None,
+        uncertainties: Array = None,
+    ):
+        """
+        Choose the next candidate(s) from a design space
+
+        Parameters
+        ----------
+
+        design_space:
+            DesignSpace where candidates will be selected from
+
+        allowed_idx:
+            Allowed indices that the selector can choose from when making a recommendation
+            Defaults to only choosing from systems with `np.nan` labels if a `DesignSpace`
+            with unknown labels is provided. Otherwise, all structures are considered
+
+        predictions:
+            Predictions for all structures in the DesignSpace
+
+        uncertainties:
+            Uncertainties for all structures in the DesignSpace
+
+        Returns
+        -------
+
+        parent_idx:
+            Index/indices of the selected candidates
+
+        max_scores:
+            Maximum scores (corresponding to the selected candidates)
+
+        aq_scores:
+            Calculated scores using `acquisition_function` for the entire DesignSpace
+        """
+        ds_size = len(design_space)
+
+        if allowed_idx is None:
+            if True in np.isnan(design_space.design_space_labels):
+                allowed_idx = np.where(np.isnan(design_space.design_space_labels))[0]
+            else:
+                allowed_idx = np.ones(ds_size, dtype=bool)
+
+        hhi_scores = np.ones(ds_size)
+        if self.include_hhi:
+            hhi_scores = calculate_hhi_scores(
+                design_space.design_space_structures, self.hhi_type
+            )
+
+        segreg_energy_scores = np.ones(ds_size)
+        if self.include_segregation_energies:
+            segreg_energy_scores = calculate_segregation_energy_scores(
+                design_space.design_space_structures
+            )
+
+        aq = self.acquisition_function
+        if aq == "Random":
+            aq_scores = (
+                np.random.choice(ds_size, size=ds_size, replace=False)
+                * hhi_scores
+                * segreg_energy_scores
+            )
+
+        elif aq == "MU":
+            if uncertainties is None:
+                msg = "For 'MU', the uncertainties must be supplied"
+                raise CandidateSelectorError(msg)
+            aq_scores = uncertainties.copy() * hhi_scores * segreg_energy_scores
+
+        elif aq == "MLI":
+            if uncertainties is None or predictions is None:
+                msg = "For 'MLI', both uncertainties and predictions must be supplied"
+                raise CandidateSelectorError(msg)
+            target_window = self.target_window
+            aq_scores = (
+                np.array(
+                    [
+                        get_overlap_score(
+                            mean, std, x2=target_window[1], x1=target_window[0]
+                        )
+                        for mean, std in zip(predictions, uncertainties)
+                    ]
+                )
+                * hhi_scores
+                * segreg_energy_scores
+            )
+
+        num_candidates_to_pick = self.num_candidates_to_pick
+        if num_candidates_to_pick == 1:
+            next_idx = np.array([np.argmax(aq_scores[allowed_idx])])
+            max_scores = [np.max(aq_scores[allowed_idx])]
+
+        else:
+            next_idx = np.argsort(aq_scores[allowed_idx])[-num_candidates_to_pick:]
+            sorted_array = aq_scores[allowed_idx][next_idx]
+            max_scores = list(sorted_array[-num_candidates_to_pick:])
+        parent_idx = np.arange(aq_scores.shape[0])[allowed_idx][next_idx]
+
+        return parent_idx, max_scores, aq_scores
+
+
 def choose_next_candidate(
     structures: List[Atoms] = None,
     labels: Array = None,
