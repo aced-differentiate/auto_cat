@@ -31,6 +31,8 @@ from autocat.learning.sequential import (
     choose_next_candidate,
     get_overlap_score,
 )
+from autocat.learning.sequential import CandidateSelector
+from autocat.learning.sequential import CandidateSelectorError
 from autocat.learning.sequential import simulated_sequential_learning
 from autocat.learning.sequential import multiple_simulated_sequential_learning_runs
 from autocat.learning.sequential import calculate_hhi_scores
@@ -652,6 +654,168 @@ def test_get_design_space_from_json():
         assert np.array_equal(
             acds_from_json.design_space_labels, labels, equal_nan=True
         )
+
+
+def test_candidate_selector_setup():
+    # Test setting up the candidate selector
+    with pytest.raises(CandidateSelectorError):
+        cs = CandidateSelector(
+            acquisition_function="FAKE_AQ",
+            num_candidates_to_pick=1,
+            include_hhi=False,
+            include_segregation_energies=False,
+        )
+    cs = CandidateSelector(
+        acquisition_function="MLI",
+        num_candidates_to_pick=1,
+        include_hhi=False,
+        include_segregation_energies=False,
+        target_window=(10, -3),
+    )
+    assert np.array_equal(cs.target_window, (-3, 10))
+    with pytest.raises(CandidateSelectorError):
+        cs.target_window = (-np.inf, np.inf)
+    with pytest.raises(CandidateSelectorError):
+        cs = CandidateSelector(
+            acquisition_function="MU",
+            num_candidates_to_pick=1,
+            include_hhi=True,
+            include_segregation_energies=False,
+            hhi_type="FAKE_HHI_TYPE",
+        )
+
+
+def test_candidate_selector_choose_candidate():
+    # Test choosing candidates with CandidateSelector
+    # (without segregation energy or hhi weighting)
+    sub1 = generate_surface_structures(
+        ["Pt"], supercell_dim=[2, 2, 5], facets={"Pt": ["100"]}
+    )["Pt"]["fcc100"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("H"))
+    sub2 = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, Atoms("H"))
+    sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("H"))
+    structs = [sub1, sub2, sub3]
+    labels = np.array([3.0, np.nan, np.nan])
+    ds = DesignSpace(structs, labels)
+    unc = np.array([0.1, 0.2, 0.5])
+    cs = CandidateSelector(
+        acquisition_function="MU",
+        num_candidates_to_pick=1,
+        include_hhi=False,
+        include_segregation_energies=False,
+    )
+    # automatically chooses among systems without labels
+    parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    assert parent_idx == 2
+
+    # multiple candidates to pick
+    cs.num_candidates_to_pick = 2
+    parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    assert np.array_equal(parent_idx, [1, 2])
+
+    cs.num_candidates_to_pick = 1
+
+    # restrict indices to choose from
+    allowed_idx = np.array([0, 1, 0], dtype=bool)
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds, uncertainties=unc, allowed_idx=allowed_idx
+    )
+    assert parent_idx == 1
+
+    # need uncertainty for MU
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(design_space=ds)
+
+    # fully explored ds
+    labels = np.array([3.0, 4.0, 5.0])
+    ds2 = DesignSpace(structs, labels)
+    parent_idx, _, _ = cs.choose_candidate(design_space=ds2, uncertainties=unc)
+    assert parent_idx == 2
+
+    cs.acquisition_function = "MLI"
+    cs.target_window = (-np.inf, 0.15)
+    pred = np.array([3.0, 0.3, 6.0])
+    # need both uncertainty and predictions for MLI
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds, uncertainties=unc, predictions=pred
+    )
+    assert parent_idx == 1
+
+
+def test_candidate_selector_choose_candidate_hhi_weighting():
+    # Tests that the HHI weighting is properly applied
+    unc = np.array([0.1, 0.1])
+    pred = np.array([4.0, 4.0])
+    labels = np.array([np.nan, np.nan])
+    # Tests using production HHI values and MU
+    y_struct = generate_surface_structures(["Y"], facets={"Y": ["0001"]})["Y"][
+        "hcp0001"
+    ]["structure"]
+    ni_struct = generate_surface_structures(["Ni"], facets={"Ni": ["111"]})["Ni"][
+        "fcc111"
+    ]["structure"]
+    ds = DesignSpace([y_struct, ni_struct], labels)
+    cs = CandidateSelector(
+        acquisition_function="MU",
+        num_candidates_to_pick=1,
+        include_hhi=True,
+        include_segregation_energies=False,
+    )
+    parent_idx, _, aq_scores = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    assert parent_idx[0] == 1
+    assert aq_scores[0] < aq_scores[1]
+
+    # Tests using reserves HHI values and MLI
+    nb_struct = generate_surface_structures(["Nb"], facets={"Nb": ["111"]})["Nb"][
+        "bcc111"
+    ]["structure"]
+    na_struct = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"][
+        "bcc110"
+    ]["structure"]
+    ds = DesignSpace([na_struct, nb_struct], labels)
+    cs.acquisition_function = "MLI"
+    cs.target_window = (3, 5)
+    cs.hhi_type = "reserves"
+    parent_idx, _, aq_scores = cs.choose_candidate(
+        design_space=ds, uncertainties=unc, predictions=pred
+    )
+    assert parent_idx[0] == 0
+    assert aq_scores[0] > aq_scores[1]
+
+
+def test_candidate_selector_choose_candidate_segregation_energy_weighting():
+    # Tests that the segregation energy weighting is properly applied
+    unc = np.array([0.3, 0.3])
+    pred = np.array([2.0, 2.0])
+    labels = np.array([np.nan, np.nan])
+    structs = flatten_structures_dict(
+        generate_saa_structures(["Cr"], ["Rh"], facets={"Cr": ["110"]})
+    )
+    structs.extend(
+        flatten_structures_dict(
+            generate_saa_structures(["Co"], ["Re"], facets={"Co": ["0001"]})
+        )
+    )
+    ds = DesignSpace(structs, labels)
+    cs = CandidateSelector(
+        acquisition_function="MLI",
+        target_window=(0, 4),
+        include_hhi=False,
+        include_segregation_energies=True,
+    )
+    parent_idx, _, aq_scores = cs.choose_candidate(
+        design_space=ds, uncertainties=unc, predictions=pred
+    )
+    assert parent_idx[0] == 0
+    assert aq_scores[0] > aq_scores[1]
 
 
 def test_simulated_sequential_histories():
