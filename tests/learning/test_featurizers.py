@@ -1,6 +1,11 @@
-"""Unit tests for the `autocat.learning.featurizersi` module."""
+"""Unit tests for the `autocat.learning.featurizers` module."""
+
+import os
+import tempfile
 
 import numpy as np
+
+from ase import Atoms
 
 from dscribe.descriptors import SineMatrix
 from dscribe.descriptors import CoulombMatrix
@@ -20,6 +25,28 @@ from autocat.utils import flatten_structures_dict
 
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.local_env import VoronoiNN
+
+
+def test_featurizer_copy():
+    # test making a copy
+    f = Featurizer(
+        SOAP,
+        max_size=5,
+        species_list=["Fe", "O", "H"],
+        kwargs={"rcut": 12, "nmax": 8, "lmax": 8},
+    )
+    f2 = f.copy()
+    assert f == f2
+    assert f is not f2
+
+    f = Featurizer(
+        ElementProperty,
+        preset="matminer",
+        design_space_structures=[Atoms("H2"), Atoms("N2")],
+    )
+    f2 = f.copy()
+    assert f == f2
+    assert f is not f2
 
 
 def test_eq_featurizer():
@@ -346,3 +373,58 @@ def test_featurizer_featurize_multiple():
         manual_mat.append(f.featurize_single(ads_structs[i]).flatten())
     manual_mat = np.array(manual_mat)
     assert np.array_equal(acf, manual_mat)
+
+
+def test_featurizer_from_json():
+    # Tests generating a Featurizer from a json
+    surfs = flatten_structures_dict(generate_surface_structures(["Fe", "V"]))
+    surfs.extend(
+        flatten_structures_dict(
+            generate_surface_structures(["Au", "Ag"], supercell_dim=(1, 1, 5))
+        )
+    )
+    f = Featurizer(SineMatrix, design_space_structures=surfs,)
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        f.write_json_to_disk(write_location=_tmp_dir, json_name="test_feat.json")
+        json_path = os.path.join(_tmp_dir, "test_feat.json")
+        written_f = Featurizer.from_json(json_path)
+        assert written_f == f
+
+    f = Featurizer(
+        SOAP,
+        max_size=5,
+        species_list=["Fe", "O", "H"],
+        kwargs={"rcut": 12, "nmax": 8, "lmax": 8},
+    )
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        f.write_json_to_disk(write_location=_tmp_dir, json_name="test_feat.json")
+        json_path = os.path.join(_tmp_dir, "test_feat.json")
+        written_f = Featurizer.from_json(json_path)
+        assert written_f == f
+
+
+def test_featurizer_to_jsonified_dict():
+    # Tests converting a Featurizer to a dict
+    surfs = flatten_structures_dict(generate_surface_structures(["Fe", "V"]))
+    surfs.extend(
+        flatten_structures_dict(
+            generate_surface_structures(["Au", "Ag"], supercell_dim=(1, 1, 5))
+        )
+    )
+    f = Featurizer(SineMatrix, design_space_structures=surfs, kwargs={"sparse": True})
+    json_dict = f.to_jsonified_dict()
+    assert json_dict["featurizer_class"] == [
+        "dscribe.descriptors.sinematrix",
+        "SineMatrix",
+    ]
+    assert json_dict["kwargs"] == {"sparse": True}
+
+    f = Featurizer(
+        SOAP,
+        max_size=5,
+        species_list=["O", "H", "Fe"],
+        kwargs={"rcut": 12, "nmax": 8, "lmax": 8},
+    )
+    json_dict = f.to_jsonified_dict()
+    assert json_dict["max_size"] == 5
+    assert json_dict["species_list"] == ["Fe", "O", "H"]
