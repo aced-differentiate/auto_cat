@@ -1,23 +1,23 @@
 """Unit tests for the `autocat.learning.predictors` module"""
+import os
+import pickle
+import json
+import base64
 
 import pytest
 import numpy as np
+import tempfile
 
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.utils.validation import check_is_fitted
-from sklearn.exceptions import NotFittedError
 
-from dscribe.descriptors import SineMatrix
 from dscribe.descriptors import SOAP
 
-from matminer.featurizers.composition import ElementProperty
-
-from ase import Atoms
-
-from autocat.adsorption import generate_adsorbed_structures, place_adsorbate
+from autocat.adsorption import generate_adsorbed_structures
 from autocat.surface import generate_surface_structures
+from autocat.learning.featurizers import Featurizer
 from autocat.learning.predictors import Predictor
 from autocat.learning.predictors import PredictorError
 from autocat.utils import flatten_structures_dict
@@ -38,59 +38,34 @@ def test_fit():
         )[0]
         structs.append(ads_struct)
     labels = np.random.rand(len(structs))
-    acsc = Predictor(
+    featurizer = Featurizer(
         featurizer_class=SOAP,
-        featurization_kwargs={
-            "species_list": ["Pt", "Fe", "Ru", "O", "H"],
-            "kwargs": {"rcut": 6.0, "nmax": 6, "lmax": 6},
-        },
-        model_class=GaussianProcessRegressor,
+        species_list=["Pt", "Fe", "Ru", "O", "H"],
+        kwargs={"rcut": 6.0, "nmax": 6, "lmax": 6},
     )
+    regressor = GaussianProcessRegressor()
+    acsc = Predictor(regressor=regressor, featurizer=featurizer)
     acsc.fit(
         training_structures=structs, y=labels,
     )
     assert acsc.is_fit
     assert check_is_fitted(acsc.regressor) is None
 
-    # check no longer fit after changing featurization kwargs
-    acsc.featurization_kwargs = {
-        "species_list": ["Pt", "Fe", "Ru", "O", "H", "N"],
-        "kwargs": {"rcut": 7.0, "nmax": 8, "lmax": 8},
-    }
+    # check no longer fit after changing featurizer
+    featurizer.species_list = ["Pt", "Fe", "Ru", "O", "H", "N"]
+    featurizer.kwargs = {"rcut": 7.0, "nmax": 8, "lmax": 8}
+    acsc.featurizer = featurizer
     assert not acsc.is_fit
-    with pytest.raises(NotFittedError):
-        check_is_fitted(acsc.regressor)
 
     acsc.fit(
         training_structures=structs, y=labels,
     )
-
-    # check no longer fit after changing featurization class
-    acsc.featurizer_class = SineMatrix
-    assert not acsc.is_fit
-    with pytest.raises(NotFittedError):
-        check_is_fitted(acsc.regressor)
-
-    acsc.fit(
-        training_structures=structs, y=labels,
-    )
+    assert acsc.is_fit
 
     # check no longer fit after changing model class
-    acsc.model_class = KernelRidge
+    regressor = KernelRidge()
+    acsc.regressor = regressor
     assert not acsc.is_fit
-    with pytest.raises(NotFittedError):
-        check_is_fitted(acsc.regressor)
-
-    acsc.fit(
-        training_structures=structs, y=labels,
-    )
-
-    # check no longer fit after changing model kwargs
-    kernel = RBF()
-    acsc.model_kwargs = {"kernel": kernel}
-    assert not acsc.is_fit
-    with pytest.raises(NotFittedError):
-        check_is_fitted(acsc.regressor)
 
 
 def test_predict():
@@ -108,14 +83,13 @@ def test_predict():
         )[0]
         structs.append(ads_struct)
     labels = np.random.rand(len(structs))
-    acsc = Predictor(
+    featurizer = Featurizer(
         featurizer_class=SOAP,
-        featurization_kwargs={
-            "species_list": ["Pt", "Fe", "Ru", "O", "H"],
-            "kwargs": {"rcut": 6.0, "nmax": 6, "lmax": 6},
-        },
-        model_class=GaussianProcessRegressor,
+        species_list=["Pt", "Fe", "Ru", "O", "H"],
+        kwargs={"rcut": 6.0, "nmax": 6, "lmax": 6},
     )
+    regressor = GaussianProcessRegressor()
+    acsc = Predictor(regressor=regressor, featurizer=featurizer)
     acsc.fit(
         training_structures=structs[:-3], y=labels[:-3],
     )
@@ -130,7 +104,7 @@ def test_predict():
     assert len(unc) == 3
 
     # Test prediction on model without uncertainty
-    acsc.model_class = KernelRidge
+    acsc.regressor = KernelRidge()
     acsc.fit(
         training_structures=structs[:-3], y=labels[:-3],
     )
@@ -154,14 +128,13 @@ def test_score():
         )[0]
         structs.append(ads_struct)
     labels = np.random.rand(len(structs))
-    acsc = Predictor(
+    featurizer = Featurizer(
         featurizer_class=SOAP,
-        featurization_kwargs={
-            "species_list": ["Pt", "Fe", "Ru", "O", "H"],
-            "kwargs": {"rcut": 6.0, "nmax": 6, "lmax": 6},
-        },
-        model_class=GaussianProcessRegressor,
+        species_list=["Pt", "Fe", "Ru", "O", "H"],
+        kwargs={"rcut": 6.0, "nmax": 6, "lmax": 6},
     )
+    regressor = GaussianProcessRegressor()
+    acsc = Predictor(regressor=regressor, featurizer=featurizer)
     acsc.fit(
         training_structures=structs[:-3], y=labels[:-3],
     )
@@ -179,51 +152,69 @@ def test_score():
         acsc.score(structs, labels, metric="msd")
 
 
-def test_class_and_kwargs_logic():
-    # Tests providing regression model class and kwargs
-    featurization_kwargs = {
-        "species_list": ["Pt", "Fe", "Ru", "O", "H"],
-        "kwargs": {"rcut": 6.0, "nmax": 6, "lmax": 6, "sparse": True},
-    }
-    acsc = Predictor(
-        model_class=KernelRidge,
-        model_kwargs={"gamma": 0.5},
+def test_predictor_from_json():
+    # Tests generation of a Predictor from a json
+    subs = flatten_structures_dict(generate_surface_structures(["Pt", "Fe", "Ru"]))
+    structs = []
+    for sub in subs:
+        ads_struct = flatten_structures_dict(
+            generate_adsorbed_structures(
+                surface=sub,
+                adsorbates=["OH"],
+                adsorption_sites={"origin": [(0.0, 0.0)]},
+                use_all_sites=False,
+            )
+        )[0]
+        structs.append(ads_struct)
+    labels = np.random.rand(len(structs))
+    featurizer = Featurizer(
         featurizer_class=SOAP,
-        featurization_kwargs=featurization_kwargs,
+        species_list=["Pt", "Fe", "Ru", "O", "H"],
+        kwargs={"rcut": 6.0, "nmax": 6, "lmax": 6},
     )
-    assert isinstance(acsc.regressor, KernelRidge)
-    # check that regressor created with correct kwargs
-    assert acsc.regressor.gamma == 0.5
-    assert acsc.model_kwargs == {"gamma": 0.5}
-    assert acsc.featurization_kwargs == featurization_kwargs
-    assert acsc.featurizer.featurization_object.sparse
-
-    # check that model kwargs are removed when model class is changed
-    acsc.model_class = GaussianProcessRegressor
-    assert acsc.model_kwargs is None
-    assert acsc.featurizer_class == SOAP
-    assert acsc.featurization_kwargs == featurization_kwargs
-
-    # check that regressor is updated when model kwargs updated
-    acsc.model_kwargs = {"alpha": 5e-10}
-    assert acsc.regressor.alpha == 5e-10
-
-    # check that featurization kwargs removed when featurization class changed
-    acsc.featurizer_class = ElementProperty
-    assert acsc.featurization_kwargs is None
-
-    # check that featurizer is updated when featurization kwargs updated
-    acsc.featurization_kwargs = {"preset": "magpie"}
-    assert "Electronegativity" in acsc.featurizer.featurization_object.features
-
-    acsc.featurization_kwargs = {"preset": "matminer"}
-    assert (
-        "coefficient_of_linear_thermal_expansion"
-        in acsc.featurizer.featurization_object.features
+    regressor = GaussianProcessRegressor()
+    acsc = Predictor(regressor=regressor, featurizer=featurizer)
+    acsc.fit(
+        training_structures=structs, y=labels,
     )
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        acsc.write_json_to_disk(write_location=_tmp_dir, json_name="testing_pred.json")
+        json_path = os.path.join(_tmp_dir, "testing_pred.json")
+        written_pred = Predictor.from_json(json_path)
+        assert written_pred.regressor.get_params() == regressor.get_params()
+        assert check_is_fitted(written_pred.regressor) is None
+        assert written_pred.featurizer == featurizer
 
-    acsc.featurizer_class = SineMatrix
-    acsc.featurization_kwargs = {"kwargs": {"flatten": False}}
-    assert not acsc.featurizer.featurization_object.flatten
-    acsc.featurization_kwargs = {"kwargs": {"flatten": True}}
-    assert acsc.featurizer.featurization_object.flatten
+
+def test_predictor_to_jsonified_dict():
+    # Tests converting a Predictor to a jsonified dict
+    subs = flatten_structures_dict(generate_surface_structures(["Pt", "Fe", "Ru"]))
+    structs = []
+    for sub in subs:
+        ads_struct = flatten_structures_dict(
+            generate_adsorbed_structures(
+                surface=sub,
+                adsorbates=["OH"],
+                adsorption_sites={"origin": [(0.0, 0.0)]},
+                use_all_sites=False,
+            )
+        )[0]
+        structs.append(ads_struct)
+    featurizer = Featurizer(
+        featurizer_class=SOAP,
+        species_list=["Pt", "Fe", "Ru", "O", "H"],
+        kwargs={"rcut": 6.0, "nmax": 6, "lmax": 6},
+    )
+    regressor = RandomForestRegressor(n_estimators=75)
+    acsc = Predictor(regressor=regressor, featurizer=featurizer)
+    jsonified_dict = acsc.to_jsonified_dict()
+    assert jsonified_dict["featurizer"]["featurizer_class"] == [
+        "dscribe.descriptors.soap",
+        "SOAP",
+    ]
+    assert jsonified_dict["featurizer"]["species_list"] == ["Fe", "Ru", "Pt", "O", "H"]
+    assert jsonified_dict["featurizer"]["kwargs"] == {"rcut": 6.0, "nmax": 6, "lmax": 6}
+    byte_regressor = base64.b64decode(jsonified_dict["regressor"])
+    json_regressor = pickle.loads(byte_regressor)
+    assert isinstance(json_regressor, RandomForestRegressor)
+    assert json_regressor.n_estimators == 75
