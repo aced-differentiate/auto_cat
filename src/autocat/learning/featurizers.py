@@ -126,15 +126,15 @@ class Featurizer:
             for struct in self.design_space_structures:
                 collected_structs.append(atoms_encoder(struct))
         else:
-            collected_structs = "none"
+            collected_structs = None
         mod_string = self.featurizer_class.__module__
         class_string = self.featurizer_class.__name__
         return {
             "design_space_structures": collected_structs,
-            "species_list": self.species_list if self.species_list else "none",
-            "preset": self.preset if self.preset else "none",
-            "kwargs": self.kwargs if self.kwargs else "none",
-            "max_size": self.max_size if self.max_size else "none",
+            "species_list": self.species_list if self.species_list else None,
+            "preset": self.preset if self.preset else None,
+            "kwargs": self.kwargs if self.kwargs else None,
+            "max_size": self.max_size if self.max_size else None,
             "featurizer_class": [mod_string, class_string],
         }
 
@@ -160,12 +160,10 @@ class Featurizer:
             "preset",
             "kwargs",
             "max_size",
+            "design_space_structures",
         ]:
-            if all_data[prop] != "none":
-                extracted_dict[prop] = all_data[prop]
-            else:
-                extracted_dict[prop] = None
-        if all_data["design_space_structures"] != "none":
+            extracted_dict[prop] = all_data.get(prop)
+        if all_data.get("design_space_structures") is not None:
             structures = []
             for i in range(len(all_data["design_space_structures"])):
                 atoms = atoms_decoder(all_data["design_space_structures"][i])
