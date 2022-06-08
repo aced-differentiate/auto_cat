@@ -3,7 +3,6 @@ import os
 import json
 from typing import List
 from typing import Dict
-from typing import Union
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -879,7 +878,7 @@ def multiple_simulated_sequential_learning_runs(
     number_of_runs: int = 5,
     number_parallel_jobs: int = None,
     predictor: Predictor = None,
-    candidate_selection_kwargs: Dict[str, Union[str, float]] = None,
+    candidate_selector: CandidateSelector = None,
     init_training_size: int = 10,
     number_of_sl_loops: int = None,
     write_to_disk: bool = False,
@@ -899,8 +898,8 @@ def multiple_simulated_sequential_learning_runs(
     predictor:
         Predictor to be used for predicting properties while iterating.
 
-    candidate_selection_kwargs:
-        Kwargs that specify that settings for candidate selection.
+    candidate_selector:
+        CandidateSelector that specifies settings for candidate selection.
         This is where acquisition function, targets, etc. are
         specified.
 
@@ -949,7 +948,7 @@ def multiple_simulated_sequential_learning_runs(
             delayed(simulated_sequential_learning)(
                 full_design_space=full_design_space,
                 predictor=predictor,
-                candidate_selection_kwargs=candidate_selection_kwargs,
+                candidate_selector=candidate_selector,
                 number_of_sl_loops=number_of_sl_loops,
                 init_training_size=init_training_size,
             )
@@ -961,7 +960,7 @@ def multiple_simulated_sequential_learning_runs(
             simulated_sequential_learning(
                 full_design_space=full_design_space,
                 predictor=predictor,
-                candidate_selection_kwargs=candidate_selection_kwargs,
+                candidate_selector=candidate_selector,
                 number_of_sl_loops=number_of_sl_loops,
                 init_training_size=init_training_size,
             )
@@ -985,7 +984,7 @@ def multiple_simulated_sequential_learning_runs(
 def simulated_sequential_learning(
     full_design_space: DesignSpace,
     predictor: Predictor = None,
-    candidate_selection_kwargs: Dict[str, Union[str, float]] = None,
+    candidate_selector: CandidateSelector = None,
     init_training_size: int = 10,
     number_of_sl_loops: int = None,
     write_to_disk: bool = False,
@@ -1006,8 +1005,8 @@ def simulated_sequential_learning(
     predictor:
         Predictor to be used for predicting properties while iterating.
 
-    candidate_selection_kwargs:
-        Kwargs that specify that settings for candidate selection.
+    candidate_selector:
+        CandidateSelector that specifies settings for candidate selection.
         This is where acquisition function, targets, etc. are
         specified.
 
@@ -1058,7 +1057,7 @@ def simulated_sequential_learning(
              larger than design space ({ds_size})"
         raise SequentialLearnerError(msg)
 
-    batch_size_to_add = candidate_selection_kwargs.get("num_candidates_to_pick", 1)
+    batch_size_to_add = candidate_selector.num_candidates_to_pick
     max_num_sl_loops = int(np.ceil((ds_size - init_training_size) / batch_size_to_add))
 
     if number_of_sl_loops is None:
@@ -1094,9 +1093,7 @@ def simulated_sequential_learning(
     ds = DesignSpace(full_design_space.design_space_structures, dummy_labels)
     ds.update(init_structs, init_labels)
     sl = SequentialLearner(
-        design_space=ds,
-        predictor=predictor,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        design_space=ds, predictor=predictor, candidate_selector=candidate_selector,
     )
     # first iteration on initial dataset
     sl.iterate()
