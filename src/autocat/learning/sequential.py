@@ -557,6 +557,22 @@ class SequentialLearner:
         candidate_selector: CandidateSelector = None,
         sl_kwargs: Dict[str, int] = None,
     ):
+        """
+        Constructor.
+
+        Parameters
+        ----------
+
+        design_space:
+            DesignSpace that is being explored
+
+        predictor:
+            Predictor used for training and predicting on the desired property
+
+        candidate_selector:
+            CandidateSelector used for calculating scores and selecting candidates
+            for each iteration
+        """
         # TODO: move predefined attributes (train_idx, candidate_idxs) to a
         # different container (not kwargs)
 
