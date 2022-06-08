@@ -349,9 +349,7 @@ class CandidateSelector:
         pt = PrettyTable()
         pt.field_names = ["", "Candidate Selector"]
         pt.add_row(["acquisition function", self.acquisition_function])
-        pt.add_row(
-            ["# of candidates to pick", self.num_candidates_to_pick,]
-        )
+        pt.add_row(["# of candidates to pick", self.num_candidates_to_pick])
         pt.add_row(["target window", self.target_window])
         pt.add_row(["include hhi?", self.include_hhi])
         if self.include_hhi:
