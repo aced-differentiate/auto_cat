@@ -28,7 +28,6 @@ from autocat.learning.sequential import (
     SequentialLearnerError,
     SequentialLearner,
     calculate_segregation_energy_scores,
-    choose_next_candidate,
     get_overlap_score,
 )
 from autocat.learning.sequential import CandidateSelector
@@ -62,12 +61,11 @@ def test_sequential_learner_from_json():
     featurizer = Featurizer(SOAP, kwargs={"rcut": 5.0, "lmax": 6, "nmax": 6})
     regressor = GaussianProcessRegressor()
     predictor = Predictor(regressor=regressor, featurizer=featurizer)
-
-    candidate_selection_kwargs = {"aq": "Random", "num_candidates_to_pick": 3}
+    candidate_selector = CandidateSelector(
+        acquisition_function="Random", num_candidates_to_pick=3
+    )
     acsl = SequentialLearner(
-        acds,
-        predictor=predictor,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        acds, predictor=predictor, candidate_selector=candidate_selector,
     )
     acsl.iterate()
     with tempfile.TemporaryDirectory() as _tmp_dir:
@@ -86,7 +84,7 @@ def test_sequential_learner_from_json():
         assert written_acsl.predictor.featurizer == acsl.predictor.featurizer
         assert isinstance(written_acsl.predictor.regressor, GaussianProcessRegressor)
         assert check_is_fitted(written_acsl.predictor.regressor) is None
-        assert written_acsl.candidate_selection_kwargs == candidate_selection_kwargs
+        assert written_acsl.candidate_selector == acsl.candidate_selector
         assert written_acsl.iteration_count == 1
         assert np.array_equal(written_acsl.train_idx, acsl.train_idx)
         assert written_acsl.train_idx[0] in [True, False]
@@ -126,13 +124,12 @@ def test_sequential_learner_write_json():
     featurizer = Featurizer(featurizer_class=ElementProperty, preset="magpie")
     regressor = GaussianProcessRegressor()
     predictor = Predictor(regressor=regressor, featurizer=featurizer)
-
-    candidate_selection_kwargs = {"aq": "MU", "num_candidates_to_pick": 2}
+    candidate_selector = CandidateSelector(
+        acquisition_function="MU", num_candidates_to_pick=2
+    )
     acds = DesignSpace(structs, labels)
     acsl = SequentialLearner(
-        acds,
-        predictor=predictor,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        acds, predictor=predictor, candidate_selector=candidate_selector,
     )
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acsl.write_json_to_disk(_tmp_dir, "testing_acsl.json")
@@ -147,8 +144,14 @@ def test_sequential_learner_write_json():
             "matminer.featurizers.composition.composite",
             "ElementProperty",
         ]
-        # check candidate selection kwargs kept
-        assert sl["candidate_selection_kwargs"] == candidate_selection_kwargs
+        assert sl["candidate_selector"] == {
+            "acquisition_function": "MU",
+            "num_candidates_to_pick": 2,
+            "hhi_type": "production",
+            "include_hhi": False,
+            "include_segregation_energies": False,
+            "target_window": None,
+        }
         assert sl["sl_kwargs"] == {
             "iteration_count": 0,
             "train_idx": None,
@@ -178,8 +181,14 @@ def test_sequential_learner_write_json():
             "matminer.featurizers.composition.composite",
             "ElementProperty",
         ]
-        # check candidate selection kwargs kept
-        assert sl["candidate_selection_kwargs"] == candidate_selection_kwargs
+        assert sl["candidate_selector"] == {
+            "acquisition_function": "MU",
+            "num_candidates_to_pick": 2,
+            "hhi_type": "production",
+            "include_hhi": False,
+            "include_segregation_energies": False,
+            "target_window": None,
+        }
         assert sl["sl_kwargs"].get("iteration_count") == 1
         assert sl["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
         assert sl["sl_kwargs"].get("train_idx_history") == [
@@ -226,13 +235,12 @@ def test_sequential_learner_to_jsonified_dict():
     featurizer = Featurizer(featurizer_class=ElementProperty, preset="magpie")
     regressor = GaussianProcessRegressor()
     predictor = Predictor(regressor=regressor, featurizer=featurizer)
-
-    candidate_selection_kwargs = {"aq": "MU", "num_candidates_to_pick": 2}
+    candidate_selector = CandidateSelector(
+        acquisition_function="MU", num_candidates_to_pick=2
+    )
     acds = DesignSpace(structs, labels)
     acsl = SequentialLearner(
-        acds,
-        predictor=predictor,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        acds, predictor=predictor, candidate_selector=candidate_selector,
     )
     jsonified_dict = acsl.to_jsonified_dict()
     json_structs = [
@@ -246,8 +254,14 @@ def test_sequential_learner_to_jsonified_dict():
         "matminer.featurizers.composition.composite",
         "ElementProperty",
     ]
-    # check candidate selection kwargs kept
-    assert jsonified_dict["candidate_selection_kwargs"] == candidate_selection_kwargs
+    assert jsonified_dict["candidate_selector"] == {
+        "acquisition_function": "MU",
+        "num_candidates_to_pick": 2,
+        "hhi_type": "production",
+        "include_hhi": False,
+        "include_segregation_energies": False,
+        "target_window": None,
+    }
     assert jsonified_dict["sl_kwargs"] == {
         "iteration_count": 0,
         "train_idx": None,
@@ -275,8 +289,14 @@ def test_sequential_learner_to_jsonified_dict():
         "matminer.featurizers.composition.composite",
         "ElementProperty",
     ]
-    # check candidate selection kwargs kept
-    assert jsonified_dict["candidate_selection_kwargs"] == candidate_selection_kwargs
+    assert jsonified_dict["candidate_selector"] == {
+        "acquisition_function": "MU",
+        "num_candidates_to_pick": 2,
+        "hhi_type": "production",
+        "include_hhi": False,
+        "include_segregation_energies": False,
+        "target_window": None,
+    }
     assert jsonified_dict["sl_kwargs"].get("iteration_count") == 1
     assert jsonified_dict["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
     assert jsonified_dict["sl_kwargs"].get("train_idx_history") == [
@@ -309,11 +329,9 @@ def test_sequential_learner_to_jsonified_dict():
     # test when no uncertainty
     regressor = RandomForestRegressor()
     predictor = Predictor(regressor=regressor, featurizer=featurizer)
-    candidate_selection_kwargs = {"aq": "Random"}
+    candidate_selector = CandidateSelector(acquisition_function="Random")
     acsl = SequentialLearner(
-        acds,
-        predictor=predictor,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        acds, predictor=predictor, candidate_selector=candidate_selector,
     )
     jsonified_dict = acsl.to_jsonified_dict()
     assert jsonified_dict["sl_kwargs"].get("uncertainties_history") == None
@@ -426,15 +444,18 @@ def test_sequential_learner_setup():
     assert acsl.iteration_count == 0
     assert acsl.predictions == None
     assert acsl.candidate_indices == None
-    assert acsl.candidate_selection_kwargs == {"aq": "Random"}
+    assert acsl.candidate_selector == CandidateSelector()
 
-    # test passing candidate selection kwargs
-    acsl = SequentialLearner(
-        acds,
-        predictor=predictor,
-        candidate_selection_kwargs={"aq": "MU", "num_candidates_to_pick": 2},
+    # test passing a candidate selector
+    candidate_selector = CandidateSelector(
+        acquisition_function="MU", num_candidates_to_pick=2
     )
-    assert acsl.candidate_selection_kwargs == {"aq": "MU", "num_candidates_to_pick": 2}
+    acsl = SequentialLearner(
+        acds, predictor=predictor, candidate_selector=candidate_selector
+    )
+    assert acsl.candidate_selector == candidate_selector
+    # ensure that a copy is made of the candidate selector
+    assert acsl.candidate_selector is not candidate_selector
 
 
 def test_design_space_setup():
@@ -685,6 +706,62 @@ def test_candidate_selector_setup():
         )
 
 
+def test_candidate_selector_eq():
+    # Tests CandidateSelector equality
+    cs = CandidateSelector(
+        acquisition_function="MLI",
+        num_candidates_to_pick=1,
+        include_hhi=True,
+        hhi_type="reserves",
+        include_segregation_energies=False,
+        target_window=(-100, -30),
+    )
+
+    cs2 = CandidateSelector(
+        acquisition_function="MLI",
+        num_candidates_to_pick=1,
+        include_hhi=True,
+        hhi_type="reserves",
+        include_segregation_energies=False,
+        target_window=(-100, -30),
+    )
+
+    assert cs == cs2
+
+    cs2.target_window = (0, 3)
+    assert not cs == cs2
+    cs2.target_window = (-100, -30)
+
+    cs2.include_hhi = False
+    assert not cs == cs2
+    cs2.include_hhi = True
+
+    cs2.hhi_type = "production"
+    assert not cs == cs2
+    cs2.hhi_type = "reserves"
+
+    cs2.include_segregation_energies = True
+    assert not cs == cs2
+    cs2.include_segregation_energies = False
+
+
+def test_candidate_selector_copy():
+    # Tests making a copy of a CandidateSelector
+    cs = CandidateSelector(
+        acquisition_function="MLI",
+        num_candidates_to_pick=5,
+        include_hhi=True,
+        hhi_type="reserves",
+        include_segregation_energies=True,
+        target_window=(1, 40),
+    )
+
+    cs2 = cs.copy()
+    assert cs == cs2
+    assert not cs is cs2
+    assert not cs.target_window is cs2.target_window
+
+
 def test_candidate_selector_choose_candidate():
     # Test choosing candidates with CandidateSelector
     # (without segregation energy or hhi weighting)
@@ -838,12 +915,9 @@ def test_simulated_sequential_histories():
     ]
     ds_labels = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs = {
-        "target_min": 0.9,
-        "target_max": 2.1,
-        "aq": "MLI",
-        "num_candidates_to_pick": 2,
-    }
+    candidate_selector = CandidateSelector(
+        acquisition_function="MLI", num_candidates_to_pick=2, target_window=(0.9, 2.1)
+    )
     featurizer = Featurizer(featurizer_class=SineMatrix)
     regressor = GaussianProcessRegressor()
     predictor = Predictor(featurizer=featurizer, regressor=regressor)
@@ -851,7 +925,7 @@ def test_simulated_sequential_histories():
         full_design_space=acds,
         init_training_size=1,
         number_of_sl_loops=2,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        candidate_selector=candidate_selector,
         predictor=predictor,
     )
 
@@ -879,7 +953,9 @@ def test_simulated_sequential_batch_added():
     ]
     base_struct1 = place_adsorbate(sub1, Atoms("O"))
     base_struct2 = place_adsorbate(sub2, Atoms("N"))
-    candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
+    candidate_selector = CandidateSelector(
+        acquisition_function="Random", num_candidates_to_pick=2
+    )
     featurizer = Featurizer(featurizer_class=SineMatrix)
     regressor = GaussianProcessRegressor()
     predictor = Predictor(featurizer=featurizer, regressor=regressor)
@@ -890,7 +966,7 @@ def test_simulated_sequential_batch_added():
     sl = simulated_sequential_learning(
         full_design_space=acds,
         predictor=predictor,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        candidate_selector=candidate_selector,
         number_of_sl_loops=num_loops,
         init_training_size=1,
     )
@@ -913,7 +989,9 @@ def test_simulated_sequential_num_loops():
     featurizer = Featurizer(featurizer_class=SineMatrix)
     regressor = GaussianProcessRegressor()
     predictor = Predictor(featurizer=featurizer, regressor=regressor)
-    candidate_selection_kwargs = {"num_candidates_to_pick": 3, "aq": "Random"}
+    candidate_selector = CandidateSelector(
+        acquisition_function="Random", num_candidates_to_pick=3
+    )
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
     acds = DesignSpace(ds_structs, ds_labels)
@@ -921,7 +999,7 @@ def test_simulated_sequential_num_loops():
     sl = simulated_sequential_learning(
         full_design_space=acds,
         predictor=predictor,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        candidate_selector=candidate_selector,
         init_training_size=1,
     )
     assert len(sl.predictions_history) == 2
@@ -932,7 +1010,7 @@ def test_simulated_sequential_num_loops():
         sl = simulated_sequential_learning(
             full_design_space=acds,
             predictor=predictor,
-            candidate_selection_kwargs=candidate_selection_kwargs,
+            candidate_selector=candidate_selector,
             init_training_size=1,
             number_of_sl_loops=3,
         )
@@ -941,12 +1019,12 @@ def test_simulated_sequential_num_loops():
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs.update({"num_candidates_to_pick": 1})
+    candidate_selector.num_candidates_to_pick = 1
 
     sl = simulated_sequential_learning(
         full_design_space=acds,
         predictor=predictor,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        candidate_selector=candidate_selector,
         init_training_size=1,
     )
     assert len(sl.uncertainties_history) == 3
@@ -968,7 +1046,9 @@ def test_simulated_sequential_write_to_disk():
         featurizer = Featurizer(featurizer_class=SineMatrix)
         regressor = RandomForestRegressor(n_estimators=125)
         predictor = Predictor(featurizer=featurizer, regressor=regressor)
-        candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
+        candidate_selector = CandidateSelector(
+            acquisition_function="Random", num_candidates_to_pick=2
+        )
         ds_structs = [base_struct1, base_struct2, base_struct3]
         ds_labels = np.array([0, 1, 2])
         acds = DesignSpace(ds_structs, ds_labels)
@@ -977,7 +1057,7 @@ def test_simulated_sequential_write_to_disk():
             init_training_size=2,
             number_of_sl_loops=1,
             predictor=predictor,
-            candidate_selection_kwargs=candidate_selection_kwargs,
+            candidate_selector=candidate_selector,
             write_to_disk=True,
             write_location=_tmp_dir,
         )
@@ -998,7 +1078,7 @@ def test_simulated_sequential_write_to_disk():
         assert sl_written.predictor.featurizer == sl.predictor.featurizer
         assert isinstance(sl_written.predictor.regressor, RandomForestRegressor)
         assert sl_written.predictor.regressor.n_estimators == 125
-        assert sl.candidate_selection_kwargs == sl_written.candidate_selection_kwargs
+        assert sl.candidate_selector == sl_written.candidate_selector
         assert (
             sl.design_space.design_space_structures
             == sl_written.design_space.design_space_structures
@@ -1025,14 +1105,14 @@ def test_simulated_sequential_learning_fully_explored():
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([0.0, np.nan, 4.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs = {"aq": "MU"}
+    candidate_selector = CandidateSelector(acquisition_function="MU")
     with pytest.raises(SequentialLearnerError):
         sl = simulated_sequential_learning(
             full_design_space=acds,
             init_training_size=1,
             number_of_sl_loops=2,
             predictor=predictor,
-            candidate_selection_kwargs=candidate_selection_kwargs,
+            candidate_selector=candidate_selector,
         )
 
 
@@ -1048,12 +1128,12 @@ def test_multiple_sequential_learning_serial():
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs = {"aq": "MU"}
+    candidate_selector = CandidateSelector(acquisition_function="MU")
     runs_history = multiple_simulated_sequential_learning_runs(
         full_design_space=acds,
         number_of_runs=3,
         predictor=predictor,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        candidate_selector=candidate_selector,
         number_of_sl_loops=1,
         init_training_size=1,
     )
@@ -1074,13 +1154,13 @@ def test_multiple_sequential_learning_parallel():
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs = {"aq": "Random"}
+    candidate_selector = CandidateSelector()
     runs_history = multiple_simulated_sequential_learning_runs(
         full_design_space=acds,
         number_of_runs=3,
         number_parallel_jobs=2,
         predictor=predictor,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        candidate_selector=candidate_selector,
         number_of_sl_loops=1,
         init_training_size=1,
     )
@@ -1102,11 +1182,13 @@ def test_multiple_sequential_learning_write_to_disk():
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
+    candidate_selector = CandidateSelector(
+        acquisition_function="Random", num_candidates_to_pick=2
+    )
     runs_history = multiple_simulated_sequential_learning_runs(
         full_design_space=acds,
         predictor=predictor,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        candidate_selector=candidate_selector,
         number_of_runs=3,
         number_parallel_jobs=2,
         init_training_size=1,
@@ -1143,103 +1225,7 @@ def test_multiple_sequential_learning_write_to_disk():
         assert np.array_equal(
             written_run.candidate_index_history, runs_history[i].candidate_index_history
         )
-        assert (
-            written_run.candidate_selection_kwargs
-            == runs_history[i].candidate_selection_kwargs
-        )
-
-
-def test_choose_next_candidate_input_minimums():
-    # Tests that appropriately catches minimum necessary inputs
-    labels = np.random.rand(5)
-    train_idx = np.zeros(5, dtype=bool)
-    train_idx[np.random.choice(5, size=2, replace=False)] = 1
-    unc = np.random.rand(5)
-    pred = np.random.rand(5)
-
-    with pytest.raises(SequentialLearnerError):
-        choose_next_candidate()
-
-    with pytest.raises(SequentialLearnerError):
-        choose_next_candidate(unc=unc, pred=pred, num_candidates_to_pick=2, aq="Random")
-
-    with pytest.raises(SequentialLearnerError):
-        choose_next_candidate(
-            labels=labels, pred=pred, num_candidates_to_pick=2, aq="MU"
-        )
-
-    with pytest.raises(SequentialLearnerError):
-        choose_next_candidate(pred=pred, num_candidates_to_pick=2, aq="MLI")
-
-    with pytest.raises(SequentialLearnerError):
-        choose_next_candidate(unc=unc, num_candidates_to_pick=2, aq="MLI")
-
-
-def test_choose_next_candidate_hhi_weighting():
-    # Tests that the HHI weighting is properly applied
-    unc = np.array([0.1, 0.1])
-    pred = np.array([4.0, 4.0])
-    # Tests using production HHI values and MU
-    y_struct = generate_surface_structures(["Y"], facets={"Y": ["0001"]})["Y"][
-        "hcp0001"
-    ]["structure"]
-    ni_struct = generate_surface_structures(["Ni"], facets={"Ni": ["111"]})["Ni"][
-        "fcc111"
-    ]["structure"]
-    parent_idx, _, aq_scores = choose_next_candidate(
-        [y_struct, ni_struct],
-        unc=unc,
-        include_hhi=True,
-        aq="MU",
-        include_seg_ener=False,
-    )
-    assert parent_idx[0] == 1
-    assert aq_scores[0] < aq_scores[1]
-
-    # Tests using reserves HHI values and MLI
-    nb_struct = generate_surface_structures(["Nb"], facets={"Nb": ["111"]})["Nb"][
-        "bcc111"
-    ]["structure"]
-    na_struct = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"][
-        "bcc110"
-    ]["structure"]
-    parent_idx, _, aq_scores = choose_next_candidate(
-        [na_struct, nb_struct],
-        unc=unc,
-        pred=pred,
-        target_min=3,
-        target_max=5,
-        include_hhi=True,
-        hhi_type="reserves",
-        include_seg_ener=False,
-    )
-    assert parent_idx[0] == 0
-    assert aq_scores[0] > aq_scores[1]
-
-
-def test_choose_next_candidate_segregation_energy_weighting():
-    # Tests that the segregation energy weighting is properly applied
-    unc = np.array([0.3, 0.3])
-    pred = np.array([2.0, 2.0])
-    structs = flatten_structures_dict(
-        generate_saa_structures(["Cr"], ["Rh"], facets={"Cr": ["110"]})
-    )
-    structs.extend(
-        flatten_structures_dict(
-            generate_saa_structures(["Co"], ["Re"], facets={"Co": ["0001"]})
-        )
-    )
-    parent_idx, _, aq_scores = choose_next_candidate(
-        structs,
-        unc=unc,
-        pred=pred,
-        target_min=0,
-        target_max=4,
-        include_hhi=False,
-        include_seg_ener=True,
-    )
-    assert parent_idx[0] == 0
-    assert aq_scores[0] > aq_scores[1]
+        assert written_run.candidate_selector == runs_history[i].candidate_selector
 
 
 def test_get_overlap_score():
