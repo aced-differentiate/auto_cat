@@ -14,14 +14,14 @@ function.
 ```py
 >>> # Generate the clean single-atom alloy structures
 >>> from autocat.saa import generate_saa_structures
->>> from autocat.utils import extract_structures
+>>> from autocat.utils import flatten_structures_dict
 >>> saa_struct_dict = generate_saa_structures(
 ...     ["Fe", "Cu", "Au"],
 ...     ["Pt", "Pd", "Ni"],
 ...     facets={"Fe":["110"], "Cu":["111"], "Au":["111"]},
 ...     n_fixed_layers=2,
 ... )
->>> saa_structs = extract_structures(saa_struct_dict)
+>>> saa_structs = flatten_structures_dict(saa_struct_dict)
 ```
 
 Now that we have the clean structures, let's adsorb hydrogen on the surface. 
@@ -33,14 +33,10 @@ function.
 ```py
 >>> # Adsorb hydrogen onto each of the generated SAA surfaces
 >>> from autocat.adsorption import place_adsorbate
+>>> from ase import Atoms
 >>> ads_structs = []
 >>> for clean_struct in saa_structs:
-...     ads_dict = place_adsorbate(
-...        clean_struct,
-...        "H",
-...        (0.,0.)
-...     )
-...     ads_struct = extract_structures(ads_dict)[0]
+...     ads_struct = place_adsorbate(clean_struct, Atoms("H"))
 ...     ads_structs.append(ads_struct)
 ```
 
@@ -62,6 +58,16 @@ if any of the labels for a structure are unknown, it can be included as a `numpy
 ```py
 >>> from autocat.learning.sequential import DesignSpace
 >>> design_space = DesignSpace(ads_structs, labels)
+>>> design_space
++-------------------------+-------------------------------------------+
+|                         |                DesignSpace                |
++-------------------------+-------------------------------------------+
+|    total # of systems   |                     9                     |
+| # of unlabelled systems |                     0                     |
+|  unique species present | ['Fe', 'H', 'Pt', 'Pd', 'Ni', 'Cu', 'Au'] |
+|      maximum label      |             1.0173326963281424            |
+|      minimum label      |            -1.4789390894451206            |
++-------------------------+-------------------------------------------+
 ```
 
 ## Setting up a `Predictor`
@@ -71,43 +77,79 @@ When setting up our `Predictor` we now have two choices to make:
 1. The technique to be used for featurizing the systems
 2. The regression model to be used for training and predictions
 
-Internally, the `Predictor` will contain a `Featurizer` object which contains all of 
-our choices for how to featurize the systems. Our choice of featurizer class and 
-the associated kwargs are specified via the `featurizer_class` and 
-`featurization_kwargs` arguments, respectively. By providing the design space structures 
+Internally, the `Predictor` will contain a `Featurizer` object (that the user supplies) 
+which stores all of our choices for how to featurize the systems. Our choice of 
+featurizer class and the associated kwargs are specified via the `featurizer_class` and 
+`kwargs` arguments, respectively. By providing the design space structures 
 some of the kwargs related to the featurization (e.g. maximum structure size) can be 
 automatically obtained.
 
-Similarly, we can specify the regressor to be used within the `model_class` and 
-`model_kwargs` arguments. The class should be "`sklearn`-like" with `fit` and 
-`predict` methods.
+Let's featurize the hydrogen environment via `dscribe`'s `SOAP` class 
+```py
+>>> from autocat.learning.featurizers import Featurizer
+>>> from dscribe.descriptors.soap import SOAP
+>>> featurizer = Featurizer(
+...     featurizer_class=SOAP,
+...     kwargs={"rcut": 7.0, "nmax": 8, "lmax": 8},
+...     design_space_structures=design_space.design_space_structures
+... )
+>>> featurizer
++-----------------------------------+-------------------------------------------+
+|                                   |                 Featurizer                |
++-----------------------------------+-------------------------------------------+
+|               class               |       dscribe.descriptors.soap.SOAP       |
+|               kwargs              |    {'rcut': 7.0, 'nmax': 8, 'lmax': 8}    |
+|            species list           | ['Fe', 'Ni', 'Pt', 'Pd', 'Au', 'Cu', 'H'] |
+|       maximum structure size      |                     37                    |
+|               preset              |                    None                   |
+| design space structures provided? |                    True                   |
++-----------------------------------+-------------------------------------------+
+```
 
-Let's featurize the hydrogen environment via `dscribe`'s `SOAP` class with 
-`sklearn`'s `GaussianProcessRegressor` for regression.
+Similarly, we can specify the regressor to be used. The class should 
+be "`sklearn`-like" with `fit` and `predict` methods.
 
+Here we will use `sklearn`'s `GaussianProcessRegressor` for regression.
 ```py
 >>> from sklearn.gaussian_process import GaussianProcessRegressor
 >>> from sklearn.gaussian_process.kernels import RBF
->>> from dscribe import SOAP
->>> from autocat.learning.predictors import Predictor
 >>> kernel = RBF(1.5)
->>> model_kwargs={"kernel": kernel}
->>> featurization_kwargs={
-...     "design_space_structures": design_space.design_space_structures,
-...     "kwargs": {"rcut": 7.0, "nmax": 8, "lmax": 8}
-... }
+>>> regressor = GaussianProcessRegressor(kernel=kernel)
+```
+
+Now that we have both our `Featurizer` and regressor, we can construct 
+a `Predictor` object.
+
+```py
+>>> from autocat.learning.predictors import Predictor
 >>> predictor = Predictor(
-...     model_class=GaussianProcessRegressor,
-...     model_kwargs=model_kwargs,
-...     featurizer_class=SOAP,
-...     featurization_kwargs=featurization_kwargs,
+...     regressor=regressor,
+...     featurizer=featurizer,
 ... )
+>>> predictor
++-----------+------------------------------------------------------------------+
+|           |                            Predictor                             |
++-----------+------------------------------------------------------------------+
+| regressor | <class 'sklearn.gaussian_process._gpr.GaussianProcessRegressor'> |
+|  is fit?  |                              False                               |
++-----------+------------------------------------------------------------------+
++-----------------------------------+-------------------------------------------+
+|                                   |                 Featurizer                |
++-----------------------------------+-------------------------------------------+
+|               class               |       dscribe.descriptors.soap.SOAP       |
+|               kwargs              |    {'rcut': 7.0, 'nmax': 8, 'lmax': 8}    |
+|            species list           | ['Fe', 'Ni', 'Pt', 'Pd', 'Au', 'Cu', 'H'] |
+|       maximum structure size      |                     37                    |
+|               preset              |                    None                   |
+| design space structures provided? |                    True                   |
++-----------------------------------+-------------------------------------------+
 ```
 
 ## Training and making predictions
 
 With our newly defined `Predictor` we can train it using data from our 
-`DesignSpace` and the `fit` method.
+`DesignSpace` and the `fit` method. Again, please note we are using random labels 
+here, solely for demonstration purposes.
 
 ```py
 >>> train_structures = design_space.design_space_structures[:5]
