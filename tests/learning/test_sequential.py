@@ -788,13 +788,27 @@ def test_candidate_selector_choose_candidate():
         include_segregation_energies=False,
     )
     # automatically chooses among systems without labels
-    parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    parent_idx, max_score, aq_scores = cs.choose_candidate(
+        design_space=ds, uncertainties=unc
+    )
     assert parent_idx == 2
+    # ensure picking system with highest aq score
+    for i, score in enumerate(aq_scores):
+        if i != parent_idx:
+            assert score < max_score
 
     # multiple candidates to pick
     cs.num_candidates_to_pick = 2
-    parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    parent_idx, max_scores, aq_scores = cs.choose_candidate(
+        design_space=ds, uncertainties=unc
+    )
     assert np.array_equal(parent_idx, [1, 2])
+    assert len(max_scores) == 2
+    # ensure picking systems with highest aq scores
+    min_max_score = min(max_scores)
+    for i, score in enumerate(aq_scores):
+        if i not in parent_idx:
+            assert score < min_max_score
 
     cs.num_candidates_to_pick = 1
 
