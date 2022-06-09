@@ -88,4 +88,4 @@ pip install -e .
 
 ## Contributing
 Contributions through issues, feature requests, and pull requests are welcome. 
-Guidelines are provided here.
+Guidelines are provided [here](https://github.com/aced-differentiate/auto_cat/blob/develop/CONTRIBUTING.md).
