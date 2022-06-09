@@ -795,7 +795,7 @@ def test_candidate_selector_choose_candidate():
     parent_idx, max_score, aq_scores = cs.choose_candidate(
         design_space=ds, uncertainties=unc
     )
-    assert parent_idx == 2
+    assert parent_idx[0] == 2
     # ensure picking system with highest aq score
     for i in range(1, 4):
         if i != parent_idx:
@@ -806,13 +806,13 @@ def test_candidate_selector_choose_candidate():
     parent_idx, max_scores, aq_scores = cs.choose_candidate(
         design_space=ds, uncertainties=unc
     )
-    assert np.array_equal(parent_idx, [1, 2])
+    assert np.array_equal(parent_idx, [3, 2])
     assert len(max_scores) == 2
     # ensure picking systems with highest aq scores
     min_max_score = min(max_scores)
     for i in range(1, 4):
         if i not in parent_idx:
-            assert aq_scores < min_max_score
+            assert aq_scores[i] < min_max_score
 
     cs.num_candidates_to_pick = 1
 
@@ -821,28 +821,28 @@ def test_candidate_selector_choose_candidate():
     parent_idx, _, _ = cs.choose_candidate(
         design_space=ds, uncertainties=unc, allowed_idx=allowed_idx
     )
-    assert parent_idx == 4
+    assert parent_idx[0] == 3
 
     # need uncertainty for MU
     with pytest.raises(CandidateSelectorError):
         parent_idx, _, _ = cs.choose_candidate(design_space=ds)
 
     # fully explored ds
-    labels = np.array([3.0, 4.0, 5.0])
+    labels = np.array([3.0, 4.0, 5.0, 10.0])
     ds2 = DesignSpace(structs, labels)
     parent_idx, _, _ = cs.choose_candidate(design_space=ds2, uncertainties=unc)
-    assert parent_idx == 2
+    assert parent_idx[0] == 2
 
     cs.acquisition_function = "MLI"
     cs.target_window = (-np.inf, 0.15)
-    pred = np.array([3.0, 0.3, 6.0])
+    pred = np.array([3.0, 0.3, 6.0, 9.0])
     # need both uncertainty and predictions for MLI
     with pytest.raises(CandidateSelectorError):
         parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
     parent_idx, _, _ = cs.choose_candidate(
         design_space=ds, uncertainties=unc, predictions=pred
     )
-    assert parent_idx == 1
+    assert parent_idx[0] == 1
 
 
 def test_candidate_selector_choose_candidate_hhi_weighting():
