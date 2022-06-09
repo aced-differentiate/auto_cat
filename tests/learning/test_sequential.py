@@ -777,10 +777,14 @@ def test_candidate_selector_choose_candidate():
         "hcp0001"
     ]["structure"]
     sub3 = place_adsorbate(sub3, Atoms("H"))
-    structs = [sub1, sub2, sub3]
-    labels = np.array([3.0, np.nan, np.nan])
+    sub4 = generate_surface_structures(["Li"], facets={"Li": ["110"]})["Li"]["bcc110"][
+        "structure"
+    ]
+    sub4 = place_adsorbate(sub4, Atoms("H"))
+    structs = [sub1, sub2, sub3, sub4]
+    labels = np.array([3.0, np.nan, np.nan, np.nan])
     ds = DesignSpace(structs, labels)
-    unc = np.array([0.1, 0.2, 0.5])
+    unc = np.array([0.1, 0.2, 0.5, 0.3])
     cs = CandidateSelector(
         acquisition_function="MU",
         num_candidates_to_pick=1,
@@ -793,9 +797,9 @@ def test_candidate_selector_choose_candidate():
     )
     assert parent_idx == 2
     # ensure picking system with highest aq score
-    for i, score in enumerate(aq_scores):
+    for i in range(1, 4):
         if i != parent_idx:
-            assert score < max_score
+            assert aq_scores[i] < max_score
 
     # multiple candidates to pick
     cs.num_candidates_to_pick = 2
@@ -806,18 +810,18 @@ def test_candidate_selector_choose_candidate():
     assert len(max_scores) == 2
     # ensure picking systems with highest aq scores
     min_max_score = min(max_scores)
-    for i, score in enumerate(aq_scores):
+    for i in range(1, 4):
         if i not in parent_idx:
-            assert score < min_max_score
+            assert aq_scores < min_max_score
 
     cs.num_candidates_to_pick = 1
 
     # restrict indices to choose from
-    allowed_idx = np.array([0, 1, 0], dtype=bool)
+    allowed_idx = np.array([0, 1, 0, 1], dtype=bool)
     parent_idx, _, _ = cs.choose_candidate(
         design_space=ds, uncertainties=unc, allowed_idx=allowed_idx
     )
-    assert parent_idx == 1
+    assert parent_idx == 4
 
     # need uncertainty for MU
     with pytest.raises(CandidateSelectorError):
