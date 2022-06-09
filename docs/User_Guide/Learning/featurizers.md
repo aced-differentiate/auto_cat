@@ -1,4 +1,6 @@
-The `Featurizer` object allows for the featurization of 
+The 
+[`Featurizer`](../../API/Learning/featurizers.md#autocat.learning.featurizers.Featurizer) 
+object allows for the featurization of 
 systems into a format that can be fed into machine learning 
 models. Specified within this object are all the desired 
 settings for when featurizing systems. More specifically this 
