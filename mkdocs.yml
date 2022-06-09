@@ -8,6 +8,8 @@ theme:
         - navigation.top
         - toc.integrate
     logo: img/autocat_icon.png
+    icon:
+        repo: fontawesome/brands/github
 markdown_extensions:
     - pymdownx.highlight
     - pymdownx.superfences  
@@ -61,3 +63,5 @@ nav:
             - autocat.surface: API/Structure_Generation/surface.md
             - autocat.adsorption: API/Structure_Generation/adsorption.md
             - autocat.saa: API/Structure_Generation/saa.md
+
+repo_url: https://github.com/aced-differentiate/auto_cat
