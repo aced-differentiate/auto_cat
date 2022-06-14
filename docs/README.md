@@ -89,3 +89,7 @@ pip install -e .
 ## Contributing
 Contributions through issues, feature requests, and pull requests are welcome. 
 Guidelines are provided [here](https://github.com/aced-differentiate/auto_cat/blob/develop/CONTRIBUTING.md).
+
+## Acknowledgements
+
+The code presented herein was funded by the Advanced Research Projects Agency-Energy (ARPA-E), U.S. Department of Energy, under Award Number DE-AR0001211 and in part by the National Science Foundation, under Award Number CBET-1554273. The views and opinions of authors expressed herein do not necessarily state or reflect those of the United States Government or any agency thereof.
