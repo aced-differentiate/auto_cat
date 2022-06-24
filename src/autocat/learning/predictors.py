@@ -1,8 +1,7 @@
 import copy
 import os
-import pickle
+import importlib
 import json
-import base64
 import numpy as np
 
 from typing import List
@@ -103,9 +102,22 @@ class Predictor:
     def to_jsonified_dict(self) -> Dict:
         featurizer_dict = self.featurizer.to_jsonified_dict()
         regressor = self.regressor
-        byte_regressor = pickle.dumps(regressor)
-        str_regressor = base64.b64encode(byte_regressor).decode("utf-8")
-        return {"featurizer": featurizer_dict, "regressor": str_regressor}
+        name_string = regressor.__class__.__name__
+        module_string = regressor.__module__
+        try:
+            kwargs = regressor.get_params()
+            _ = json.dumps(kwargs)
+        except TypeError:
+            print("Warning: kwargs not saved")
+            kwargs = None
+        return {
+            "featurizer": featurizer_dict,
+            "regressor": {
+                "name_string": name_string,
+                "module_string": module_string,
+                "kwargs": kwargs,
+            },
+        }
 
     def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
         """
@@ -124,8 +136,16 @@ class Predictor:
     @staticmethod
     def from_jsonified_dict(all_data: Dict):
         # get regressor
-        byte_regressor = base64.b64decode(all_data["regressor"])
-        regressor = pickle.loads(byte_regressor)
+        name_string = all_data["regressor"].get("name_string")
+        module_string = all_data["regressor"].get("module_string")
+        kwargs = all_data["regressor"].get("kwargs")
+        mod = importlib.import_module(module_string)
+        regressor_class = getattr(mod, name_string)
+        if kwargs is not None:
+            regressor = regressor_class(**kwargs)
+        else:
+            regressor = regressor_class()
+
         # get featurizer
         featurizer = Featurizer.from_jsonified_dict(all_data["featurizer"])
         return Predictor(regressor=regressor, featurizer=featurizer)

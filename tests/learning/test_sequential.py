@@ -9,7 +9,6 @@ import tempfile
 from sklearn.ensemble import RandomForestRegressor
 
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.utils.validation import check_is_fitted
 
 from dscribe.descriptors import SOAP
 from dscribe.descriptors import SineMatrix
@@ -83,7 +82,6 @@ def test_sequential_learner_from_json():
         )
         assert written_acsl.predictor.featurizer == acsl.predictor.featurizer
         assert isinstance(written_acsl.predictor.regressor, GaussianProcessRegressor)
-        assert check_is_fitted(written_acsl.predictor.regressor) is None
         assert written_acsl.candidate_selector == acsl.candidate_selector
         assert written_acsl.iteration_count == 1
         assert np.array_equal(written_acsl.train_idx, acsl.train_idx)
