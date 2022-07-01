@@ -1146,7 +1146,11 @@ def get_overlap_score(mean: float, std: float, x2: float = None, x1: float = Non
     return norm_dist.cdf(x2) - norm_dist.cdf(x1)
 
 
-def calculate_hhi_scores(structures: List[Atoms], hhi_type: str = "production"):
+def calculate_hhi_scores(
+    structures: List[Atoms],
+    hhi_type: str = "production",
+    exclude_species: List[str] = None,
+):
     """
     Calculates HHI scores for structures weighted by their composition.
     The scores are normalized and inverted such that these should
@@ -1163,6 +1167,11 @@ def calculate_hhi_scores(structures: List[Atoms], hhi_type: str = "production"):
         Options
         - production (default)
         - reserves
+
+    exclude_species:
+        Species to be excluded when calculating the scores.
+        An example use-case would be comparing transition-metal oxides
+        where we can ignore the presence of O in each.
 
     Returns
     -------
@@ -1188,7 +1197,10 @@ def calculate_hhi_scores(structures: List[Atoms], hhi_type: str = "production"):
     for idx, struct in enumerate(structures):
         hhi = 0
         el_counts = struct.symbols.formula.count()
-        tot_size = len(struct)
+        if exclude_species is not None:
+            for species in exclude_species:
+                el_counts[species] = 0
+        tot_size = sum(el_counts.values())
         # weight calculated hhi score by composition
         for el in el_counts:
             hhi += norm_hhi_data[el] * el_counts[el] / tot_size

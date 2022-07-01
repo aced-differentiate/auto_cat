@@ -1318,6 +1318,16 @@ def test_calculate_hhi_scores():
     # check normalized
     assert (hhi_res_scores <= 1.0).all()
     assert (hhi_res_scores >= 0.0).all()
+    # check exclude species
+    hhi_exclude_scores = calculate_hhi_scores(saa_structs, "reserves", ["Ru"])
+    assert np.isclose(hhi_exclude_scores[0], norm_hhi_res["Pt"])
+    assert np.isclose(hhi_exclude_scores[1], norm_hhi_res["Cu"])
+    assert np.isclose(hhi_exclude_scores[2], norm_hhi_res["Ni"])
+    ads_struct = place_adsorbate(saa_structs[0], Atoms("Li"))
+    hhi_ads_prod = calculate_hhi_scores(
+        [ads_struct], "production", exclude_species=["Li"]
+    )
+    assert np.isclose(hhi_ads_prod[0], hhi_prod_scores[0])
 
 
 def test_calculate_segregation_energy_scores():
