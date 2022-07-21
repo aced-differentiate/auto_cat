@@ -138,10 +138,10 @@ def test_sequential_learner_write_json():
         ]
         assert structs == written_structs
         assert np.array_equal(labels, sl["design_space"]["labels"], equal_nan=True)
-        assert sl["predictor"]["featurizer"]["featurizer_class"] == [
-            "matminer.featurizers.composition.composite",
-            "ElementProperty",
-        ]
+        assert sl["predictor"]["featurizer"]["featurizer_class"] == {
+            "module_string": "matminer.featurizers.composition.composite",
+            "class_string": "ElementProperty",
+        }
         assert sl["candidate_selector"] == {
             "acquisition_function": "MU",
             "num_candidates_to_pick": 2,
@@ -175,10 +175,10 @@ def test_sequential_learner_write_json():
         assert structs == written_structs
         assert np.array_equal(labels, sl["design_space"]["labels"], equal_nan=True)
         # check predictor kwargs kept
-        assert sl["predictor"]["featurizer"]["featurizer_class"] == [
-            "matminer.featurizers.composition.composite",
-            "ElementProperty",
-        ]
+        assert sl["predictor"]["featurizer"]["featurizer_class"] == {
+            "module_string": "matminer.featurizers.composition.composite",
+            "class_string": "ElementProperty",
+        }
         assert sl["candidate_selector"] == {
             "acquisition_function": "MU",
             "num_candidates_to_pick": 2,
@@ -248,10 +248,10 @@ def test_sequential_learner_to_jsonified_dict():
     assert np.array_equal(
         labels, jsonified_dict["design_space"]["labels"], equal_nan=True
     )
-    assert jsonified_dict["predictor"]["featurizer"]["featurizer_class"] == [
-        "matminer.featurizers.composition.composite",
-        "ElementProperty",
-    ]
+    assert jsonified_dict["predictor"]["featurizer"]["featurizer_class"] == {
+        "module_string": "matminer.featurizers.composition.composite",
+        "class_string": "ElementProperty",
+    }
     assert jsonified_dict["candidate_selector"] == {
         "acquisition_function": "MU",
         "num_candidates_to_pick": 2,
@@ -283,10 +283,10 @@ def test_sequential_learner_to_jsonified_dict():
     assert np.array_equal(
         labels, jsonified_dict["design_space"]["labels"], equal_nan=True
     )
-    assert jsonified_dict["predictor"]["featurizer"]["featurizer_class"] == [
-        "matminer.featurizers.composition.composite",
-        "ElementProperty",
-    ]
+    assert jsonified_dict["predictor"]["featurizer"]["featurizer_class"] == {
+        "module_string": "matminer.featurizers.composition.composite",
+        "class_string": "ElementProperty",
+    }
     assert jsonified_dict["candidate_selector"] == {
         "acquisition_function": "MU",
         "num_candidates_to_pick": 2,

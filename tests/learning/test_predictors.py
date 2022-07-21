@@ -212,10 +212,10 @@ def test_predictor_to_jsonified_dict():
     regressor = RandomForestRegressor(n_estimators=75)
     acsc = Predictor(regressor=regressor, featurizer=featurizer)
     jsonified_dict = acsc.to_jsonified_dict()
-    assert jsonified_dict["featurizer"]["featurizer_class"] == [
-        "dscribe.descriptors.soap",
-        "SOAP",
-    ]
+    assert jsonified_dict["featurizer"]["featurizer_class"] == {
+        "module_string": "dscribe.descriptors.soap",
+        "class_string": "SOAP",
+    }
     assert jsonified_dict["featurizer"]["species_list"] == ["Fe", "Ru", "Pt", "O", "H"]
     assert jsonified_dict["featurizer"]["kwargs"] == {"rcut": 6.0, "nmax": 6, "lmax": 6}
     assert jsonified_dict["regressor"] == {

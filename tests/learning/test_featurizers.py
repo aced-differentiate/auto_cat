@@ -414,16 +414,21 @@ def test_featurizer_from_jsonified_dict():
         f = Featurizer.from_jsonified_dict(j_dict)
 
     # test providing only featurizer class
-    j_dict = {"featurizer_class": ["dscribe.descriptors.sinematrix", "SineMatrix"]}
+    j_dict = {
+        "featurizer_class": {
+            "module_string": "dscribe.descriptors.sinematrix",
+            "class_string": "SineMatrix",
+        }
+    }
     f = Featurizer.from_jsonified_dict(j_dict)
     assert isinstance(f.featurization_object, SineMatrix)
 
     # test providing preset
     j_dict = {
-        "featurizer_class": [
-            "matminer.featurizers.composition.composite",
-            "ElementProperty",
-        ],
+        "featurizer_class": {
+            "module_string": "matminer.featurizers.composition.composite",
+            "class_string": "ElementProperty",
+        },
         "preset": "matminer",
     }
     f = Featurizer.from_jsonified_dict(j_dict)
@@ -432,7 +437,10 @@ def test_featurizer_from_jsonified_dict():
 
     # test providing kwargs
     j_dict = {
-        "featurizer_class": ["dscribe.descriptors.soap", "SOAP"],
+        "featurizer_class": {
+            "module_string": "dscribe.descriptors.soap",
+            "class_string": "SOAP",
+        },
         "kwargs": {"rcut": 6.0, "lmax": 6, "nmax": 6},
     }
     f = Featurizer.from_jsonified_dict(j_dict)
@@ -445,7 +453,10 @@ def test_featurizer_from_jsonified_dict():
     atoms_list = [Atoms("H"), Atoms("N")]
     encoded_atoms = [atoms_encoder(a) for a in atoms_list]
     j_dict = {
-        "featurizer_class": ["dscribe.descriptors.sinematrix", "SineMatrix"],
+        "featurizer_class": {
+            "module_string": "dscribe.descriptors.sinematrix",
+            "class_string": "SineMatrix",
+        },
         "design_space_structures": encoded_atoms,
     }
     f = Featurizer.from_jsonified_dict(j_dict)
@@ -454,7 +465,10 @@ def test_featurizer_from_jsonified_dict():
     with pytest.raises(FeaturizerError):
         # catches that Atoms objects should be json encoded
         j_dict = {
-            "featurizer_class": ["dscribe.descriptors.sinematrix", "SineMatrix"],
+            "featurizer_class": {
+                "module_string": "dscribe.descriptors.sinematrix",
+                "class_string": "SineMatrix",
+            },
             "design_space_structures": atoms_list,
         }
         f = Featurizer.from_jsonified_dict(j_dict)
@@ -462,7 +476,10 @@ def test_featurizer_from_jsonified_dict():
     with pytest.raises(FeaturizerError):
         # catches that design space structures aren't some nonsensical type
         j_dict = {
-            "featurizer_class": ["dscribe.descriptors.sinematrix", "SineMatrix"],
+            "featurizer_class": {
+                "module_string": "dscribe.descriptors.sinematrix",
+                "class_string": "SineMatrix",
+            },
             "design_space_structures": ["H", "N"],
         }
         f = Featurizer.from_jsonified_dict(j_dict)
@@ -488,10 +505,10 @@ def test_featurizer_to_jsonified_dict():
     )
     f = Featurizer(SineMatrix, design_space_structures=surfs, kwargs={"sparse": True})
     json_dict = f.to_jsonified_dict()
-    assert json_dict["featurizer_class"] == [
-        "dscribe.descriptors.sinematrix",
-        "SineMatrix",
-    ]
+    assert json_dict["featurizer_class"] == {
+        "module_string": "dscribe.descriptors.sinematrix",
+        "class_string": "SineMatrix",
+    }
     assert json_dict["kwargs"] == {"sparse": True}
 
     f = Featurizer(

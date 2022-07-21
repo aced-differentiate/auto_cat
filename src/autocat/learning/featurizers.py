@@ -135,7 +135,10 @@ class Featurizer:
             "preset": self.preset if self.preset else None,
             "kwargs": self.kwargs if self.kwargs else None,
             "max_size": self.max_size if self.max_size else None,
-            "featurizer_class": [mod_string, class_string],
+            "featurizer_class": {
+                "module_string": mod_string,
+                "class_string": class_string,
+            },
         }
 
     def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
@@ -170,11 +173,13 @@ class Featurizer:
             or len(all_data.get("featurizer_class")) != 2
         ):
             msg = f"featurizer_class must be provided\
-                 and of the form [module name, class name],\
+                 and of the form {{'module_string': module name, 'class_string': class name}},\
                  got {all_data.get('featurizer_class')}"
             raise FeaturizerError(msg)
-        mod = importlib.import_module(all_data["featurizer_class"][0])
-        featurizer_class = getattr(mod, all_data["featurizer_class"][1])
+        mod = importlib.import_module(all_data["featurizer_class"].get("module_string"))
+        featurizer_class = getattr(
+            mod, all_data["featurizer_class"].get("class_string")
+        )
         return Featurizer(
             featurizer_class=featurizer_class,
             design_space_structures=structures,
