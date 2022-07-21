@@ -702,6 +702,22 @@ def test_candidate_selector_setup():
             include_segregation_energies=False,
             hhi_type="FAKE_HHI_TYPE",
         )
+    cs = CandidateSelector(
+        acquisition_function="MU",
+        num_candidates_to_pick=1,
+        include_hhi=False,
+        include_segregation_energies=True,
+        segregation_energy_data_source="raban1999",
+    )
+    assert cs.segregation_energy_data_source == "raban1999"
+    with pytest.raises(CandidateSelectorError):
+        cs = CandidateSelector(
+            acquisition_function="MU",
+            num_candidates_to_pick=1,
+            include_hhi=False,
+            include_segregation_energies=True,
+            segregation_energy_data_source="FAKE_SOURCE",
+        )
 
 
 def test_candidate_selector_eq():
@@ -711,8 +727,9 @@ def test_candidate_selector_eq():
         num_candidates_to_pick=1,
         include_hhi=True,
         hhi_type="reserves",
-        include_segregation_energies=False,
+        include_segregation_energies=True,
         target_window=(-100, -30),
+        segregation_energy_data_source="raban1999",
     )
 
     cs2 = CandidateSelector(
@@ -720,8 +737,9 @@ def test_candidate_selector_eq():
         num_candidates_to_pick=1,
         include_hhi=True,
         hhi_type="reserves",
-        include_segregation_energies=False,
+        include_segregation_energies=True,
         target_window=(-100, -30),
+        segregation_energy_data_source="raban1999",
     )
 
     assert cs == cs2
@@ -738,9 +756,12 @@ def test_candidate_selector_eq():
     assert not cs == cs2
     cs2.hhi_type = "reserves"
 
-    cs2.include_segregation_energies = True
-    assert not cs == cs2
     cs2.include_segregation_energies = False
+    assert not cs == cs2
+    cs2.include_segregation_energies = True
+
+    cs2.segregation_energy_data_source = "rao2020"
+    assert not cs == cs2
 
 
 def test_candidate_selector_copy():

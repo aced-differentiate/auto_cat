@@ -223,6 +223,7 @@ class CandidateSelector:
         include_hhi: bool = None,
         hhi_type: str = "production",
         include_segregation_energies: bool = None,
+        segregation_energy_data_source: str = None,
     ):
         """
         Constructor.
@@ -254,6 +255,12 @@ class CandidateSelector:
 
         include_segregation_energies:
             Whether segregation energies should be used to weight aq scores
+
+        segregation_energy_data_source:
+            Which tabulated data should the segregation energies be pulled from.
+            Options:
+            - "raban1999": A.V. Raban, et. al. Phys. Rev. B 59, 15990 (1999)
+            - "rao2020": K. K. Rao, et. al. Topics in Catalysis volume 63, pages728-741 (2020)
         """
         self._acquisition_function = "Random"
         self.acquisition_function = acquisition_function
@@ -272,6 +279,9 @@ class CandidateSelector:
 
         self._include_segregation_energies = False
         self.include_segregation_energies = include_segregation_energies
+
+        self._segregation_energy_data_source = "raban1999"
+        self.segregation_energy_data_source = segregation_energy_data_source
 
     @property
     def acquisition_function(self):
@@ -344,6 +354,20 @@ class CandidateSelector:
         if include_segregation_energies is not None:
             self._include_segregation_energies = include_segregation_energies
 
+    @property
+    def segregation_energy_data_source(self):
+        return self._segregation_energy_data_source
+
+    @segregation_energy_data_source.setter
+    def segregation_energy_data_source(self, segregation_energy_data_source):
+        if segregation_energy_data_source is not None:
+            if segregation_energy_data_source in ["raban1999", "rao2020"]:
+                self._segregation_energy_data_source = segregation_energy_data_source
+            else:
+                msg = f"Unrecognized segregation energy data source {segregation_energy_data_source}.\
+                     Please select one of 'raban1999' or 'rao2020'"
+                raise CandidateSelectorError(msg)
+
     def __repr__(self) -> str:
         pt = PrettyTable()
         pt.field_names = ["", "Candidate Selector"]
@@ -354,6 +378,9 @@ class CandidateSelector:
         if self.include_hhi:
             pt.add_row(["hhi type", self.hhi_type])
         pt.add_row(["include segregation energies?", self.include_segregation_energies])
+        pt.add_row(
+            ["segregation energies data source", self.segregation_energy_data_source]
+        )
         pt.max_width = 70
         return str(pt)
 
@@ -365,6 +392,7 @@ class CandidateSelector:
                 "include_hhi",
                 "hhi_type",
                 "include_segregation_energies",
+                "segregation_energy_data_source",
             ]:
                 if getattr(self, prop) != getattr(other, prop):
                     return False
