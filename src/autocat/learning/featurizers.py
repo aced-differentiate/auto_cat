@@ -155,11 +155,24 @@ class Featurizer:
     @staticmethod
     def from_jsonified_dict(all_data: Dict):
         if all_data.get("design_space_structures") is not None:
-            structures = []
-            for encoded_atoms in all_data.get("design_space_structures"):
-                structures.append(atoms_decoder(encoded_atoms))
+            # ensure structures are properly encoded using `ase.io.jsonio.encode`
+            try:
+                structures = []
+                for encoded_atoms in all_data.get("design_space_structures"):
+                    structures.append(atoms_decoder(encoded_atoms))
+            except (json.JSONDecodeError, TypeError):
+                msg = "Please ensure design space structures encoded using `ase.io.jsonio.encode`"
+                raise FeaturizerError(msg)
         else:
             structures = None
+        if (
+            all_data.get("featurizer_class") is None
+            or len(all_data.get("featurizer_class")) != 2
+        ):
+            msg = f"featurizer_class must be provided\
+                 and of the form [module name, class name],\
+                 got {all_data.get('featurizer_class')}"
+            raise FeaturizerError(msg)
         mod = importlib.import_module(all_data["featurizer_class"][0])
         featurizer_class = getattr(mod, all_data["featurizer_class"][1])
         return Featurizer(
