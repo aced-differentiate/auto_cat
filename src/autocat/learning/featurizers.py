@@ -165,9 +165,8 @@ class Featurizer:
             extracted_dict[prop] = all_data.get(prop)
         if all_data.get("design_space_structures") is not None:
             structures = []
-            for i in range(len(all_data["design_space_structures"])):
-                atoms = atoms_decoder(all_data["design_space_structures"][i])
-                structures.append(atoms)
+            for encoded_atoms in extracted_dict["design_space_structures"]:
+                structures.append(atoms_decoder(encoded_atoms))
         else:
             structures = None
         mod = importlib.import_module(all_data["featurizer_class"][0])

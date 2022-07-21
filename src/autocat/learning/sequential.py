@@ -196,9 +196,8 @@ class DesignSpace:
     @staticmethod
     def from_jsonified_dict(all_data: Dict):
         structures = []
-        for i in range(len(all_data["structures"])):
-            atoms = atoms_decoder(all_data["structures"][i])
-            structures.append(atoms)
+        for encoded_atoms in all_data["structures"]:
+            structures.append(atoms_decoder(encoded_atoms))
         labels = np.array(all_data["labels"])
         return DesignSpace(
             design_space_structures=structures, design_space_labels=labels,
