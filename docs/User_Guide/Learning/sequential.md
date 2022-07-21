@@ -93,16 +93,17 @@ window of between 0.25 and 0.3, and weights the scores by the HHI values.
 ...    include_hhi=True,
 ... )
 >>> candidate_selector
-+-------------------------------+--------------------+
-|                               | Candidate Selector |
-+-------------------------------+--------------------+
-|      acquisition function     |        MLI         |
-|    # of candidates to pick    |         3          |
-|         target window         |    [0.25 0.3 ]     |
-|          include hhi?         |        True        |
-|            hhi type           |     production     |
-| include segregation energies? |       False        |
-+-------------------------------+--------------------+
++----------------------------------+--------------------+
+|                                  | Candidate Selector |
++----------------------------------+--------------------+
+|       acquisition function       |        MLI         |
+|     # of candidates to pick      |         3          |
+|          target window           |    [0.25 0.3 ]     |
+|           include hhi?           |        True        |
+|             hhi type             |     production     |
+|  include segregation energies?   |       False        |
+| segregation energies data source |     raban1999      |
++----------------------------------+--------------------+
 ```
 
 The method `choose_candidate` applies these options to calculate the scores and propose 
@@ -218,16 +219,17 @@ start the loop.
 | next candidate system structures |     ['Cu36Li']     |
 |  next candidate system indices   |        [7]         |
 +----------------------------------+--------------------+
-+-------------------------------+--------------------+
-|                               | Candidate Selector |
-+-------------------------------+--------------------+
-|      acquisition function     |        MLI         |
-|    # of candidates to pick    |         1          |
-|         target window         |     [0.1 0.2]      |
-|          include hhi?         |        True        |
-|            hhi type           |      reserves      |
-| include segregation energies? |       False        |
-+-------------------------------+--------------------+
++----------------------------------+--------------------+
+|                                  | Candidate Selector |
++----------------------------------+--------------------+
+|       acquisition function       |        MLI         |
+|     # of candidates to pick      |         1          |
+|          target window           |     [0.1 0.2]      |
+|           include hhi?           |        True        |
+|             hhi type             |      reserves      |
+|  include segregation energies?   |       False        |
+| segregation energies data source |     raban1999      |
++----------------------------------+--------------------+
 +-------------------------+--------------------------------+
 |                         |          DesignSpace           |
 +-------------------------+--------------------------------+
