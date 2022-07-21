@@ -504,15 +504,9 @@ class CandidateSelector:
                 * segreg_energy_scores
             )
 
-        num_candidates_to_pick = self.num_candidates_to_pick
-        if num_candidates_to_pick == 1:
-            next_idx = np.array([np.argmax(aq_scores[allowed_idx])])
-            max_scores = [np.max(aq_scores[allowed_idx])]
-
-        else:
-            next_idx = np.argsort(aq_scores[allowed_idx])[-num_candidates_to_pick:]
-            sorted_array = aq_scores[allowed_idx][next_idx]
-            max_scores = list(sorted_array[-num_candidates_to_pick:])
+        next_idx = np.argsort(aq_scores[allowed_idx])[-self.num_candidates_to_pick :]
+        sorted_array = aq_scores[allowed_idx][next_idx]
+        max_scores = list(sorted_array[-self.num_candidates_to_pick :])
         parent_idx = np.arange(aq_scores.shape[0])[allowed_idx][next_idx]
 
         return parent_idx, max_scores, aq_scores
