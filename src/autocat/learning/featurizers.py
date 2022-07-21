@@ -154,18 +154,9 @@ class Featurizer:
 
     @staticmethod
     def from_jsonified_dict(all_data: Dict):
-        extracted_dict = {}
-        for prop in [
-            "species_list",
-            "preset",
-            "kwargs",
-            "max_size",
-            "design_space_structures",
-        ]:
-            extracted_dict[prop] = all_data.get(prop)
         if all_data.get("design_space_structures") is not None:
             structures = []
-            for encoded_atoms in extracted_dict["design_space_structures"]:
+            for encoded_atoms in all_data.get("design_space_structures"):
                 structures.append(atoms_decoder(encoded_atoms))
         else:
             structures = None
@@ -174,10 +165,10 @@ class Featurizer:
         return Featurizer(
             featurizer_class=featurizer_class,
             design_space_structures=structures,
-            species_list=extracted_dict["species_list"],
-            preset=extracted_dict["preset"],
-            max_size=extracted_dict["max_size"],
-            kwargs=extracted_dict["kwargs"],
+            species_list=all_data.get("species_list"),
+            preset=all_data.get("preset"),
+            max_size=all_data.get("max_size"),
+            kwargs=all_data.get("kwargs"),
         )
 
     @staticmethod
