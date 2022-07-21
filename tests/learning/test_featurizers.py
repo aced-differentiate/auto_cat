@@ -4,8 +4,10 @@ import os
 import tempfile
 
 import numpy as np
+import pytest
 
 from ase import Atoms
+from ase.io.jsonio import encode as atoms_encoder
 
 from dscribe.descriptors import SineMatrix
 from dscribe.descriptors import CoulombMatrix
@@ -20,7 +22,7 @@ from matminer.featurizers.site import CrystalNNFingerprint
 from autocat.adsorption import generate_adsorbed_structures
 from autocat.surface import generate_surface_structures
 from autocat.saa import generate_saa_structures
-from autocat.learning.featurizers import Featurizer
+from autocat.learning.featurizers import Featurizer, FeaturizerError
 from autocat.utils import flatten_structures_dict
 
 from pymatgen.io.ase import AseAtomsAdaptor
@@ -401,6 +403,79 @@ def test_featurizer_from_json():
         json_path = os.path.join(_tmp_dir, "test_feat.json")
         written_f = Featurizer.from_json(json_path)
         assert written_f == f
+
+
+def test_featurizer_from_jsonified_dict():
+    # Test generating Featurizer from a dict
+
+    with pytest.raises(FeaturizerError):
+        # catches null case
+        j_dict = {}
+        f = Featurizer.from_jsonified_dict(j_dict)
+
+    # test providing only featurizer class
+    j_dict = {"featurizer_class": ["dscribe.descriptors.sinematrix", "SineMatrix"]}
+    f = Featurizer.from_jsonified_dict(j_dict)
+    assert isinstance(f.featurization_object, SineMatrix)
+
+    # test providing preset
+    j_dict = {
+        "featurizer_class": [
+            "matminer.featurizers.composition.composite",
+            "ElementProperty",
+        ],
+        "preset": "matminer",
+    }
+    f = Featurizer.from_jsonified_dict(j_dict)
+    assert isinstance(f.featurization_object, ElementProperty)
+    assert f.preset == "matminer"
+
+    # test providing kwargs
+    j_dict = {
+        "featurizer_class": ["dscribe.descriptors.soap", "SOAP"],
+        "kwargs": {"rcut": 6.0, "lmax": 6, "nmax": 6},
+    }
+    f = Featurizer.from_jsonified_dict(j_dict)
+    assert isinstance(f.featurization_object, SOAP)
+    assert np.isclose(f.kwargs.get("rcut"), 6.0)
+    assert f.kwargs.get("lmax") == 6
+    assert f.kwargs.get("nmax") == 6
+
+    # test providing design space structures
+    atoms_list = [Atoms("H"), Atoms("N")]
+    encoded_atoms = [atoms_encoder(a) for a in atoms_list]
+    j_dict = {
+        "featurizer_class": ["dscribe.descriptors.sinematrix", "SineMatrix"],
+        "design_space_structures": encoded_atoms,
+    }
+    f = Featurizer.from_jsonified_dict(j_dict)
+    assert f.design_space_structures == atoms_list
+
+    with pytest.raises(FeaturizerError):
+        # catches that Atoms objects should be json encoded
+        j_dict = {
+            "featurizer_class": ["dscribe.descriptors.sinematrix", "SineMatrix"],
+            "design_space_structures": atoms_list,
+        }
+        f = Featurizer.from_jsonified_dict(j_dict)
+
+    with pytest.raises(FeaturizerError):
+        # catches that design space structures aren't some nonsensical type
+        j_dict = {
+            "featurizer_class": ["dscribe.descriptors.sinematrix", "SineMatrix"],
+            "design_space_structures": ["H", "N"],
+        }
+        f = Featurizer.from_jsonified_dict(j_dict)
+
+    with pytest.raises(FeaturizerError):
+        # catches that featurizer class must be provided
+        j_dict = {"preset": "magpie"}
+        f = Featurizer.from_jsonified_dict(j_dict)
+
+    with pytest.raises(FeaturizerError):
+        # catches that featurizer class must be specified correctly
+        j_dict = {"featurizer_class": [SineMatrix]}
+        f = Featurizer.from_jsonified_dict(j_dict)
 
 
 def test_featurizer_to_jsonified_dict():
