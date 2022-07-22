@@ -220,6 +220,7 @@ def test_sequential_learner_write_json():
             "include_hhi": False,
             "include_segregation_energies": False,
             "target_window": None,
+            "segregation_energy_data_source": "raban1999",
         }
         assert sl["sl_kwargs"] == {
             "iteration_count": 0,
@@ -257,6 +258,7 @@ def test_sequential_learner_write_json():
             "include_hhi": False,
             "include_segregation_energies": False,
             "target_window": None,
+            "segregation_energy_data_source": "raban1999",
         }
         assert sl["sl_kwargs"].get("iteration_count") == 1
         assert sl["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
@@ -330,6 +332,7 @@ def test_sequential_learner_to_jsonified_dict():
         "include_hhi": False,
         "include_segregation_energies": False,
         "target_window": None,
+        "segregation_energy_data_source": "raban1999",
     }
     assert jsonified_dict["sl_kwargs"] == {
         "iteration_count": 0,
@@ -365,6 +368,7 @@ def test_sequential_learner_to_jsonified_dict():
         "include_hhi": False,
         "include_segregation_energies": False,
         "target_window": None,
+        "segregation_energy_data_source": "raban1999",
     }
     assert jsonified_dict["sl_kwargs"].get("iteration_count") == 1
     assert jsonified_dict["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
@@ -827,6 +831,91 @@ def test_candidate_selector_setup():
             include_segregation_energies=True,
             segregation_energy_data_source="FAKE_SOURCE",
         )
+
+
+def test_candidate_selector_from_jsonified_dict():
+    # Tests generating CandidateSelector from a json dict
+
+    # test defaults
+    j_dict = {}
+    cs = CandidateSelector.from_jsonified_dict(j_dict)
+    assert cs.acquisition_function == "Random"
+    assert cs.num_candidates_to_pick == 1
+
+    # test specifying parameters
+    j_dict = {
+        "acquisition_function": "MLI",
+        "target_window": (-np.inf, 50.0),
+        "include_hhi": True,
+        "hhi_type": "reserves",
+        "include_segregation_energies": True,
+        "segregation_energy_data_source": "rao2020",
+    }
+    cs = CandidateSelector.from_jsonified_dict(j_dict)
+    assert cs.acquisition_function == "MLI"
+    assert np.array_equal(cs.target_window, [-np.inf, 50.0])
+    assert cs.include_hhi
+    assert cs.include_segregation_energies
+    assert cs.hhi_type == "reserves"
+    assert cs.segregation_energy_data_source == "rao2020"
+
+
+def test_candidate_selector_to_jsonified_dict():
+    # Tests converting CandidateSelector to json dict
+    cs = CandidateSelector(
+        acquisition_function="MLI",
+        target_window=(-10.0, np.inf),
+        include_hhi=True,
+        hhi_type="reserves",
+        include_segregation_energies=True,
+        segregation_energy_data_source="rao2020",
+    )
+    conv_j_dict = cs.to_jsonified_dict()
+    assert conv_j_dict.get("acquisition_function") == "MLI"
+    assert conv_j_dict.get("include_hhi")
+    assert conv_j_dict.get("include_segregation_energies")
+    assert conv_j_dict.get("hhi_type") == "reserves"
+    assert conv_j_dict.get("segregation_energy_data_source") == "rao2020"
+    assert np.array_equal(conv_j_dict.get("target_window"), [-10.0, np.inf])
+
+
+def test_write_candidate_selector_as_json():
+    # Test writing out CandidateSelector to disk as a json
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        cs = CandidateSelector(
+            acquisition_function="MU",
+            include_hhi=True,
+            hhi_type="reserves",
+            target_window=[-np.inf, 0.0],
+        )
+        cs.write_json_to_disk(write_location=_tmp_dir, json_name="cs.json")
+        # loads back written json
+        with open(os.path.join(_tmp_dir, "cs.json"), "r") as f:
+            written_cs = json.load(f)
+        assert written_cs.get("acquisition_function") == "MU"
+        assert np.array_equal(written_cs.get("target_window"), [-np.inf, 0.0])
+        assert written_cs.get("include_hhi")
+        assert written_cs.get("hhi_type") == "reserves"
+
+
+def test_get_candidate_selector_from_json():
+    # Tests generating a CandidateSelector from a json
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        cs = CandidateSelector(
+            acquisition_function="MLI",
+            include_segregation_energies=True,
+            target_window=(-3.0, np.inf),
+            segregation_energy_data_source="rao2020",
+        )
+        cs.write_json_to_disk(json_name="testing.json", write_location=_tmp_dir)
+
+        tmp_json_dir = os.path.join(_tmp_dir, "testing.json")
+        cs_from_json = CandidateSelector.from_json(tmp_json_dir)
+        assert cs_from_json.acquisition_function == "MLI"
+        assert cs_from_json.include_segregation_energies
+        assert not cs_from_json.include_hhi
+        assert cs_from_json.segregation_energy_data_source == "rao2020"
+        assert np.array_equal(cs_from_json.target_window, [-3.0, np.inf])
 
 
 def test_candidate_selector_eq():
