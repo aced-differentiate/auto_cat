@@ -136,18 +136,32 @@ class Predictor:
     @staticmethod
     def from_jsonified_dict(all_data: Dict):
         # get regressor
-        name_string = all_data["regressor"].get("name_string")
-        module_string = all_data["regressor"].get("module_string")
-        kwargs = all_data["regressor"].get("kwargs")
-        mod = importlib.import_module(module_string)
-        regressor_class = getattr(mod, name_string)
-        if kwargs is not None:
-            regressor = regressor_class(**kwargs)
+        if all_data.get("regressor") is None:
+            # allow not providing regressor (will use default)
+            regressor = None
+        elif not (
+            isinstance(all_data.get("regressor"), dict)
+            and all_data["regressor"].get("module_string") is not None
+            and all_data["regressor"].get("name_string") is not None
+        ):
+            # check regressor is provided in the correct form
+            msg = f"regressor must be provided\
+                 in the form {{'module_string': module name, 'name_string': class name}},\
+                 got {all_data.get('featurizer_class')}"
+            raise PredictorError(msg)
         else:
-            regressor = regressor_class()
+            name_string = all_data["regressor"].get("name_string")
+            module_string = all_data["regressor"].get("module_string")
+            kwargs = all_data["regressor"].get("kwargs")
+            mod = importlib.import_module(module_string)
+            regressor_class = getattr(mod, name_string)
+            if kwargs is not None:
+                regressor = regressor_class(**kwargs)
+            else:
+                regressor = regressor_class()
 
         # get featurizer
-        featurizer = Featurizer.from_jsonified_dict(all_data["featurizer"])
+        featurizer = Featurizer.from_jsonified_dict(all_data.get("featurizer", {}))
         return Predictor(regressor=regressor, featurizer=featurizer)
 
     @staticmethod
