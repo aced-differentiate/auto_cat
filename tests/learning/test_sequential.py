@@ -16,6 +16,7 @@ from matminer.featurizers.composition import ElementProperty
 
 from scipy import stats
 from ase.io.jsonio import decode as ase_decoder
+from ase.io.jsonio import encode as atoms_encoder
 from ase import Atoms
 from autocat.data.hhi import HHI
 from autocat.data.segregation_energies import SEGREGATION_ENERGIES
@@ -648,6 +649,44 @@ def test_design_space_to_jsonified_dict():
     json_structs = [ase_decoder(jsonified_dict["structures"][i]) for i in range(2)]
     assert structs == json_structs
     assert np.array_equal(labels, jsonified_dict["labels"])
+
+
+def test_design_space_from_jsonified_dict():
+    # Test generating DesignSpace from a jsonified dict
+    sub1 = generate_surface_structures(["Pd"], facets={"Pd": ["111"]})["Pd"]["fcc111"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
+        "structure"
+    ]
+    structs = [sub1, sub2]
+    encoded_structs = [atoms_encoder(struct) for struct in structs]
+    labels = np.array([0.3, 0.8])
+
+    with pytest.raises(DesignSpaceError):
+        # catch providing only structures
+        j_dict = {"structures": encoded_structs}
+        ds = DesignSpace.from_jsonified_dict(j_dict)
+
+    with pytest.raises(DesignSpaceError):
+        # catch providing only labels
+        j_dict = {"labels": labels}
+        ds = DesignSpace.from_jsonified_dict(j_dict)
+
+    with pytest.raises(DesignSpaceError):
+        # catch structures not encoded
+        j_dict = {"structures": structs, "labels": labels}
+        ds = DesignSpace.from_jsonified_dict(j_dict)
+
+    with pytest.raises(DesignSpaceError):
+        # catch structures not encoded
+        j_dict = {"structures": ["Pd", "V"], "labels": labels}
+        ds = DesignSpace.from_jsonified_dict(j_dict)
+
+    j_dict = {"structures": encoded_structs, "labels": labels}
+    ds = DesignSpace.from_jsonified_dict(j_dict)
+    assert ds.design_space_structures == structs
+    assert np.array_equal(ds.design_space_labels, labels)
 
 
 def test_get_design_space_from_json():
