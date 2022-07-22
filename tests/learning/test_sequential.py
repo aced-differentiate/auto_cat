@@ -104,6 +104,76 @@ def test_sequential_learner_from_json():
         assert np.array_equal(written_acsl.acquisition_scores, acsl.acquisition_scores)
 
 
+def test_sequential_learner_from_jsonified_dict():
+    # Tests generating a SequentialLearner from a json dict
+    sub1 = generate_surface_structures(["Au"], facets={"Au": ["110"]})["Au"]["fcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, Atoms("C"))
+    sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, Atoms("Mg"))
+    sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("N"))
+    structs = [sub1, sub2, sub3]
+    encoded_structs = [atoms_encoder(struct) for struct in structs]
+    labels = np.array([0.1, np.nan, 0.3])
+
+    ds_dict = {"structures": encoded_structs, "labels": labels}
+
+    j_dict = {"design_space": ds_dict}
+    sl = SequentialLearner.from_jsonified_dict(j_dict)
+    assert sl.design_space.design_space_structures == structs
+    assert np.array_equal(sl.design_space.design_space_labels, labels, equal_nan=True)
+    assert sl.iteration_count == 0
+    assert sl.predictions is None
+    assert sl.uncertainties_history is None
+
+    # test providing sl_kwargs
+    j_dict = {
+        "design_space": ds_dict,
+        "sl_kwargs": {"candidate_index_history": [[1]], "candidate_indices": [1]},
+    }
+    sl = SequentialLearner.from_jsonified_dict(j_dict)
+    assert sl.candidate_indices[0] == 1
+    assert sl.candidate_index_history[0][0] == 1
+
+    # test passing through predictor and candidate selector
+    feat_dict = {
+        "featurizer_class": {
+            "module_string": "matminer.featurizers.composition.composite",
+            "class_string": "ElementProperty",
+        },
+        "preset": "matminer",
+    }
+    pred_dict = {
+        "regressor": {
+            "name_string": "RandomForestRegressor",
+            "module_string": "sklearn.ensemble._forest",
+            "kwargs": {"n_estimators": 50},
+        },
+        "featurizer": feat_dict,
+    }
+    cs_dict = {"acquisition_function": "MU"}
+    j_dict = {
+        "design_space": ds_dict,
+        "predictor": pred_dict,
+        "candidate_selector": cs_dict,
+    }
+    sl = SequentialLearner.from_jsonified_dict(j_dict)
+    assert isinstance(sl.predictor.featurizer.featurization_object, ElementProperty)
+    assert sl.predictor.regressor.n_estimators == 50
+    assert sl.candidate_selector.acquisition_function == "MU"
+
+    with pytest.raises(SequentialLearnerError):
+        # catches not providing DesignSpace
+        j_dict = {}
+        sl = SequentialLearner.from_jsonified_dict(j_dict)
+
+
 def test_sequential_learner_write_json():
     # Tests writing a SequentialLearner to disk as a json
     sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
