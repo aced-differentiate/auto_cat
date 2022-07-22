@@ -870,12 +870,15 @@ class SequentialLearner:
 
     @staticmethod
     def from_jsonified_dict(all_data: Dict):
+        if all_data.get("design_space") is None:
+            msg = "DesignSpace must be provided"
+            raise SequentialLearnerError(msg)
         design_space = DesignSpace.from_jsonified_dict(all_data["design_space"])
-        predictor = Predictor.from_jsonified_dict(all_data["predictor"])
+        predictor = Predictor.from_jsonified_dict(all_data.get("predictor", {}))
         candidate_selector = CandidateSelector.from_jsonified_dict(
-            all_data["candidate_selector"]
+            all_data.get("candidate_selector", {})
         )
-        raw_sl_kwargs = all_data["sl_kwargs"]
+        raw_sl_kwargs = all_data.get("sl_kwargs", {})
         sl_kwargs = {}
         for k in raw_sl_kwargs:
             if raw_sl_kwargs[k] is not None:
