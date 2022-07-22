@@ -195,9 +195,16 @@ class DesignSpace:
 
     @staticmethod
     def from_jsonified_dict(all_data: Dict):
-        structures = []
-        for encoded_atoms in all_data["structures"]:
-            structures.append(atoms_decoder(encoded_atoms))
+        if all_data.get("structures") is None or all_data.get("labels") is None:
+            msg = "Both structures and labels must be provided"
+            raise DesignSpaceError(msg)
+        try:
+            structures = []
+            for encoded_atoms in all_data["structures"]:
+                structures.append(atoms_decoder(encoded_atoms))
+        except (json.JSONDecodeError, TypeError):
+            msg = "Please ensure design space structures encoded using `ase.io.jsonio.encode`"
+            raise DesignSpaceError(msg)
         labels = np.array(all_data["labels"])
         return DesignSpace(
             design_space_structures=structures, design_space_labels=labels,
