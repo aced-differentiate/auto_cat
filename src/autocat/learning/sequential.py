@@ -532,6 +532,7 @@ class CandidateSelector:
             "include_hhi": self.include_hhi,
             "hhi_type": self.hhi_type,
             "include_segregation_energies": self.include_segregation_energies,
+            "segregation_energy_data_source": self.segregation_energy_data_source,
         }
 
     def write_json_to_disk(
@@ -561,6 +562,9 @@ class CandidateSelector:
             include_hhi=all_data.get("include_hhi"),
             hhi_type=all_data.get("hhi_type"),
             include_segregation_energies=all_data.get("include_segregation_energies"),
+            segregation_energy_data_source=all_data.get(
+                "segregation_energy_data_source"
+            ),
         )
 
     @staticmethod
