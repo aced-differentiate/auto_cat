@@ -168,18 +168,28 @@ class Featurizer:
                 raise FeaturizerError(msg)
         else:
             structures = None
-        if (
-            all_data.get("featurizer_class") is None
-            or len(all_data.get("featurizer_class")) != 2
+
+        if all_data.get("featurizer_class") is None:
+            # allow not providing featurizer class (will use default)
+            featurizer_class = None
+        elif not (
+            isinstance(all_data.get("featurizer_class"), dict)
+            and len(all_data.get("featurizer_class")) == 2
+            and all_data["featurizer_class"].get("module_string") is not None
+            and all_data["featurizer_class"].get("class_string") is not None
         ):
+            # check featurizer class, if provided, is done so in correct format
             msg = f"featurizer_class must be provided\
-                 and of the form {{'module_string': module name, 'class_string': class name}},\
+                 in the form {{'module_string': module name, 'class_string': class name}},\
                  got {all_data.get('featurizer_class')}"
             raise FeaturizerError(msg)
-        mod = importlib.import_module(all_data["featurizer_class"].get("module_string"))
-        featurizer_class = getattr(
-            mod, all_data["featurizer_class"].get("class_string")
-        )
+        else:
+            mod = importlib.import_module(
+                all_data["featurizer_class"].get("module_string")
+            )
+            featurizer_class = getattr(
+                mod, all_data["featurizer_class"].get("class_string")
+            )
         return Featurizer(
             featurizer_class=featurizer_class,
             design_space_structures=structures,

@@ -408,11 +408,6 @@ def test_featurizer_from_json():
 def test_featurizer_from_jsonified_dict():
     # Test generating Featurizer from a dict
 
-    with pytest.raises(FeaturizerError):
-        # catches null case
-        j_dict = {}
-        f = Featurizer.from_jsonified_dict(j_dict)
-
     # test providing only featurizer class
     j_dict = {
         "featurizer_class": {
@@ -462,6 +457,12 @@ def test_featurizer_from_jsonified_dict():
     f = Featurizer.from_jsonified_dict(j_dict)
     assert f.design_space_structures == atoms_list
 
+    # use default featurizer class if not specified
+    j_dict = {"max_size": 500}
+    f = Featurizer.from_jsonified_dict(j_dict)
+    assert isinstance(f.featurization_object, SineMatrix)
+    assert f.max_size == 500
+
     with pytest.raises(FeaturizerError):
         # catches that Atoms objects should be json encoded
         j_dict = {
@@ -482,11 +483,6 @@ def test_featurizer_from_jsonified_dict():
             },
             "design_space_structures": ["H", "N"],
         }
-        f = Featurizer.from_jsonified_dict(j_dict)
-
-    with pytest.raises(FeaturizerError):
-        # catches that featurizer class must be provided
-        j_dict = {"preset": "magpie"}
         f = Featurizer.from_jsonified_dict(j_dict)
 
     with pytest.raises(FeaturizerError):
