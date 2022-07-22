@@ -190,6 +190,48 @@ def test_predictor_from_json():
         assert written_pred.featurizer == featurizer
 
 
+def test_predictor_from_jsonified_dict():
+    # Tests generation of a Predictor from a jsonified dict
+
+    # test null case
+    j_dict = {}
+    p = Predictor.from_jsonified_dict(j_dict)
+    assert isinstance(p.featurizer, Featurizer)
+    assert isinstance(p.regressor, RandomForestRegressor)
+
+    # test providing regressor
+    j_dict = {
+        "regressor": {
+            "module_string": "sklearn.gaussian_process._gpr",
+            "name_string": "GaussianProcessRegressor",
+        }
+    }
+    p = Predictor.from_jsonified_dict(j_dict)
+    assert isinstance(p.regressor, GaussianProcessRegressor)
+
+    # test providing regressor with kwargs
+    j_dict = {
+        "regressor": {
+            "name_string": "RandomForestRegressor",
+            "module_string": "sklearn.ensemble._forest",
+            "kwargs": {"n_estimators": 50},
+        }
+    }
+    p = Predictor.from_jsonified_dict(j_dict)
+    assert isinstance(p.regressor, RandomForestRegressor)
+    assert p.regressor.n_estimators == 50
+
+    with pytest.raises(PredictorError):
+        # catches incorrectly formatted regressor dict
+        j_dict = {"regressor": {"name_string": "GaussianProcessRegressor"}}
+        p = Predictor.from_jsonified_dict(j_dict)
+
+    with pytest.raises(PredictorError):
+        # catches incorrectly formatted regressor dict
+        j_dict = {"regressor": {"module_string": "sklearn.gaussian_process._gpr"}}
+        p = Predictor.from_jsonified_dict(j_dict)
+
+
 def test_predictor_to_jsonified_dict():
     # Tests converting a Predictor to a jsonified dict
     subs = flatten_structures_dict(generate_surface_structures(["Pt", "Fe", "Ru"]))
