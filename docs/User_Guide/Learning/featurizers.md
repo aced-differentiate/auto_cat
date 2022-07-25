@@ -117,3 +117,8 @@ At present the following featurizer classes are supported:
     - `ChemicalSRO`
     - `OPSiteFingerprint`
     - `CrystalNNFingerprint`
+
+**N.B.** `ACSF`, `SOAP`, `CrystalNNFingerprint`, `OPSiteFingerprint`, and `ChemicalSRO` 
+are all implemented to featurize locally around specified 
+atoms indicated with `ase.Atoms.tags <= 0`. 
+The remaining implemented featurizer classes consider the full structure by definition

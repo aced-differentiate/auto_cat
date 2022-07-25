@@ -6,8 +6,8 @@ object class. This contains two key attributes:
 
 - a regressor that can be fit to data and used for predictions
 (the class provided must have `fit` and `predict` methods)
-- featurizer class and kwargs to instantiate a [`Featurizer`](featurizers.md).
- In particular there are two currently implemented approaches,
+- a [`Featurizer`](featurizers.md) to be used for featurizing the structures.
+ There are two currently implemented approaches,
 structure methods that featurize the entire structure (e.g. `SineMatrix`, `ElementProperty`)
  and adsorbate methods that featurize locally (e.g. `SOAP`).
 
