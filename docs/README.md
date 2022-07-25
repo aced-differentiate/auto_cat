@@ -16,7 +16,7 @@ For additional details please see the User Guide, Tutorials, and API sections.
 One of the core philosophies of AutoCat is to provide modular and extensible tooling to
 facilitate closed-loop computational materials discovery workflows. Within this submodule 
 are classes for defining a design space, featurization, 
-regression, and defining a closed-loop sequential learning iterator. The 
+regression, selecting candidate systems, and defining a closed-loop sequential learning iterator. The 
 key classes intended for each of these purposes are:
 
 - [**`DesignSpace`**](User_Guide/Learning/sequential#designspace): define a design space to explore
@@ -24,6 +24,9 @@ key classes intended for each of these purposes are:
 - [**`Featurizer`**](User_Guide/Learning/featurizers): featurize the systems for regression
 
 - [**`Predictor`**](User_Guide/Learning/predictors): a regressor for predicting materials properties
+
+- [**`CandidateSelector`**](User_Guide/Learning/sequential.md#candidateselector): propose candidate system(s) 
+for evaluation
 
 - [**`SequentialLearner`**](User_Guide/Learning/sequential#sequentiallearner): define a closed-loop iterator 
 

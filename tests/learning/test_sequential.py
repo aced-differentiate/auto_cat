@@ -6,6 +6,7 @@ import numpy as np
 import json
 
 import tempfile
+from sklearn.ensemble import RandomForestRegressor
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 
@@ -15,9 +16,11 @@ from matminer.featurizers.composition import ElementProperty
 
 from scipy import stats
 from ase.io.jsonio import decode as ase_decoder
+from ase.io.jsonio import encode as atoms_encoder
 from ase import Atoms
 from autocat.data.hhi import HHI
 from autocat.data.segregation_energies import SEGREGATION_ENERGIES
+from autocat.learning.featurizers import Featurizer
 from autocat.learning.predictors import Predictor
 from autocat.learning.sequential import (
     DesignSpace,
@@ -25,9 +28,10 @@ from autocat.learning.sequential import (
     SequentialLearnerError,
     SequentialLearner,
     calculate_segregation_energy_scores,
-    choose_next_candidate,
     get_overlap_score,
 )
+from autocat.learning.sequential import CandidateSelector
+from autocat.learning.sequential import CandidateSelectorError
 from autocat.learning.sequential import simulated_sequential_learning
 from autocat.learning.sequential import multiple_simulated_sequential_learning_runs
 from autocat.learning.sequential import calculate_hhi_scores
@@ -54,18 +58,14 @@ def test_sequential_learner_from_json():
     structs = [sub1, sub2, sub3]
     labels = np.array([0.1, np.nan, 0.3])
     acds = DesignSpace(structs, labels)
-    featurization_kwargs = {"kwargs": {"rcut": 5.0, "lmax": 6, "nmax": 6}}
-    predictor_kwargs = {
-        "model_class": GaussianProcessRegressor,
-        "featurizer_class": SOAP,
-        "featurization_kwargs": featurization_kwargs,
-    }
-
-    candidate_selection_kwargs = {"aq": "Random", "num_candidates_to_pick": 3}
+    featurizer = Featurizer(SOAP, kwargs={"rcut": 5.0, "lmax": 6, "nmax": 6})
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor, featurizer=featurizer)
+    candidate_selector = CandidateSelector(
+        acquisition_function="Random", num_candidates_to_pick=3
+    )
     acsl = SequentialLearner(
-        acds,
-        predictor_kwargs=predictor_kwargs,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        acds, predictor=predictor, candidate_selector=candidate_selector,
     )
     acsl.iterate()
     with tempfile.TemporaryDirectory() as _tmp_dir:
@@ -81,11 +81,9 @@ def test_sequential_learner_from_json():
             written_acsl.design_space.design_space_structures
             == acds.design_space_structures
         )
-        predictor_kwargs["featurization_kwargs"][
-            "design_space_structures"
-        ] = acds.design_space_structures
-        assert written_acsl.predictor_kwargs == predictor_kwargs
-        assert written_acsl.candidate_selection_kwargs == candidate_selection_kwargs
+        assert written_acsl.predictor.featurizer == acsl.predictor.featurizer
+        assert isinstance(written_acsl.predictor.regressor, GaussianProcessRegressor)
+        assert written_acsl.candidate_selector == acsl.candidate_selector
         assert written_acsl.iteration_count == 1
         assert np.array_equal(written_acsl.train_idx, acsl.train_idx)
         assert written_acsl.train_idx[0] in [True, False]
@@ -106,6 +104,76 @@ def test_sequential_learner_from_json():
         assert np.array_equal(written_acsl.acquisition_scores, acsl.acquisition_scores)
 
 
+def test_sequential_learner_from_jsonified_dict():
+    # Tests generating a SequentialLearner from a json dict
+    sub1 = generate_surface_structures(["Au"], facets={"Au": ["110"]})["Au"]["fcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, Atoms("C"))
+    sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, Atoms("Mg"))
+    sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("N"))
+    structs = [sub1, sub2, sub3]
+    encoded_structs = [atoms_encoder(struct) for struct in structs]
+    labels = np.array([0.1, np.nan, 0.3])
+
+    ds_dict = {"structures": encoded_structs, "labels": labels}
+
+    j_dict = {"design_space": ds_dict}
+    sl = SequentialLearner.from_jsonified_dict(j_dict)
+    assert sl.design_space.design_space_structures == structs
+    assert np.array_equal(sl.design_space.design_space_labels, labels, equal_nan=True)
+    assert sl.iteration_count == 0
+    assert sl.predictions is None
+    assert sl.uncertainties_history is None
+
+    # test providing sl_kwargs
+    j_dict = {
+        "design_space": ds_dict,
+        "sl_kwargs": {"candidate_index_history": [[1]], "candidate_indices": [1]},
+    }
+    sl = SequentialLearner.from_jsonified_dict(j_dict)
+    assert sl.candidate_indices[0] == 1
+    assert sl.candidate_index_history[0][0] == 1
+
+    # test passing through predictor and candidate selector
+    feat_dict = {
+        "featurizer_class": {
+            "module_string": "matminer.featurizers.composition.composite",
+            "class_string": "ElementProperty",
+        },
+        "preset": "matminer",
+    }
+    pred_dict = {
+        "regressor": {
+            "name_string": "RandomForestRegressor",
+            "module_string": "sklearn.ensemble._forest",
+            "kwargs": {"n_estimators": 50},
+        },
+        "featurizer": feat_dict,
+    }
+    cs_dict = {"acquisition_function": "MU"}
+    j_dict = {
+        "design_space": ds_dict,
+        "predictor": pred_dict,
+        "candidate_selector": cs_dict,
+    }
+    sl = SequentialLearner.from_jsonified_dict(j_dict)
+    assert isinstance(sl.predictor.featurizer.featurization_object, ElementProperty)
+    assert sl.predictor.regressor.n_estimators == 50
+    assert sl.candidate_selector.acquisition_function == "MU"
+
+    with pytest.raises(SequentialLearnerError):
+        # catches not providing DesignSpace
+        j_dict = {}
+        sl = SequentialLearner.from_jsonified_dict(j_dict)
+
+
 def test_sequential_learner_write_json():
     # Tests writing a SequentialLearner to disk as a json
     sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
@@ -122,41 +190,39 @@ def test_sequential_learner_write_json():
     sub3 = place_adsorbate(sub3, Atoms("H"))
     structs = [sub1, sub2, sub3]
     labels = np.array([0.1, 0.2, np.nan])
-    featurization_kwargs = {"preset": "magpie"}
-    predictor_kwargs = {
-        "model_class": GaussianProcessRegressor,
-        "featurizer_class": ElementProperty,
-        "featurization_kwargs": featurization_kwargs,
-    }
-
-    candidate_selection_kwargs = {"aq": "MU", "num_candidates_to_pick": 2}
+    featurizer = Featurizer(featurizer_class=ElementProperty, preset="magpie")
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor, featurizer=featurizer)
+    candidate_selector = CandidateSelector(
+        acquisition_function="MU", num_candidates_to_pick=2
+    )
     acds = DesignSpace(structs, labels)
     acsl = SequentialLearner(
-        acds,
-        predictor_kwargs=predictor_kwargs,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        acds, predictor=predictor, candidate_selector=candidate_selector,
     )
     with tempfile.TemporaryDirectory() as _tmp_dir:
         acsl.write_json_to_disk(_tmp_dir, "testing_acsl.json")
         with open(os.path.join(_tmp_dir, "testing_acsl.json"), "r") as f:
             sl = json.load(f)
-        written_structs = [ase_decoder(sl[i]) for i in range(3)]
+        written_structs = [
+            ase_decoder(sl["design_space"]["structures"][i]) for i in range(3)
+        ]
         assert structs == written_structs
-        assert np.array_equal(labels, sl[3], equal_nan=True)
-        # check predictor kwargs kept
-        predictor_kwargs["model_class"] = [
-            "sklearn.gaussian_process._gpr",
-            "GaussianProcessRegressor",
-        ]
-        predictor_kwargs["featurizer_class"] = [
-            "matminer.featurizers.composition.composite",
-            "ElementProperty",
-        ]
-        del predictor_kwargs["featurization_kwargs"]["design_space_structures"]
-        assert sl[4] == predictor_kwargs
-        # check candidate selection kwargs kept
-        assert sl[-2] == candidate_selection_kwargs
-        assert sl[-1] == {
+        assert np.array_equal(labels, sl["design_space"]["labels"], equal_nan=True)
+        assert sl["predictor"]["featurizer"]["featurizer_class"] == {
+            "module_string": "matminer.featurizers.composition.composite",
+            "class_string": "ElementProperty",
+        }
+        assert sl["candidate_selector"] == {
+            "acquisition_function": "MU",
+            "num_candidates_to_pick": 2,
+            "hhi_type": "production",
+            "include_hhi": False,
+            "include_segregation_energies": False,
+            "target_window": None,
+            "segregation_energy_data_source": "raban1999",
+        }
+        assert sl["sl_kwargs"] == {
             "iteration_count": 0,
             "train_idx": None,
             "train_idx_history": None,
@@ -175,44 +241,53 @@ def test_sequential_learner_write_json():
         acsl.write_json_to_disk(_tmp_dir, "testing_acsl.json")
         with open(os.path.join(_tmp_dir, "testing_acsl.json"), "r") as f:
             sl = json.load(f)
-        written_structs = [ase_decoder(sl[i]) for i in range(3)]
+        written_structs = [
+            ase_decoder(sl["design_space"]["structures"][i]) for i in range(3)
+        ]
         assert structs == written_structs
-        assert np.array_equal(labels, sl[3], equal_nan=True)
+        assert np.array_equal(labels, sl["design_space"]["labels"], equal_nan=True)
         # check predictor kwargs kept
-        predictor_kwargs["model_class"] = [
-            "sklearn.gaussian_process._gpr",
-            "GaussianProcessRegressor",
-        ]
-        predictor_kwargs["featurizer_class"] = [
-            "matminer.featurizers.composition.composite",
-            "ElementProperty",
-        ]
-        assert sl[4] == predictor_kwargs
-        # check candidate selection kwargs kept
-        assert sl[-2] == candidate_selection_kwargs
-        assert sl[-1].get("iteration_count") == 1
-        assert sl[-1].get("train_idx") == acsl.train_idx.tolist()
-        assert sl[-1].get("train_idx_history") == [
+        assert sl["predictor"]["featurizer"]["featurizer_class"] == {
+            "module_string": "matminer.featurizers.composition.composite",
+            "class_string": "ElementProperty",
+        }
+        assert sl["candidate_selector"] == {
+            "acquisition_function": "MU",
+            "num_candidates_to_pick": 2,
+            "hhi_type": "production",
+            "include_hhi": False,
+            "include_segregation_energies": False,
+            "target_window": None,
+            "segregation_energy_data_source": "raban1999",
+        }
+        assert sl["sl_kwargs"].get("iteration_count") == 1
+        assert sl["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
+        assert sl["sl_kwargs"].get("train_idx_history") == [
             ti.tolist() for ti in acsl.train_idx_history
         ]
-        assert isinstance(sl[-1].get("train_idx_history")[0][0], bool)
-        assert sl[-1].get("predictions") == acsl.predictions.tolist()
-        assert sl[-1].get("predictions_history") == [
+        assert isinstance(sl["sl_kwargs"].get("train_idx_history")[0][0], bool)
+        assert sl["sl_kwargs"].get("predictions") == acsl.predictions.tolist()
+        assert sl["sl_kwargs"].get("predictions_history") == [
             p.tolist() for p in acsl.predictions_history
         ]
-        assert sl[-1].get("uncertainties") == acsl.uncertainties.tolist()
-        assert sl[-1].get("uncertainties_history") == [
+        assert sl["sl_kwargs"].get("uncertainties") == acsl.uncertainties.tolist()
+        assert sl["sl_kwargs"].get("uncertainties_history") == [
             u.tolist() for u in acsl.uncertainties_history
         ]
-        assert sl[-1].get("candidate_indices") == acsl.candidate_indices.tolist()
-        assert sl[-1].get("candidate_index_history") == [
+        assert (
+            sl["sl_kwargs"].get("candidate_indices") == acsl.candidate_indices.tolist()
+        )
+        assert sl["sl_kwargs"].get("candidate_index_history") == [
             c.tolist() for c in acsl.candidate_index_history
         ]
-        assert sl[-1].get("acquisition_scores") == acsl.acquisition_scores.tolist()
-        assert sl[-1].get("acquisition_scores") is not None
+        assert (
+            sl["sl_kwargs"].get("acquisition_scores")
+            == acsl.acquisition_scores.tolist()
+        )
+        assert sl["sl_kwargs"].get("acquisition_scores") is not None
 
 
-def test_sequential_learner_to_jsonified_list():
+def test_sequential_learner_to_jsonified_dict():
     # Tests writing a SequentialLearner to disk as a json
     sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
         "structure"
@@ -228,38 +303,38 @@ def test_sequential_learner_to_jsonified_list():
     sub3 = place_adsorbate(sub3, Atoms("H"))
     structs = [sub1, sub2, sub3]
     labels = np.array([0.1, 0.2, np.nan])
-    featurization_kwargs = {"preset": "magpie"}
-    predictor_kwargs = {
-        "model_class": GaussianProcessRegressor,
-        "featurizer_class": ElementProperty,
-        "featurization_kwargs": featurization_kwargs,
-    }
-
-    candidate_selection_kwargs = {"aq": "MU", "num_candidates_to_pick": 2}
+    featurizer = Featurizer(featurizer_class=ElementProperty, preset="magpie")
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor, featurizer=featurizer)
+    candidate_selector = CandidateSelector(
+        acquisition_function="MU", num_candidates_to_pick=2
+    )
     acds = DesignSpace(structs, labels)
     acsl = SequentialLearner(
-        acds,
-        predictor_kwargs=predictor_kwargs,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        acds, predictor=predictor, candidate_selector=candidate_selector,
     )
-    jsonified_list = acsl.to_jsonified_list()
-    json_structs = [ase_decoder(jsonified_list[i]) for i in range(3)]
+    jsonified_dict = acsl.to_jsonified_dict()
+    json_structs = [
+        ase_decoder(jsonified_dict["design_space"]["structures"][i]) for i in range(3)
+    ]
     assert structs == json_structs
-    assert np.array_equal(labels, jsonified_list[3], equal_nan=True)
-    # check predictor kwargs kept
-    predictor_kwargs["model_class"] = [
-        "sklearn.gaussian_process._gpr",
-        "GaussianProcessRegressor",
-    ]
-    predictor_kwargs["featurizer_class"] = [
-        "matminer.featurizers.composition.composite",
-        "ElementProperty",
-    ]
-    del predictor_kwargs["featurization_kwargs"]["design_space_structures"]
-    assert jsonified_list[4] == predictor_kwargs
-    # check candidate selection kwargs kept
-    assert jsonified_list[-2] == candidate_selection_kwargs
-    assert jsonified_list[-1] == {
+    assert np.array_equal(
+        labels, jsonified_dict["design_space"]["labels"], equal_nan=True
+    )
+    assert jsonified_dict["predictor"]["featurizer"]["featurizer_class"] == {
+        "module_string": "matminer.featurizers.composition.composite",
+        "class_string": "ElementProperty",
+    }
+    assert jsonified_dict["candidate_selector"] == {
+        "acquisition_function": "MU",
+        "num_candidates_to_pick": 2,
+        "hhi_type": "production",
+        "include_hhi": False,
+        "include_segregation_energies": False,
+        "target_window": None,
+        "segregation_energy_data_source": "raban1999",
+    }
+    assert jsonified_dict["sl_kwargs"] == {
         "iteration_count": 0,
         "train_idx": None,
         "train_idx_history": None,
@@ -274,46 +349,69 @@ def test_sequential_learner_to_jsonified_list():
 
     # test after iteration
     acsl.iterate()
-    jsonified_list = acsl.to_jsonified_list()
-    json_structs = [ase_decoder(jsonified_list[i]) for i in range(3)]
+    jsonified_dict = acsl.to_jsonified_dict()
+    json_structs = [
+        ase_decoder(jsonified_dict["design_space"]["structures"][i]) for i in range(3)
+    ]
     assert structs == json_structs
-    assert np.array_equal(labels, jsonified_list[3], equal_nan=True)
-    # check predictor kwargs kept
-    predictor_kwargs["model_class"] = [
-        "sklearn.gaussian_process._gpr",
-        "GaussianProcessRegressor",
-    ]
-    predictor_kwargs["featurizer_class"] = [
-        "matminer.featurizers.composition.composite",
-        "ElementProperty",
-    ]
-    assert jsonified_list[4] == predictor_kwargs
-    # check candidate selection kwargs kept
-    assert jsonified_list[-2] == candidate_selection_kwargs
-    assert jsonified_list[-1].get("iteration_count") == 1
-    assert jsonified_list[-1].get("train_idx") == acsl.train_idx.tolist()
-    assert jsonified_list[-1].get("train_idx_history") == [
+    assert np.array_equal(
+        labels, jsonified_dict["design_space"]["labels"], equal_nan=True
+    )
+    assert jsonified_dict["predictor"]["featurizer"]["featurizer_class"] == {
+        "module_string": "matminer.featurizers.composition.composite",
+        "class_string": "ElementProperty",
+    }
+    assert jsonified_dict["candidate_selector"] == {
+        "acquisition_function": "MU",
+        "num_candidates_to_pick": 2,
+        "hhi_type": "production",
+        "include_hhi": False,
+        "include_segregation_energies": False,
+        "target_window": None,
+        "segregation_energy_data_source": "raban1999",
+    }
+    assert jsonified_dict["sl_kwargs"].get("iteration_count") == 1
+    assert jsonified_dict["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
+    assert jsonified_dict["sl_kwargs"].get("train_idx_history") == [
         ti.tolist() for ti in acsl.train_idx_history
     ]
-    assert isinstance(jsonified_list[-1].get("train_idx_history")[0][0], bool)
-    assert jsonified_list[-1].get("predictions") == acsl.predictions.tolist()
-    assert jsonified_list[-1].get("predictions_history") == [
+    assert isinstance(jsonified_dict["sl_kwargs"].get("train_idx_history")[0][0], bool)
+    assert jsonified_dict["sl_kwargs"].get("predictions") == acsl.predictions.tolist()
+    assert jsonified_dict["sl_kwargs"].get("predictions_history") == [
         p.tolist() for p in acsl.predictions_history
     ]
-    assert jsonified_list[-1].get("uncertainties") == acsl.uncertainties.tolist()
-    assert jsonified_list[-1].get("uncertainties_history") == [
+    assert (
+        jsonified_dict["sl_kwargs"].get("uncertainties") == acsl.uncertainties.tolist()
+    )
+    assert jsonified_dict["sl_kwargs"].get("uncertainties_history") == [
         u.tolist() for u in acsl.uncertainties_history
     ]
     assert (
-        jsonified_list[-1].get("candidate_indices") == acsl.candidate_indices.tolist()
+        jsonified_dict["sl_kwargs"].get("candidate_indices")
+        == acsl.candidate_indices.tolist()
     )
-    assert jsonified_list[-1].get("candidate_index_history") == [
+    assert jsonified_dict["sl_kwargs"].get("candidate_index_history") == [
         c.tolist() for c in acsl.candidate_index_history
     ]
     assert (
-        jsonified_list[-1].get("acquisition_scores") == acsl.acquisition_scores.tolist()
+        jsonified_dict["sl_kwargs"].get("acquisition_scores")
+        == acsl.acquisition_scores.tolist()
     )
-    assert jsonified_list[-1].get("acquisition_scores") is not None
+    assert jsonified_dict["sl_kwargs"].get("acquisition_scores") is not None
+
+    # test when no uncertainty
+    regressor = RandomForestRegressor()
+    predictor = Predictor(regressor=regressor, featurizer=featurizer)
+    candidate_selector = CandidateSelector(acquisition_function="Random")
+    acsl = SequentialLearner(
+        acds, predictor=predictor, candidate_selector=candidate_selector,
+    )
+    jsonified_dict = acsl.to_jsonified_dict()
+    assert jsonified_dict["sl_kwargs"].get("uncertainties_history") == None
+    assert jsonified_dict["sl_kwargs"].get("uncertainties") == None
+    acsl.iterate()
+    assert jsonified_dict["sl_kwargs"].get("uncertainties_history") == None
+    assert jsonified_dict["sl_kwargs"].get("uncertainties") == None
 
 
 def test_sequential_learner_iterate():
@@ -337,7 +435,10 @@ def test_sequential_learner_iterate():
     structs = [sub1, sub2, sub3, sub4]
     labels = np.array([11.0, 25.0, np.nan, np.nan])
     acds = DesignSpace(structs, labels)
-    acsl = SequentialLearner(acds, predictor_kwargs={"featurizer_class": SineMatrix})
+    featurizer = Featurizer(featurizer_class=SineMatrix)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(featurizer=featurizer, regressor=regressor)
+    acsl = SequentialLearner(acds, predictor=predictor)
 
     assert acsl.iteration_count == 0
 
@@ -403,8 +504,11 @@ def test_sequential_learner_setup():
     sub4 = place_adsorbate(sub4, Atoms("N"))
     structs = [sub1, sub2, sub3, sub4]
     labels = np.array([4.0, np.nan, 6.0, np.nan])
+    featurizer = Featurizer(featurizer_class=SineMatrix)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(featurizer=featurizer, regressor=regressor)
     acds = DesignSpace(structs, labels)
-    acsl = SequentialLearner(acds, predictor_kwargs={"featurizer_class": SineMatrix})
+    acsl = SequentialLearner(acds, predictor=predictor)
 
     assert acsl.design_space.design_space_structures == acds.design_space_structures
     assert np.array_equal(
@@ -413,29 +517,18 @@ def test_sequential_learner_setup():
     assert acsl.iteration_count == 0
     assert acsl.predictions == None
     assert acsl.candidate_indices == None
-    assert acsl.candidate_selection_kwargs == {"aq": "Random"}
-    # test specifying more kwargs
-    predictor_kwargs = {
-        "featurizer_class": SOAP,
-        "model_kwargs": {"n_restarts_optimizer": 9},
-        "featurization_kwargs": {"kwargs": {"rcut": 5.0, "lmax": 6, "nmax": 6}},
-    }
-    acsl = SequentialLearner(
-        acds,
-        predictor_kwargs=predictor_kwargs,
-        candidate_selection_kwargs={"aq": "MU", "num_candidates_to_pick": 2},
-    )
-    # test passing predictor kwargs
-    assert acsl.predictor_kwargs == predictor_kwargs
-    assert isinstance(acsl.predictor.featurizer.featurization_object, SOAP)
-    assert acsl.predictor.featurization_kwargs["kwargs"] == {
-        "rcut": 5.0,
-        "lmax": 6,
-        "nmax": 6,
-    }
+    assert acsl.candidate_selector == CandidateSelector()
 
-    # test passing candidate selection kwargs
-    assert acsl.candidate_selection_kwargs == {"aq": "MU", "num_candidates_to_pick": 2}
+    # test passing a candidate selector
+    candidate_selector = CandidateSelector(
+        acquisition_function="MU", num_candidates_to_pick=2
+    )
+    acsl = SequentialLearner(
+        acds, predictor=predictor, candidate_selector=candidate_selector
+    )
+    assert acsl.candidate_selector == candidate_selector
+    # ensure that a copy is made of the candidate selector
+    assert acsl.candidate_selector is not candidate_selector
 
 
 def test_design_space_setup():
@@ -610,12 +703,12 @@ def test_write_design_space_as_json():
         # loads back written json
         with open(os.path.join(_tmp_dir, "acds.json"), "r") as f:
             ds = json.load(f)
-        written_structs = [ase_decoder(ds[i]) for i in range(2)]
+        written_structs = [ase_decoder(ds["structures"][i]) for i in range(2)]
         assert structs == written_structs
-        assert np.array_equal(labels, ds[-1])
+        assert np.array_equal(labels, ds["labels"])
 
 
-def test_design_space_to_jsonified_list():
+def test_design_space_to_jsonified_dict():
     # Tests returning the DesignSpace as a jsonified list
     sub1 = generate_surface_structures(["Pd"], facets={"Pd": ["111"]})["Pd"]["fcc111"][
         "structure"
@@ -626,10 +719,48 @@ def test_design_space_to_jsonified_list():
     structs = [sub1, sub2]
     labels = np.array([0.3, 0.8])
     acds = DesignSpace(design_space_structures=structs, design_space_labels=labels,)
-    jsonified_list = acds.to_jsonified_list()
-    json_structs = [ase_decoder(jsonified_list[i]) for i in range(2)]
+    jsonified_dict = acds.to_jsonified_dict()
+    json_structs = [ase_decoder(jsonified_dict["structures"][i]) for i in range(2)]
     assert structs == json_structs
-    assert np.array_equal(labels, jsonified_list[-1])
+    assert np.array_equal(labels, jsonified_dict["labels"])
+
+
+def test_design_space_from_jsonified_dict():
+    # Test generating DesignSpace from a jsonified dict
+    sub1 = generate_surface_structures(["Pd"], facets={"Pd": ["111"]})["Pd"]["fcc111"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["V"], facets={"V": ["110"]})["V"]["bcc110"][
+        "structure"
+    ]
+    structs = [sub1, sub2]
+    encoded_structs = [atoms_encoder(struct) for struct in structs]
+    labels = np.array([0.3, 0.8])
+
+    with pytest.raises(DesignSpaceError):
+        # catch providing only structures
+        j_dict = {"structures": encoded_structs}
+        ds = DesignSpace.from_jsonified_dict(j_dict)
+
+    with pytest.raises(DesignSpaceError):
+        # catch providing only labels
+        j_dict = {"labels": labels}
+        ds = DesignSpace.from_jsonified_dict(j_dict)
+
+    with pytest.raises(DesignSpaceError):
+        # catch structures not encoded
+        j_dict = {"structures": structs, "labels": labels}
+        ds = DesignSpace.from_jsonified_dict(j_dict)
+
+    with pytest.raises(DesignSpaceError):
+        # catch structures not encoded
+        j_dict = {"structures": ["Pd", "V"], "labels": labels}
+        ds = DesignSpace.from_jsonified_dict(j_dict)
+
+    j_dict = {"structures": encoded_structs, "labels": labels}
+    ds = DesignSpace.from_jsonified_dict(j_dict)
+    assert ds.design_space_structures == structs
+    assert np.array_equal(ds.design_space_labels, labels)
 
 
 def test_get_design_space_from_json():
@@ -657,6 +788,348 @@ def test_get_design_space_from_json():
         )
 
 
+def test_candidate_selector_setup():
+    # Test setting up the candidate selector
+    with pytest.raises(CandidateSelectorError):
+        cs = CandidateSelector(
+            acquisition_function="FAKE_AQ",
+            num_candidates_to_pick=1,
+            include_hhi=False,
+            include_segregation_energies=False,
+        )
+    cs = CandidateSelector(
+        acquisition_function="MLI",
+        num_candidates_to_pick=1,
+        include_hhi=False,
+        include_segregation_energies=False,
+        target_window=(10, -3),
+    )
+    assert np.array_equal(cs.target_window, (-3, 10))
+    with pytest.raises(CandidateSelectorError):
+        cs.target_window = (-np.inf, np.inf)
+    with pytest.raises(CandidateSelectorError):
+        cs = CandidateSelector(
+            acquisition_function="MU",
+            num_candidates_to_pick=1,
+            include_hhi=True,
+            include_segregation_energies=False,
+            hhi_type="FAKE_HHI_TYPE",
+        )
+    cs = CandidateSelector(
+        acquisition_function="MU",
+        num_candidates_to_pick=1,
+        include_hhi=False,
+        include_segregation_energies=True,
+        segregation_energy_data_source="raban1999",
+    )
+    assert cs.segregation_energy_data_source == "raban1999"
+    with pytest.raises(CandidateSelectorError):
+        cs = CandidateSelector(
+            acquisition_function="MU",
+            num_candidates_to_pick=1,
+            include_hhi=False,
+            include_segregation_energies=True,
+            segregation_energy_data_source="FAKE_SOURCE",
+        )
+
+
+def test_candidate_selector_from_jsonified_dict():
+    # Tests generating CandidateSelector from a json dict
+
+    # test defaults
+    j_dict = {}
+    cs = CandidateSelector.from_jsonified_dict(j_dict)
+    assert cs.acquisition_function == "Random"
+    assert cs.num_candidates_to_pick == 1
+
+    # test specifying parameters
+    j_dict = {
+        "acquisition_function": "MLI",
+        "target_window": (-np.inf, 50.0),
+        "include_hhi": True,
+        "hhi_type": "reserves",
+        "include_segregation_energies": True,
+        "segregation_energy_data_source": "rao2020",
+    }
+    cs = CandidateSelector.from_jsonified_dict(j_dict)
+    assert cs.acquisition_function == "MLI"
+    assert np.array_equal(cs.target_window, [-np.inf, 50.0])
+    assert cs.include_hhi
+    assert cs.include_segregation_energies
+    assert cs.hhi_type == "reserves"
+    assert cs.segregation_energy_data_source == "rao2020"
+
+
+def test_candidate_selector_to_jsonified_dict():
+    # Tests converting CandidateSelector to json dict
+    cs = CandidateSelector(
+        acquisition_function="MLI",
+        target_window=(-10.0, np.inf),
+        include_hhi=True,
+        hhi_type="reserves",
+        include_segregation_energies=True,
+        segregation_energy_data_source="rao2020",
+    )
+    conv_j_dict = cs.to_jsonified_dict()
+    assert conv_j_dict.get("acquisition_function") == "MLI"
+    assert conv_j_dict.get("include_hhi")
+    assert conv_j_dict.get("include_segregation_energies")
+    assert conv_j_dict.get("hhi_type") == "reserves"
+    assert conv_j_dict.get("segregation_energy_data_source") == "rao2020"
+    assert np.array_equal(conv_j_dict.get("target_window"), [-10.0, np.inf])
+
+
+def test_write_candidate_selector_as_json():
+    # Test writing out CandidateSelector to disk as a json
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        cs = CandidateSelector(
+            acquisition_function="MU",
+            include_hhi=True,
+            hhi_type="reserves",
+            target_window=[-np.inf, 0.0],
+        )
+        cs.write_json_to_disk(write_location=_tmp_dir, json_name="cs.json")
+        # loads back written json
+        with open(os.path.join(_tmp_dir, "cs.json"), "r") as f:
+            written_cs = json.load(f)
+        assert written_cs.get("acquisition_function") == "MU"
+        assert np.array_equal(written_cs.get("target_window"), [-np.inf, 0.0])
+        assert written_cs.get("include_hhi")
+        assert written_cs.get("hhi_type") == "reserves"
+
+
+def test_get_candidate_selector_from_json():
+    # Tests generating a CandidateSelector from a json
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        cs = CandidateSelector(
+            acquisition_function="MLI",
+            include_segregation_energies=True,
+            target_window=(-3.0, np.inf),
+            segregation_energy_data_source="rao2020",
+        )
+        cs.write_json_to_disk(json_name="testing.json", write_location=_tmp_dir)
+
+        tmp_json_dir = os.path.join(_tmp_dir, "testing.json")
+        cs_from_json = CandidateSelector.from_json(tmp_json_dir)
+        assert cs_from_json.acquisition_function == "MLI"
+        assert cs_from_json.include_segregation_energies
+        assert not cs_from_json.include_hhi
+        assert cs_from_json.segregation_energy_data_source == "rao2020"
+        assert np.array_equal(cs_from_json.target_window, [-3.0, np.inf])
+
+
+def test_candidate_selector_eq():
+    # Tests CandidateSelector equality
+    cs = CandidateSelector(
+        acquisition_function="MLI",
+        num_candidates_to_pick=1,
+        include_hhi=True,
+        hhi_type="reserves",
+        include_segregation_energies=True,
+        target_window=(-100, -30),
+        segregation_energy_data_source="raban1999",
+    )
+
+    cs2 = CandidateSelector(
+        acquisition_function="MLI",
+        num_candidates_to_pick=1,
+        include_hhi=True,
+        hhi_type="reserves",
+        include_segregation_energies=True,
+        target_window=(-100, -30),
+        segregation_energy_data_source="raban1999",
+    )
+
+    assert cs == cs2
+
+    cs2.target_window = (0, 3)
+    assert not cs == cs2
+    cs2.target_window = (-100, -30)
+
+    cs2.include_hhi = False
+    assert not cs == cs2
+    cs2.include_hhi = True
+
+    cs2.hhi_type = "production"
+    assert not cs == cs2
+    cs2.hhi_type = "reserves"
+
+    cs2.include_segregation_energies = False
+    assert not cs == cs2
+    cs2.include_segregation_energies = True
+
+    cs2.segregation_energy_data_source = "rao2020"
+    assert not cs == cs2
+
+
+def test_candidate_selector_copy():
+    # Tests making a copy of a CandidateSelector
+    cs = CandidateSelector(
+        acquisition_function="MLI",
+        num_candidates_to_pick=5,
+        include_hhi=True,
+        hhi_type="reserves",
+        include_segregation_energies=True,
+        target_window=(1, 40),
+    )
+
+    cs2 = cs.copy()
+    assert cs == cs2
+    assert not cs is cs2
+    assert not cs.target_window is cs2.target_window
+
+
+def test_candidate_selector_choose_candidate():
+    # Test choosing candidates with CandidateSelector
+    # (without segregation energy or hhi weighting)
+    sub1 = generate_surface_structures(
+        ["Pt"], supercell_dim=[2, 2, 5], facets={"Pt": ["100"]}
+    )["Pt"]["fcc100"]["structure"]
+    sub1 = place_adsorbate(sub1, Atoms("H"))
+    sub2 = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"]["bcc110"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, Atoms("H"))
+    sub3 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("H"))
+    sub4 = generate_surface_structures(["Li"], facets={"Li": ["110"]})["Li"]["bcc110"][
+        "structure"
+    ]
+    sub4 = place_adsorbate(sub4, Atoms("H"))
+    structs = [sub1, sub2, sub3, sub4]
+    labels = np.array([3.0, np.nan, np.nan, np.nan])
+    ds = DesignSpace(structs, labels)
+    unc = np.array([0.1, 0.2, 0.5, 0.3])
+    cs = CandidateSelector(
+        acquisition_function="MU",
+        num_candidates_to_pick=1,
+        include_hhi=False,
+        include_segregation_energies=False,
+    )
+    # automatically chooses among systems without labels
+    parent_idx, max_score, aq_scores = cs.choose_candidate(
+        design_space=ds, uncertainties=unc
+    )
+    assert parent_idx[0] == 2
+    # ensure picking system with highest aq score
+    for i in range(1, 4):
+        if i != parent_idx:
+            assert aq_scores[i] < max_score
+
+    # multiple candidates to pick
+    cs.num_candidates_to_pick = 2
+    parent_idx, max_scores, aq_scores = cs.choose_candidate(
+        design_space=ds, uncertainties=unc
+    )
+    assert np.array_equal(parent_idx, [3, 2])
+    assert len(max_scores) == 2
+    # ensure picking systems with highest aq scores
+    min_max_score = min(max_scores)
+    for i in range(1, 4):
+        if i not in parent_idx:
+            assert aq_scores[i] < min_max_score
+
+    cs.num_candidates_to_pick = 1
+
+    # restrict indices to choose from
+    allowed_idx = np.array([0, 1, 0, 1], dtype=bool)
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds, uncertainties=unc, allowed_idx=allowed_idx
+    )
+    assert parent_idx[0] == 3
+
+    # need uncertainty for MU
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(design_space=ds)
+
+    # fully explored ds
+    labels = np.array([3.0, 4.0, 5.0, 10.0])
+    ds2 = DesignSpace(structs, labels)
+    parent_idx, _, _ = cs.choose_candidate(design_space=ds2, uncertainties=unc)
+    assert parent_idx[0] == 2
+
+    cs.acquisition_function = "MLI"
+    cs.target_window = (-np.inf, 0.15)
+    pred = np.array([3.0, 0.3, 6.0, 9.0])
+    # need both uncertainty and predictions for MLI
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds, uncertainties=unc, predictions=pred
+    )
+    assert parent_idx[0] == 1
+
+
+def test_candidate_selector_choose_candidate_hhi_weighting():
+    # Tests that the HHI weighting is properly applied
+    unc = np.array([0.1, 0.1])
+    pred = np.array([4.0, 4.0])
+    labels = np.array([np.nan, np.nan])
+    # Tests using production HHI values and MU
+    y_struct = generate_surface_structures(["Y"], facets={"Y": ["0001"]})["Y"][
+        "hcp0001"
+    ]["structure"]
+    ni_struct = generate_surface_structures(["Ni"], facets={"Ni": ["111"]})["Ni"][
+        "fcc111"
+    ]["structure"]
+    ds = DesignSpace([y_struct, ni_struct], labels)
+    cs = CandidateSelector(
+        acquisition_function="MU",
+        num_candidates_to_pick=1,
+        include_hhi=True,
+        include_segregation_energies=False,
+    )
+    parent_idx, _, aq_scores = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    assert parent_idx[0] == 1
+    assert aq_scores[0] < aq_scores[1]
+
+    # Tests using reserves HHI values and MLI
+    nb_struct = generate_surface_structures(["Nb"], facets={"Nb": ["111"]})["Nb"][
+        "bcc111"
+    ]["structure"]
+    na_struct = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"][
+        "bcc110"
+    ]["structure"]
+    ds = DesignSpace([na_struct, nb_struct], labels)
+    cs.acquisition_function = "MLI"
+    cs.target_window = (3, 5)
+    cs.hhi_type = "reserves"
+    parent_idx, _, aq_scores = cs.choose_candidate(
+        design_space=ds, uncertainties=unc, predictions=pred
+    )
+    assert parent_idx[0] == 0
+    assert aq_scores[0] > aq_scores[1]
+
+
+def test_candidate_selector_choose_candidate_segregation_energy_weighting():
+    # Tests that the segregation energy weighting is properly applied
+    unc = np.array([0.3, 0.3])
+    pred = np.array([2.0, 2.0])
+    labels = np.array([np.nan, np.nan])
+    structs = flatten_structures_dict(
+        generate_saa_structures(["Cr"], ["Rh"], facets={"Cr": ["110"]})
+    )
+    structs.extend(
+        flatten_structures_dict(
+            generate_saa_structures(["Co"], ["Re"], facets={"Co": ["0001"]})
+        )
+    )
+    ds = DesignSpace(structs, labels)
+    cs = CandidateSelector(
+        acquisition_function="MLI",
+        target_window=(0, 4),
+        include_hhi=False,
+        include_segregation_energies=True,
+    )
+    parent_idx, _, aq_scores = cs.choose_candidate(
+        design_space=ds, uncertainties=unc, predictions=pred
+    )
+    assert parent_idx[0] == 0
+    assert aq_scores[0] > aq_scores[1]
+
+
 def test_simulated_sequential_histories():
     # Test output sl has appropriate histories
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
@@ -677,19 +1150,18 @@ def test_simulated_sequential_histories():
     ]
     ds_labels = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs = {
-        "target_min": 0.9,
-        "target_max": 2.1,
-        "aq": "MLI",
-        "num_candidates_to_pick": 2,
-    }
-    predictor_kwargs = {"featurizer_class": SineMatrix}
+    candidate_selector = CandidateSelector(
+        acquisition_function="MLI", num_candidates_to_pick=2, target_window=(0.9, 2.1)
+    )
+    featurizer = Featurizer(featurizer_class=SineMatrix)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(featurizer=featurizer, regressor=regressor)
     sl = simulated_sequential_learning(
         full_design_space=acds,
         init_training_size=1,
         number_of_sl_loops=2,
-        candidate_selection_kwargs=candidate_selection_kwargs,
-        predictor_kwargs=predictor_kwargs,
+        candidate_selector=candidate_selector,
+        predictor=predictor,
     )
 
     # Test number of sl loops
@@ -716,16 +1188,20 @@ def test_simulated_sequential_batch_added():
     ]
     base_struct1 = place_adsorbate(sub1, Atoms("O"))
     base_struct2 = place_adsorbate(sub2, Atoms("N"))
-    candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
-    predictor_kwargs = {"featurizer_class": SineMatrix}
+    candidate_selector = CandidateSelector(
+        acquisition_function="Random", num_candidates_to_pick=2
+    )
+    featurizer = Featurizer(featurizer_class=SineMatrix)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(featurizer=featurizer, regressor=regressor)
     num_loops = 2
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
     acds = DesignSpace(ds_structs, ds_labels)
     sl = simulated_sequential_learning(
         full_design_space=acds,
-        predictor_kwargs=predictor_kwargs,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        predictor=predictor,
+        candidate_selector=candidate_selector,
         number_of_sl_loops=num_loops,
         init_training_size=1,
     )
@@ -745,16 +1221,20 @@ def test_simulated_sequential_num_loops():
     ]
     base_struct1 = place_adsorbate(sub1, Atoms("H"))
     base_struct2 = place_adsorbate(sub2, Atoms("N"))
-    predictor_kwargs = {"featurizer_class": SineMatrix}
-    candidate_selection_kwargs = {"num_candidates_to_pick": 3, "aq": "Random"}
+    featurizer = Featurizer(featurizer_class=SineMatrix)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(featurizer=featurizer, regressor=regressor)
+    candidate_selector = CandidateSelector(
+        acquisition_function="Random", num_candidates_to_pick=3
+    )
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
     acds = DesignSpace(ds_structs, ds_labels)
     # Test default number of loops
     sl = simulated_sequential_learning(
         full_design_space=acds,
-        predictor_kwargs=predictor_kwargs,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        predictor=predictor,
+        candidate_selector=candidate_selector,
         init_training_size=1,
     )
     assert len(sl.predictions_history) == 2
@@ -764,8 +1244,8 @@ def test_simulated_sequential_num_loops():
     with pytest.raises(SequentialLearnerError):
         sl = simulated_sequential_learning(
             full_design_space=acds,
-            predictor_kwargs=predictor_kwargs,
-            candidate_selection_kwargs=candidate_selection_kwargs,
+            predictor=predictor,
+            candidate_selector=candidate_selector,
             init_training_size=1,
             number_of_sl_loops=3,
         )
@@ -774,12 +1254,12 @@ def test_simulated_sequential_num_loops():
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs.update({"num_candidates_to_pick": 1})
+    candidate_selector.num_candidates_to_pick = 1
 
     sl = simulated_sequential_learning(
         full_design_space=acds,
-        predictor_kwargs=predictor_kwargs,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        predictor=predictor,
+        candidate_selector=candidate_selector,
         init_training_size=1,
     )
     assert len(sl.uncertainties_history) == 3
@@ -798,8 +1278,12 @@ def test_simulated_sequential_write_to_disk():
         base_struct1 = place_adsorbate(sub1, Atoms("O"))
         base_struct2 = place_adsorbate(sub2, Atoms("S"))
         base_struct3 = place_adsorbate(sub2, Atoms("N"))
-        predictor_kwargs = {"featurizer_class": SineMatrix}
-        candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
+        featurizer = Featurizer(featurizer_class=SineMatrix)
+        regressor = RandomForestRegressor(n_estimators=125)
+        predictor = Predictor(featurizer=featurizer, regressor=regressor)
+        candidate_selector = CandidateSelector(
+            acquisition_function="Random", num_candidates_to_pick=2
+        )
         ds_structs = [base_struct1, base_struct2, base_struct3]
         ds_labels = np.array([0, 1, 2])
         acds = DesignSpace(ds_structs, ds_labels)
@@ -807,13 +1291,13 @@ def test_simulated_sequential_write_to_disk():
             full_design_space=acds,
             init_training_size=2,
             number_of_sl_loops=1,
-            predictor_kwargs=predictor_kwargs,
-            candidate_selection_kwargs=candidate_selection_kwargs,
+            predictor=predictor,
+            candidate_selector=candidate_selector,
             write_to_disk=True,
             write_location=_tmp_dir,
         )
         # check data written as json
-        json_path = os.path.join(_tmp_dir, "acsl.json")
+        json_path = os.path.join(_tmp_dir, "sequential_learner.json")
         sl_written = SequentialLearner.from_json(json_path)
         assert sl.iteration_count == sl_written.iteration_count
         assert np.array_equal(sl.predictions_history, sl_written.predictions_history)
@@ -826,8 +1310,10 @@ def test_simulated_sequential_write_to_disk():
         assert np.array_equal(sl.candidate_indices, sl_written.candidate_indices)
         assert np.array_equal(sl.predictions, sl_written.predictions)
         assert np.array_equal(sl.uncertainties, sl_written.uncertainties)
-        assert np.array_equal(sl.predictor_kwargs, sl_written.predictor_kwargs)
-        assert sl.candidate_selection_kwargs == sl_written.candidate_selection_kwargs
+        assert sl_written.predictor.featurizer == sl.predictor.featurizer
+        assert isinstance(sl_written.predictor.regressor, RandomForestRegressor)
+        assert sl_written.predictor.regressor.n_estimators == 125
+        assert sl.candidate_selector == sl_written.candidate_selector
         assert (
             sl.design_space.design_space_structures
             == sl_written.design_space.design_space_structures
@@ -848,18 +1334,20 @@ def test_simulated_sequential_learning_fully_explored():
     ]
     base_struct1 = place_adsorbate(sub1, Atoms("OH"))
     base_struct2 = place_adsorbate(sub2, Atoms("NH"))
-    predictor_kwargs = {"structure_featurizer": "elemental_property"}
+    featurizer = Featurizer(featurizer_class=SineMatrix)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(featurizer=featurizer, regressor=regressor)
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([0.0, np.nan, 4.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs = {"aq": "MU"}
+    candidate_selector = CandidateSelector(acquisition_function="MU")
     with pytest.raises(SequentialLearnerError):
         sl = simulated_sequential_learning(
             full_design_space=acds,
             init_training_size=1,
             number_of_sl_loops=2,
-            predictor_kwargs=predictor_kwargs,
-            candidate_selection_kwargs=candidate_selection_kwargs,
+            predictor=predictor,
+            candidate_selector=candidate_selector,
         )
 
 
@@ -869,16 +1357,18 @@ def test_multiple_sequential_learning_serial():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, Atoms("O"))
-    predictor_kwargs = {"featurizer_class": SineMatrix}
+    featurizer = Featurizer(featurizer_class=SineMatrix)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(featurizer=featurizer, regressor=regressor)
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs = {"aq": "MU"}
+    candidate_selector = CandidateSelector(acquisition_function="MU")
     runs_history = multiple_simulated_sequential_learning_runs(
         full_design_space=acds,
         number_of_runs=3,
-        predictor_kwargs=predictor_kwargs,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        predictor=predictor,
+        candidate_selector=candidate_selector,
         number_of_sl_loops=1,
         init_training_size=1,
     )
@@ -893,17 +1383,19 @@ def test_multiple_sequential_learning_parallel():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, Atoms("Li"))
-    predictor_kwargs = {"featurizer_class": SineMatrix}
+    featurizer = Featurizer(featurizer_class=SineMatrix)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(featurizer=featurizer, regressor=regressor)
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs = {"aq": "Random"}
+    candidate_selector = CandidateSelector()
     runs_history = multiple_simulated_sequential_learning_runs(
         full_design_space=acds,
         number_of_runs=3,
         number_parallel_jobs=2,
-        predictor_kwargs=predictor_kwargs,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        predictor=predictor,
+        candidate_selector=candidate_selector,
         number_of_sl_loops=1,
         init_training_size=1,
     )
@@ -919,15 +1411,19 @@ def test_multiple_sequential_learning_write_to_disk():
         "structure"
     ]
     base_struct1 = place_adsorbate(sub1, Atoms("N"))
-    predictor_kwargs = {"featurizer_class": SineMatrix}
+    featurizer = Featurizer(featurizer_class=SineMatrix)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(featurizer=featurizer, regressor=regressor)
     ds_structs = [base_struct1, sub1]
     ds_labels = np.array([0.0, 0.0])
     acds = DesignSpace(ds_structs, ds_labels)
-    candidate_selection_kwargs = {"num_candidates_to_pick": 2, "aq": "Random"}
+    candidate_selector = CandidateSelector(
+        acquisition_function="Random", num_candidates_to_pick=2
+    )
     runs_history = multiple_simulated_sequential_learning_runs(
         full_design_space=acds,
-        predictor_kwargs=predictor_kwargs,
-        candidate_selection_kwargs=candidate_selection_kwargs,
+        predictor=predictor,
+        candidate_selector=candidate_selector,
         number_of_runs=3,
         number_parallel_jobs=2,
         init_training_size=1,
@@ -964,104 +1460,7 @@ def test_multiple_sequential_learning_write_to_disk():
         assert np.array_equal(
             written_run.candidate_index_history, runs_history[i].candidate_index_history
         )
-        assert written_run.predictor_kwargs == runs_history[i].predictor_kwargs
-        assert (
-            written_run.candidate_selection_kwargs
-            == runs_history[i].candidate_selection_kwargs
-        )
-
-
-def test_choose_next_candidate_input_minimums():
-    # Tests that appropriately catches minimum necessary inputs
-    labels = np.random.rand(5)
-    train_idx = np.zeros(5, dtype=bool)
-    train_idx[np.random.choice(5, size=2, replace=False)] = 1
-    unc = np.random.rand(5)
-    pred = np.random.rand(5)
-
-    with pytest.raises(SequentialLearnerError):
-        choose_next_candidate()
-
-    with pytest.raises(SequentialLearnerError):
-        choose_next_candidate(unc=unc, pred=pred, num_candidates_to_pick=2, aq="Random")
-
-    with pytest.raises(SequentialLearnerError):
-        choose_next_candidate(
-            labels=labels, pred=pred, num_candidates_to_pick=2, aq="MU"
-        )
-
-    with pytest.raises(SequentialLearnerError):
-        choose_next_candidate(pred=pred, num_candidates_to_pick=2, aq="MLI")
-
-    with pytest.raises(SequentialLearnerError):
-        choose_next_candidate(unc=unc, num_candidates_to_pick=2, aq="MLI")
-
-
-def test_choose_next_candidate_hhi_weighting():
-    # Tests that the HHI weighting is properly applied
-    unc = np.array([0.1, 0.1])
-    pred = np.array([4.0, 4.0])
-    # Tests using production HHI values and MU
-    y_struct = generate_surface_structures(["Y"], facets={"Y": ["0001"]})["Y"][
-        "hcp0001"
-    ]["structure"]
-    ni_struct = generate_surface_structures(["Ni"], facets={"Ni": ["111"]})["Ni"][
-        "fcc111"
-    ]["structure"]
-    parent_idx, _, aq_scores = choose_next_candidate(
-        [y_struct, ni_struct],
-        unc=unc,
-        include_hhi=True,
-        aq="MU",
-        include_seg_ener=False,
-    )
-    assert parent_idx[0] == 1
-    assert aq_scores[0] < aq_scores[1]
-
-    # Tests using reserves HHI values and MLI
-    nb_struct = generate_surface_structures(["Nb"], facets={"Nb": ["111"]})["Nb"][
-        "bcc111"
-    ]["structure"]
-    na_struct = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"][
-        "bcc110"
-    ]["structure"]
-    parent_idx, _, aq_scores = choose_next_candidate(
-        [na_struct, nb_struct],
-        unc=unc,
-        pred=pred,
-        target_min=3,
-        target_max=5,
-        include_hhi=True,
-        hhi_type="reserves",
-        include_seg_ener=False,
-    )
-    assert parent_idx[0] == 0
-    assert aq_scores[0] > aq_scores[1]
-
-
-def test_choose_next_candidate_segregation_energy_weighting():
-    # Tests that the segregation energy weighting is properly applied
-    unc = np.array([0.3, 0.3])
-    pred = np.array([2.0, 2.0])
-    structs = flatten_structures_dict(
-        generate_saa_structures(["Cr"], ["Rh"], facets={"Cr": ["110"]})
-    )
-    structs.extend(
-        flatten_structures_dict(
-            generate_saa_structures(["Co"], ["Re"], facets={"Co": ["0001"]})
-        )
-    )
-    parent_idx, _, aq_scores = choose_next_candidate(
-        structs,
-        unc=unc,
-        pred=pred,
-        target_min=0,
-        target_max=4,
-        include_hhi=False,
-        include_seg_ener=True,
-    )
-    assert parent_idx[0] == 0
-    assert aq_scores[0] > aq_scores[1]
+        assert written_run.candidate_selector == runs_history[i].candidate_selector
 
 
 def test_get_overlap_score():
@@ -1138,6 +1537,16 @@ def test_calculate_hhi_scores():
     # check normalized
     assert (hhi_res_scores <= 1.0).all()
     assert (hhi_res_scores >= 0.0).all()
+    # check exclude species
+    hhi_exclude_scores = calculate_hhi_scores(saa_structs, "reserves", ["Ru"])
+    assert np.isclose(hhi_exclude_scores[0], norm_hhi_res["Pt"])
+    assert np.isclose(hhi_exclude_scores[1], norm_hhi_res["Cu"])
+    assert np.isclose(hhi_exclude_scores[2], norm_hhi_res["Ni"])
+    ads_struct = place_adsorbate(saa_structs[0], Atoms("Li"))
+    hhi_ads_prod = calculate_hhi_scores(
+        [ads_struct], "production", exclude_species=["Li"]
+    )
+    assert np.isclose(hhi_ads_prod[0], hhi_prod_scores[0])
 
 
 def test_calculate_segregation_energy_scores():
