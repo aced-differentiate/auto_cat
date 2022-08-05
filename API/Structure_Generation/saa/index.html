@@ -1,0 +1,1957 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.3.9">
+    
+    
+      
+        <title>autocat.saa - AutoCat Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.1d29e8d0.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.cbb835fc.min.css">
+        
+      
+      
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="" data-md-color-primary="none" data-md-color-accent="none">
+  
+    
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#single-atom-alloys" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="AutoCat Documentation" class="md-header__button md-logo" aria-label="AutoCat Documentation" data-md-component="logo">
+      
+  <img src="../../../img/autocat_icon.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AutoCat Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              autocat.saa
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/aced-differentiate/auto_cat" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.1.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-tabs__inner md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+
+
+  <li class="md-tabs__item">
+    <a href="../../.." class="md-tabs__link">
+      Home
+    </a>
+  </li>
+
+      
+        
+  
+  
+
+
+  
+  
+  
+    
+
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../User_Guide/Learning/featurizers/" class="md-tabs__link">
+        User Guide
+      </a>
+    </li>
+  
+
+  
+
+      
+        
+  
+  
+
+
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../../Tutorials/pred_h/" class="md-tabs__link">
+        Tutorials
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+
+
+  
+  
+  
+    
+
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../Learning/featurizers/" class="md-tabs__link md-tabs__link--active">
+        API
+      </a>
+    </li>
+  
+
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="AutoCat Documentation" class="md-nav__button md-logo" aria-label="AutoCat Documentation" data-md-component="logo">
+      
+  <img src="../../../img/autocat_icon.png" alt="logo">
+
+    </a>
+    AutoCat Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/aced-differentiate/auto_cat" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.1.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        Home
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_2">
+          User Guide
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="User Guide" data-md-level="1">
+        <label class="md-nav__title" for="__nav_2">
+          <span class="md-nav__icon md-icon"></span>
+          User Guide
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_1" type="checkbox" id="__nav_2_1" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_2_1">
+          Sequential Learning
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Sequential Learning" data-md-level="2">
+        <label class="md-nav__title" for="__nav_2_1">
+          <span class="md-nav__icon md-icon"></span>
+          Sequential Learning
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../User_Guide/Learning/featurizers/" class="md-nav__link">
+        Featurizers
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../User_Guide/Learning/predictors/" class="md-nav__link">
+        Predictors
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../User_Guide/Learning/sequential/" class="md-nav__link">
+        Sequential
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_2" type="checkbox" id="__nav_2_2" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_2_2">
+          Structure Generation
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Structure Generation" data-md-level="2">
+        <label class="md-nav__title" for="__nav_2_2">
+          <span class="md-nav__icon md-icon"></span>
+          Structure Generation
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../User_Guide/Structure_Generation/bulk/" class="md-nav__link">
+        Bulk
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../User_Guide/Structure_Generation/surface/" class="md-nav__link">
+        Surfaces
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../User_Guide/Structure_Generation/adsorption/" class="md-nav__link">
+        Adsorption
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../User_Guide/Structure_Generation/saa/" class="md-nav__link">
+        Single Atom Alloys
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_3" type="checkbox" id="__nav_2_3" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_2_3">
+          Data
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Data" data-md-level="2">
+        <label class="md-nav__title" for="__nav_2_3">
+          <span class="md-nav__icon md-icon"></span>
+          Data
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../User_Guide/Data/hhi/" class="md-nav__link">
+        HHI
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../User_Guide/Data/segregation_energies/" class="md-nav__link">
+        Segregation Energies
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../User_Guide/Data/lattice_parameters/" class="md-nav__link">
+        Lattice Parameters
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../User_Guide/Data/intermediates/" class="md-nav__link">
+        Reaction Intermediates
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_3">
+          Tutorials
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Tutorials" data-md-level="1">
+        <label class="md-nav__title" for="__nav_3">
+          <span class="md-nav__icon md-icon"></span>
+          Tutorials
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Tutorials/pred_h/" class="md-nav__link">
+        Training a Predictor on hydrogen adsorption energies
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../Tutorials/sl/" class="md-nav__link">
+        Conducting a simulated sequential learning run
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" checked>
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_4">
+          API
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="API" data-md-level="1">
+        <label class="md-nav__title" for="__nav_4">
+          <span class="md-nav__icon md-icon"></span>
+          API
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    
+      
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_1" type="checkbox" id="__nav_4_1" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_4_1">
+          Sequential Learning
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Sequential Learning" data-md-level="2">
+        <label class="md-nav__title" for="__nav_4_1">
+          <span class="md-nav__icon md-icon"></span>
+          Sequential Learning
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Learning/featurizers/" class="md-nav__link">
+        autocat.learning.featurizers
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Learning/predictors/" class="md-nav__link">
+        autocat.learning.predictors
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../Learning/sequential/" class="md-nav__link">
+        autocat.learning.sequential
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+    
+  
+  
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4_2" type="checkbox" id="__nav_4_2" checked>
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_4_2">
+          Structure Generation
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Structure Generation" data-md-level="2">
+        <label class="md-nav__title" for="__nav_4_2">
+          <span class="md-nav__icon md-icon"></span>
+          Structure Generation
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bulk/" class="md-nav__link">
+        autocat.bulk
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../surface/" class="md-nav__link">
+        autocat.surface
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adsorption/" class="md-nav__link">
+        autocat.adsorption
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          autocat.saa
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        autocat.saa
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#autocat.saa" class="md-nav__link">
+    autocat.saa
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#autocat.saa.generate_saa_structures" class="md-nav__link">
+    generate_saa_structures()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#autocat.saa.substitute_single_atom_on_surface" class="md-nav__link">
+    substitute_single_atom_on_surface()
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          <div class="md-content" data-md-component="content">
+            <article class="md-content__inner md-typeset">
+              
+                
+  <a href="https://github.com/aced-differentiate/auto_cat/edit/master/docs/API/Structure_Generation/saa.md" title="Edit this page" class="md-content__button md-icon">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25Z"/></svg>
+  </a>
+
+
+
+<h1 id="single-atom-alloys">Single Atom Alloys</h1>
+
+
+<div class="doc doc-object doc-module">
+
+
+<a id="autocat.saa"></a>
+  <div class="doc doc-contents first">
+
+  
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="autocat.saa.generate_saa_structures" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">generate_saa_structures</span><span class="p">(</span><span class="n">host_species</span><span class="p">,</span> <span class="n">dopant_species</span><span class="p">,</span> <span class="n">crystal_structures</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">facets</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">supercell_dim</span><span class="o">=</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">default_lat_param_lib</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">a_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">c_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">set_host_magnetic_moments</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">host_magnetic_moments</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">set_dopant_magnetic_moments</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dopant_magnetic_moments</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vacuum</span><span class="o">=</span><span class="mf">10.0</span><span class="p">,</span> <span class="n">n_fixed_layers</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">place_dopant_at_center</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">write_to_disk</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">write_location</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">dirs_exist_ok</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Builds single-atom alloys for all combinations of host species and dopant
+species given. Will write the structures to separate directories if
+specified.</p>
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>host_species</code></td>
+          <td>
+                <code><span title="typing.List">List</span>[str]</code>
+          </td>
+          <td><p>List of chemical species of desired host (substrate) species.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+      <p>dopant_species (REQUIRED):
+    List of chemical symbols of desired single-atom dopant species.</p>
+<p>crystal_structures:
+    Dictionary with crystal structure to be used for each species.
+    These will be passed on as input to <code>ase.build.bulk</code>. So, must be one
+    of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic,
+    diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite.
+    If not specified, the default reference crystal structure for each
+    species from <code>ase.data</code> will be used.</p>
+<p>facets:
+    Dictionary with the surface facets to be considered for each
+    species.
+    If not specified for a given species, the following defaults will be
+    used based on the crystal structure:
+    fcc/bcc: 100, 111, 110
+    hcp: 0001</p>
+<p>supercell_dim:
+    Tuple or List specifying the size of the supercell to be
+    generated in the format (nx, ny, nz).
+    Defaults to (3, 3, 4).</p>
+<p>default_lat_param_lib:
+    String indicating which library the lattice constants should be pulled
+    from if not specified in either a_dict or c_dict.</p>
+<div class="highlight"><pre><span></span><code>Options:
+pbe_fd: parameters calculated using xc=PBE and finite-difference
+beefvdw_fd: parameters calculated using xc=BEEF-vdW and finite-difference
+pbe_pw: parameters calculated using xc=PBE and a plane-wave basis set
+beefvdw_fd: parameters calculated using xc=BEEF-vdW and a plane-wave basis set
+
+N.B. if there is a species present in `host_species` that is NOT in the
+reference library specified, it will be pulled from `ase.data`.
+</code></pre></div>
+<p>a_dict:
+    Dictionary with lattice parameters <a> to be used for each species.
+    If not specified, defaults from <code>default_lat_param_lib</code> are used.</p>
+<p>c_dict:
+    Dictionary with lattice parameters <c> to be used for each species.
+    If not specified, defaults from <code>default_lat_param_lib</code> are used.</p>
+<p>set_host_magnetic_moments:
+    List of host species for which magnetic moments need to be set.
+    If not specified, magnetic moments will be set only for Fe, Co, Ni
+    (the ferromagnetic elements).</p>
+<p>host_magnetic_moments:
+    Dictionary with the magnetic moments to be set for the host chemical
+    species listed previously.
+    If not specified, default ground state magnetic moments from
+    <code>ase.data</code> are used.</p>
+<p>set_dopant_magnetic_moments:
+    List of single-atom species for which magnetic moments need to be set.
+    If not specified, magnetic moments will guessed for all dopant species from
+    <code>ase.data</code>.</p>
+<p>dopant_magnetic_moments:
+    Dictionary with the magnetic moments to be set for the single-atom
+    dopant species listed previously.
+    If not specified, default ground state magnetic moments from
+    <code>ase.data</code> are used.</p>
+<p>vacuum:
+    Float specifying the amount of vacuum (in Angstrom) to be added to
+    the slab (the slab is placed at the center of the supercell).
+    Defaults to 10.0 Angstrom.</p>
+<p>n_fixed_layers:
+    Integer giving the number of layers of the slab to be fixed
+    starting from the bottom up (e.g., a value of 2 will fix the
+    bottom 2 layers).
+    Defaults to 0 (i.e., no layers in the slab fixed).</p>
+<p>place_dopant_at_center:
+    Boolean specifying whether the single-atom should be placed
+    at the center of the unit cell. If False, the single-atom will
+    be placed at the origin.
+    Defaults to True.</p>
+<p>write_to_disk:
+    Boolean specifying whether the bulk structures generated should be
+    written to disk.
+    Defaults to False.</p>
+<p>write_location:
+    String with the location where the per-species/per-crystal structure
+    directories must be constructed and structure files written to disk.
+    In the specified write_location, the following directory structure
+    will be created:
+    [host]/[dopant]/[facet]/substrate/input.traj</p>
+<p>dirs_exist_ok:
+    Boolean specifying whether existing directories/files should be
+    overwritten or not. This is passed on to the <code>os.makedirs</code> builtin.
+    Defaults to False (raises an error if directories corresponding the
+    species and crystal structure already exist).</p>
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code>Dictionary with the single-atom alloy structures as </code>
+          </td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>
+                <code>write-location, if any, for each </code>
+          </td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>
+                <code>each input host and dopant species combination.</code>
+          </td>
+          <td></td>
+        </tr>
+    </tbody>
+  </table>
+      <p>Example:
+{
+    "Fe": {
+        "Cu": {
+            "bcc100": {
+                "structure": FeN-1_Cu1_saa_obj,
+                "traj_file_path": "/path/to/Cu/on/bcc/Fe/100/surface/traj/file"
+            },
+            "bcc110": ...,
+        },
+        "Ru": {
+            ...
+        },
+    },
+    "Rh": {
+        ...
+    }
+}</p>
+
+      <details class="quote">
+        <summary>Source code in <code>autocat/saa.py</code></summary>
+        <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 50</span>
+<span class="normal"> 51</span>
+<span class="normal"> 52</span>
+<span class="normal"> 53</span>
+<span class="normal"> 54</span>
+<span class="normal"> 55</span>
+<span class="normal"> 56</span>
+<span class="normal"> 57</span>
+<span class="normal"> 58</span>
+<span class="normal"> 59</span>
+<span class="normal"> 60</span>
+<span class="normal"> 61</span>
+<span class="normal"> 62</span>
+<span class="normal"> 63</span>
+<span class="normal"> 64</span>
+<span class="normal"> 65</span>
+<span class="normal"> 66</span>
+<span class="normal"> 67</span>
+<span class="normal"> 68</span>
+<span class="normal"> 69</span>
+<span class="normal"> 70</span>
+<span class="normal"> 71</span>
+<span class="normal"> 72</span>
+<span class="normal"> 73</span>
+<span class="normal"> 74</span>
+<span class="normal"> 75</span>
+<span class="normal"> 76</span>
+<span class="normal"> 77</span>
+<span class="normal"> 78</span>
+<span class="normal"> 79</span>
+<span class="normal"> 80</span>
+<span class="normal"> 81</span>
+<span class="normal"> 82</span>
+<span class="normal"> 83</span>
+<span class="normal"> 84</span>
+<span class="normal"> 85</span>
+<span class="normal"> 86</span>
+<span class="normal"> 87</span>
+<span class="normal"> 88</span>
+<span class="normal"> 89</span>
+<span class="normal"> 90</span>
+<span class="normal"> 91</span>
+<span class="normal"> 92</span>
+<span class="normal"> 93</span>
+<span class="normal"> 94</span>
+<span class="normal"> 95</span>
+<span class="normal"> 96</span>
+<span class="normal"> 97</span>
+<span class="normal"> 98</span>
+<span class="normal"> 99</span>
+<span class="normal">100</span>
+<span class="normal">101</span>
+<span class="normal">102</span>
+<span class="normal">103</span>
+<span class="normal">104</span>
+<span class="normal">105</span>
+<span class="normal">106</span>
+<span class="normal">107</span>
+<span class="normal">108</span>
+<span class="normal">109</span>
+<span class="normal">110</span>
+<span class="normal">111</span>
+<span class="normal">112</span>
+<span class="normal">113</span>
+<span class="normal">114</span>
+<span class="normal">115</span>
+<span class="normal">116</span>
+<span class="normal">117</span>
+<span class="normal">118</span>
+<span class="normal">119</span>
+<span class="normal">120</span>
+<span class="normal">121</span>
+<span class="normal">122</span>
+<span class="normal">123</span>
+<span class="normal">124</span>
+<span class="normal">125</span>
+<span class="normal">126</span>
+<span class="normal">127</span>
+<span class="normal">128</span>
+<span class="normal">129</span>
+<span class="normal">130</span>
+<span class="normal">131</span>
+<span class="normal">132</span>
+<span class="normal">133</span>
+<span class="normal">134</span>
+<span class="normal">135</span>
+<span class="normal">136</span>
+<span class="normal">137</span>
+<span class="normal">138</span>
+<span class="normal">139</span>
+<span class="normal">140</span>
+<span class="normal">141</span>
+<span class="normal">142</span>
+<span class="normal">143</span>
+<span class="normal">144</span>
+<span class="normal">145</span>
+<span class="normal">146</span>
+<span class="normal">147</span>
+<span class="normal">148</span>
+<span class="normal">149</span>
+<span class="normal">150</span>
+<span class="normal">151</span>
+<span class="normal">152</span>
+<span class="normal">153</span>
+<span class="normal">154</span>
+<span class="normal">155</span>
+<span class="normal">156</span>
+<span class="normal">157</span>
+<span class="normal">158</span>
+<span class="normal">159</span>
+<span class="normal">160</span>
+<span class="normal">161</span>
+<span class="normal">162</span>
+<span class="normal">163</span>
+<span class="normal">164</span>
+<span class="normal">165</span>
+<span class="normal">166</span>
+<span class="normal">167</span>
+<span class="normal">168</span>
+<span class="normal">169</span>
+<span class="normal">170</span>
+<span class="normal">171</span>
+<span class="normal">172</span>
+<span class="normal">173</span>
+<span class="normal">174</span>
+<span class="normal">175</span>
+<span class="normal">176</span>
+<span class="normal">177</span>
+<span class="normal">178</span>
+<span class="normal">179</span>
+<span class="normal">180</span>
+<span class="normal">181</span>
+<span class="normal">182</span>
+<span class="normal">183</span>
+<span class="normal">184</span>
+<span class="normal">185</span>
+<span class="normal">186</span>
+<span class="normal">187</span>
+<span class="normal">188</span>
+<span class="normal">189</span>
+<span class="normal">190</span>
+<span class="normal">191</span>
+<span class="normal">192</span>
+<span class="normal">193</span>
+<span class="normal">194</span>
+<span class="normal">195</span>
+<span class="normal">196</span>
+<span class="normal">197</span>
+<span class="normal">198</span>
+<span class="normal">199</span>
+<span class="normal">200</span>
+<span class="normal">201</span>
+<span class="normal">202</span>
+<span class="normal">203</span>
+<span class="normal">204</span>
+<span class="normal">205</span>
+<span class="normal">206</span>
+<span class="normal">207</span>
+<span class="normal">208</span>
+<span class="normal">209</span>
+<span class="normal">210</span>
+<span class="normal">211</span>
+<span class="normal">212</span>
+<span class="normal">213</span>
+<span class="normal">214</span>
+<span class="normal">215</span>
+<span class="normal">216</span>
+<span class="normal">217</span>
+<span class="normal">218</span>
+<span class="normal">219</span>
+<span class="normal">220</span>
+<span class="normal">221</span>
+<span class="normal">222</span>
+<span class="normal">223</span>
+<span class="normal">224</span>
+<span class="normal">225</span>
+<span class="normal">226</span>
+<span class="normal">227</span>
+<span class="normal">228</span>
+<span class="normal">229</span>
+<span class="normal">230</span>
+<span class="normal">231</span>
+<span class="normal">232</span>
+<span class="normal">233</span>
+<span class="normal">234</span>
+<span class="normal">235</span>
+<span class="normal">236</span>
+<span class="normal">237</span>
+<span class="normal">238</span>
+<span class="normal">239</span>
+<span class="normal">240</span>
+<span class="normal">241</span>
+<span class="normal">242</span>
+<span class="normal">243</span>
+<span class="normal">244</span>
+<span class="normal">245</span>
+<span class="normal">246</span>
+<span class="normal">247</span>
+<span class="normal">248</span>
+<span class="normal">249</span>
+<span class="normal">250</span>
+<span class="normal">251</span>
+<span class="normal">252</span>
+<span class="normal">253</span>
+<span class="normal">254</span>
+<span class="normal">255</span>
+<span class="normal">256</span>
+<span class="normal">257</span>
+<span class="normal">258</span>
+<span class="normal">259</span>
+<span class="normal">260</span>
+<span class="normal">261</span>
+<span class="normal">262</span>
+<span class="normal">263</span>
+<span class="normal">264</span>
+<span class="normal">265</span>
+<span class="normal">266</span>
+<span class="normal">267</span>
+<span class="normal">268</span>
+<span class="normal">269</span>
+<span class="normal">270</span>
+<span class="normal">271</span>
+<span class="normal">272</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">generate_saa_structures</span><span class="p">(</span>
+    <span class="n">host_species</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="n">dopant_species</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="n">crystal_structures</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">facets</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">supercell_dim</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+    <span class="n">default_lat_param_lib</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">a_dict</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">c_dict</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">set_host_magnetic_moments</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">host_magnetic_moments</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">set_dopant_magnetic_moments</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">dopant_magnetic_moments</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">vacuum</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">10.0</span><span class="p">,</span>
+    <span class="n">n_fixed_layers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">place_dopant_at_center</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">write_to_disk</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">write_location</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;.&quot;</span><span class="p">,</span>
+    <span class="n">dirs_exist_ok</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]]:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Builds single-atom alloys for all combinations of host species and dopant</span>
+<span class="sd">    species given. Will write the structures to separate directories if</span>
+<span class="sd">    specified.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    host_species (REQUIRED):</span>
+<span class="sd">        List of chemical species of desired host (substrate) species.</span>
+
+<span class="sd">    dopant_species (REQUIRED):</span>
+<span class="sd">        List of chemical symbols of desired single-atom dopant species.</span>
+
+<span class="sd">    crystal_structures:</span>
+<span class="sd">        Dictionary with crystal structure to be used for each species.</span>
+<span class="sd">        These will be passed on as input to `ase.build.bulk`. So, must be one</span>
+<span class="sd">        of sc, fcc, bcc, tetragonal, bct, hcp, rhombohedral, orthorhombic,</span>
+<span class="sd">        diamond, zincblende, rocksalt, cesiumchloride, fluorite or wurtzite.</span>
+<span class="sd">        If not specified, the default reference crystal structure for each</span>
+<span class="sd">        species from `ase.data` will be used.</span>
+
+<span class="sd">    facets:</span>
+<span class="sd">        Dictionary with the surface facets to be considered for each</span>
+<span class="sd">        species.</span>
+<span class="sd">        If not specified for a given species, the following defaults will be</span>
+<span class="sd">        used based on the crystal structure:</span>
+<span class="sd">        fcc/bcc: 100, 111, 110</span>
+<span class="sd">        hcp: 0001</span>
+
+<span class="sd">    supercell_dim:</span>
+<span class="sd">        Tuple or List specifying the size of the supercell to be</span>
+<span class="sd">        generated in the format (nx, ny, nz).</span>
+<span class="sd">        Defaults to (3, 3, 4).</span>
+
+<span class="sd">    default_lat_param_lib:</span>
+<span class="sd">        String indicating which library the lattice constants should be pulled</span>
+<span class="sd">        from if not specified in either a_dict or c_dict.</span>
+
+<span class="sd">        Options:</span>
+<span class="sd">        pbe_fd: parameters calculated using xc=PBE and finite-difference</span>
+<span class="sd">        beefvdw_fd: parameters calculated using xc=BEEF-vdW and finite-difference</span>
+<span class="sd">        pbe_pw: parameters calculated using xc=PBE and a plane-wave basis set</span>
+<span class="sd">        beefvdw_fd: parameters calculated using xc=BEEF-vdW and a plane-wave basis set</span>
+
+<span class="sd">        N.B. if there is a species present in `host_species` that is NOT in the</span>
+<span class="sd">        reference library specified, it will be pulled from `ase.data`.</span>
+
+<span class="sd">    a_dict:</span>
+<span class="sd">        Dictionary with lattice parameters &lt;a&gt; to be used for each species.</span>
+<span class="sd">        If not specified, defaults from `default_lat_param_lib` are used.</span>
+
+<span class="sd">    c_dict:</span>
+<span class="sd">        Dictionary with lattice parameters &lt;c&gt; to be used for each species.</span>
+<span class="sd">        If not specified, defaults from `default_lat_param_lib` are used.</span>
+
+<span class="sd">    set_host_magnetic_moments:</span>
+<span class="sd">        List of host species for which magnetic moments need to be set.</span>
+<span class="sd">        If not specified, magnetic moments will be set only for Fe, Co, Ni</span>
+<span class="sd">        (the ferromagnetic elements).</span>
+
+<span class="sd">    host_magnetic_moments:</span>
+<span class="sd">        Dictionary with the magnetic moments to be set for the host chemical</span>
+<span class="sd">        species listed previously.</span>
+<span class="sd">        If not specified, default ground state magnetic moments from</span>
+<span class="sd">        `ase.data` are used.</span>
+
+<span class="sd">    set_dopant_magnetic_moments:</span>
+<span class="sd">        List of single-atom species for which magnetic moments need to be set.</span>
+<span class="sd">        If not specified, magnetic moments will guessed for all dopant species from</span>
+<span class="sd">        `ase.data`.</span>
+
+<span class="sd">    dopant_magnetic_moments:</span>
+<span class="sd">        Dictionary with the magnetic moments to be set for the single-atom</span>
+<span class="sd">        dopant species listed previously.</span>
+<span class="sd">        If not specified, default ground state magnetic moments from</span>
+<span class="sd">        `ase.data` are used.</span>
+
+<span class="sd">    vacuum:</span>
+<span class="sd">        Float specifying the amount of vacuum (in Angstrom) to be added to</span>
+<span class="sd">        the slab (the slab is placed at the center of the supercell).</span>
+<span class="sd">        Defaults to 10.0 Angstrom.</span>
+
+<span class="sd">    n_fixed_layers:</span>
+<span class="sd">        Integer giving the number of layers of the slab to be fixed</span>
+<span class="sd">        starting from the bottom up (e.g., a value of 2 will fix the</span>
+<span class="sd">        bottom 2 layers).</span>
+<span class="sd">        Defaults to 0 (i.e., no layers in the slab fixed).</span>
+
+<span class="sd">    place_dopant_at_center:</span>
+<span class="sd">        Boolean specifying whether the single-atom should be placed</span>
+<span class="sd">        at the center of the unit cell. If False, the single-atom will</span>
+<span class="sd">        be placed at the origin.</span>
+<span class="sd">        Defaults to True.</span>
+
+<span class="sd">    write_to_disk:</span>
+<span class="sd">        Boolean specifying whether the bulk structures generated should be</span>
+<span class="sd">        written to disk.</span>
+<span class="sd">        Defaults to False.</span>
+
+<span class="sd">    write_location:</span>
+<span class="sd">        String with the location where the per-species/per-crystal structure</span>
+<span class="sd">        directories must be constructed and structure files written to disk.</span>
+<span class="sd">        In the specified write_location, the following directory structure</span>
+<span class="sd">        will be created:</span>
+<span class="sd">        [host]/[dopant]/[facet]/substrate/input.traj</span>
+
+<span class="sd">    dirs_exist_ok:</span>
+<span class="sd">        Boolean specifying whether existing directories/files should be</span>
+<span class="sd">        overwritten or not. This is passed on to the `os.makedirs` builtin.</span>
+<span class="sd">        Defaults to False (raises an error if directories corresponding the</span>
+<span class="sd">        species and crystal structure already exist).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+
+<span class="sd">    Dictionary with the single-atom alloy structures as `ase.Atoms` objects and</span>
+<span class="sd">    write-location, if any, for each {crystal structure and facet} specified for</span>
+<span class="sd">    each input host and dopant species combination.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">    {</span>
+<span class="sd">        &quot;Fe&quot;: {</span>
+<span class="sd">            &quot;Cu&quot;: {</span>
+<span class="sd">                &quot;bcc100&quot;: {</span>
+<span class="sd">                    &quot;structure&quot;: FeN-1_Cu1_saa_obj,</span>
+<span class="sd">                    &quot;traj_file_path&quot;: &quot;/path/to/Cu/on/bcc/Fe/100/surface/traj/file&quot;</span>
+<span class="sd">                },</span>
+<span class="sd">                &quot;bcc110&quot;: ...,</span>
+<span class="sd">            },</span>
+<span class="sd">            &quot;Ru&quot;: {</span>
+<span class="sd">                ...</span>
+<span class="sd">            },</span>
+<span class="sd">        },</span>
+<span class="sd">        &quot;Rh&quot;: {</span>
+<span class="sd">            ...</span>
+<span class="sd">        }</span>
+<span class="sd">    }</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">hosts</span> <span class="o">=</span> <span class="n">generate_surface_structures</span><span class="p">(</span>
+        <span class="n">host_species</span><span class="p">,</span>
+        <span class="n">crystal_structures</span><span class="o">=</span><span class="n">crystal_structures</span><span class="p">,</span>
+        <span class="n">facets</span><span class="o">=</span><span class="n">facets</span><span class="p">,</span>
+        <span class="n">supercell_dim</span><span class="o">=</span><span class="n">supercell_dim</span><span class="p">,</span>
+        <span class="n">default_lat_param_lib</span><span class="o">=</span><span class="n">default_lat_param_lib</span><span class="p">,</span>
+        <span class="n">a_dict</span><span class="o">=</span><span class="n">a_dict</span><span class="p">,</span>
+        <span class="n">c_dict</span><span class="o">=</span><span class="n">c_dict</span><span class="p">,</span>
+        <span class="n">set_magnetic_moments</span><span class="o">=</span><span class="n">set_host_magnetic_moments</span><span class="p">,</span>
+        <span class="n">magnetic_moments</span><span class="o">=</span><span class="n">host_magnetic_moments</span><span class="p">,</span>
+        <span class="n">vacuum</span><span class="o">=</span><span class="n">vacuum</span><span class="p">,</span>
+        <span class="n">n_fixed_layers</span><span class="o">=</span><span class="n">n_fixed_layers</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">set_dopant_magnetic_moments</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">set_dopant_magnetic_moments</span> <span class="o">=</span> <span class="n">dopant_species</span>
+    <span class="k">if</span> <span class="n">dopant_magnetic_moments</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">dopant_magnetic_moments</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">dop_mm_library</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">dop</span><span class="p">:</span> <span class="n">ground_state_magnetic_moments</span><span class="p">[</span><span class="n">atomic_numbers</span><span class="p">[</span><span class="n">dop</span><span class="p">]]</span>
+        <span class="k">for</span> <span class="n">dop</span> <span class="ow">in</span> <span class="n">dopant_species</span>
+    <span class="p">}</span>
+    <span class="n">dop_mm_library</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dopant_magnetic_moments</span><span class="p">)</span>
+
+    <span class="n">saa_structures</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="c1"># iterate over hosts</span>
+    <span class="k">for</span> <span class="n">host</span> <span class="ow">in</span> <span class="n">hosts</span><span class="p">:</span>
+        <span class="n">saa_structures</span><span class="p">[</span><span class="n">host</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># iterate over single-atoms</span>
+        <span class="k">for</span> <span class="n">dopant</span> <span class="ow">in</span> <span class="n">dopant_species</span><span class="p">:</span>
+            <span class="c1"># ensure host != single-atom</span>
+            <span class="k">if</span> <span class="n">dopant</span> <span class="o">==</span> <span class="n">host</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">saa_structures</span><span class="p">[</span><span class="n">host</span><span class="p">][</span><span class="n">dopant</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="c1"># iterate over surface facets</span>
+            <span class="k">for</span> <span class="n">facet</span> <span class="ow">in</span> <span class="n">hosts</span><span class="p">[</span><span class="n">host</span><span class="p">]:</span>
+                <span class="n">host_structure</span> <span class="o">=</span> <span class="n">hosts</span><span class="p">[</span><span class="n">host</span><span class="p">][</span><span class="n">facet</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;structure&quot;</span><span class="p">)</span>
+                <span class="n">doped_structure</span> <span class="o">=</span> <span class="n">substitute_single_atom_on_surface</span><span class="p">(</span>
+                    <span class="n">host_structure</span><span class="p">,</span>
+                    <span class="n">dopant</span><span class="p">,</span>
+                    <span class="n">place_dopant_at_center</span><span class="o">=</span><span class="n">place_dopant_at_center</span><span class="p">,</span>
+                    <span class="n">dopant_magnetic_moment</span><span class="o">=</span><span class="n">dop_mm_library</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">dopant</span><span class="p">),</span>
+                <span class="p">)</span>
+
+                <span class="n">traj_file_path</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="k">if</span> <span class="n">write_to_disk</span><span class="p">:</span>
+                    <span class="n">dir_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                        <span class="n">write_location</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">dopant</span><span class="p">,</span> <span class="n">facet</span><span class="p">,</span> <span class="s2">&quot;substrate&quot;</span>
+                    <span class="p">)</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">dir_path</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="n">dirs_exist_ok</span><span class="p">)</span>
+                    <span class="n">traj_file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dir_path</span><span class="p">,</span> <span class="s2">&quot;input.traj&quot;</span><span class="p">)</span>
+                    <span class="n">doped_structure</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">traj_file_path</span><span class="p">)</span>
+                    <span class="nb">print</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dopant</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">host</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">facet</span><span class="si">}</span><span class="s2">) structure written to </span><span class="si">{</span><span class="n">traj_file_path</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+
+                <span class="n">saa_structures</span><span class="p">[</span><span class="n">host</span><span class="p">][</span><span class="n">dopant</span><span class="p">][</span><span class="n">facet</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s2">&quot;structure&quot;</span><span class="p">:</span> <span class="n">doped_structure</span><span class="p">,</span>
+                    <span class="s2">&quot;traj_file_path&quot;</span><span class="p">:</span> <span class="n">traj_file_path</span><span class="p">,</span>
+                <span class="p">}</span>
+    <span class="k">return</span> <span class="n">saa_structures</span>
+</code></pre></div></td></tr></table></div>
+      </details>
+  </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+
+<h2 id="autocat.saa.substitute_single_atom_on_surface" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">substitute_single_atom_on_surface</span><span class="p">(</span><span class="n">host_structure</span><span class="p">,</span> <span class="n">dopant_element</span><span class="p">,</span> <span class="n">place_dopant_at_center</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">dopant_magnetic_moment</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span></code>
+
+</h2>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>For a given host (<strong>elemental surface</strong>) structure and a dopant element,
+returns a slab with one host atom on the surface substituted with the
+specified dopant element with a specified magnetic moment.
+Note that for the current implementation (single-atom alloys), there will
+exist only one symmetrically unique site to substitute on the surface of the
+elemental slab.</p>
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>host_structure</code></td>
+          <td>
+                <code><span title="ase.Atoms">Atoms</span></code>
+          </td>
+          <td><p>ase.Atoms object of the host slab to be doped.</p></td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+      <p>dopant_element (REQUIRED):
+    String of the elemental species to be substitutionally doped into the
+    host structure.</p>
+<p>place_dopant_at_center:
+    Boolean specifying whether the single-atom dopant should be placed at
+    the center of the unit cell. If False, the dopant atom will be placed at
+    the origin.
+    Defaults to True.</p>
+<p>dopant_magnetic_moment:
+    Float with the initial magnetic moment on the doped single-atom.
+    Defaults to no spin polarization (i.e., magnetic moment of 0).</p>
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code>The elemental slab with a single-atom dopant on the surface as an</code>
+          </td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>
+                <code><span title="ase.Atoms">Atoms</span></code>
+          </td>
+          <td></td>
+        </tr>
+    </tbody>
+  </table>
+
+  <p><strong>Raises:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code>NotImplementedError</code>
+          </td>
+          <td><p>If multiple symmetrically equivalent sites are found on the surface to dope.
+Note that is intended more as a "guardrail" on current functionality to
+match the maturity/implementation of other modules in <code>autocat</code> than an
+actual error. The error should no longer be present when the
+substitution functionality is folded into a more general form.</p></td>
+        </tr>
+    </tbody>
+  </table>
+
+      <details class="quote">
+        <summary>Source code in <code>autocat/saa.py</code></summary>
+        <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">275</span>
+<span class="normal">276</span>
+<span class="normal">277</span>
+<span class="normal">278</span>
+<span class="normal">279</span>
+<span class="normal">280</span>
+<span class="normal">281</span>
+<span class="normal">282</span>
+<span class="normal">283</span>
+<span class="normal">284</span>
+<span class="normal">285</span>
+<span class="normal">286</span>
+<span class="normal">287</span>
+<span class="normal">288</span>
+<span class="normal">289</span>
+<span class="normal">290</span>
+<span class="normal">291</span>
+<span class="normal">292</span>
+<span class="normal">293</span>
+<span class="normal">294</span>
+<span class="normal">295</span>
+<span class="normal">296</span>
+<span class="normal">297</span>
+<span class="normal">298</span>
+<span class="normal">299</span>
+<span class="normal">300</span>
+<span class="normal">301</span>
+<span class="normal">302</span>
+<span class="normal">303</span>
+<span class="normal">304</span>
+<span class="normal">305</span>
+<span class="normal">306</span>
+<span class="normal">307</span>
+<span class="normal">308</span>
+<span class="normal">309</span>
+<span class="normal">310</span>
+<span class="normal">311</span>
+<span class="normal">312</span>
+<span class="normal">313</span>
+<span class="normal">314</span>
+<span class="normal">315</span>
+<span class="normal">316</span>
+<span class="normal">317</span>
+<span class="normal">318</span>
+<span class="normal">319</span>
+<span class="normal">320</span>
+<span class="normal">321</span>
+<span class="normal">322</span>
+<span class="normal">323</span>
+<span class="normal">324</span>
+<span class="normal">325</span>
+<span class="normal">326</span>
+<span class="normal">327</span>
+<span class="normal">328</span>
+<span class="normal">329</span>
+<span class="normal">330</span>
+<span class="normal">331</span>
+<span class="normal">332</span>
+<span class="normal">333</span>
+<span class="normal">334</span>
+<span class="normal">335</span>
+<span class="normal">336</span>
+<span class="normal">337</span>
+<span class="normal">338</span>
+<span class="normal">339</span>
+<span class="normal">340</span>
+<span class="normal">341</span>
+<span class="normal">342</span>
+<span class="normal">343</span>
+<span class="normal">344</span>
+<span class="normal">345</span>
+<span class="normal">346</span>
+<span class="normal">347</span>
+<span class="normal">348</span>
+<span class="normal">349</span>
+<span class="normal">350</span>
+<span class="normal">351</span>
+<span class="normal">352</span>
+<span class="normal">353</span>
+<span class="normal">354</span>
+<span class="normal">355</span>
+<span class="normal">356</span>
+<span class="normal">357</span>
+<span class="normal">358</span>
+<span class="normal">359</span>
+<span class="normal">360</span>
+<span class="normal">361</span>
+<span class="normal">362</span>
+<span class="normal">363</span>
+<span class="normal">364</span>
+<span class="normal">365</span>
+<span class="normal">366</span>
+<span class="normal">367</span>
+<span class="normal">368</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">def</span> <span class="nf">substitute_single_atom_on_surface</span><span class="p">(</span>
+    <span class="n">host_structure</span><span class="p">:</span> <span class="n">Atoms</span><span class="p">,</span>
+    <span class="n">dopant_element</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">place_dopant_at_center</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">dopant_magnetic_moment</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Atoms</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    For a given host (**elemental surface**) structure and a dopant element,</span>
+<span class="sd">    returns a slab with one host atom on the surface substituted with the</span>
+<span class="sd">    specified dopant element with a specified magnetic moment.</span>
+<span class="sd">    Note that for the current implementation (single-atom alloys), there will</span>
+<span class="sd">    exist only one symmetrically unique site to substitute on the surface of the</span>
+<span class="sd">    elemental slab.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    host_structure (REQUIRED):</span>
+<span class="sd">        ase.Atoms object of the host slab to be doped.</span>
+
+<span class="sd">    dopant_element (REQUIRED):</span>
+<span class="sd">        String of the elemental species to be substitutionally doped into the</span>
+<span class="sd">        host structure.</span>
+
+<span class="sd">    place_dopant_at_center:</span>
+<span class="sd">        Boolean specifying whether the single-atom dopant should be placed at</span>
+<span class="sd">        the center of the unit cell. If False, the dopant atom will be placed at</span>
+<span class="sd">        the origin.</span>
+<span class="sd">        Defaults to True.</span>
+
+<span class="sd">    dopant_magnetic_moment:</span>
+<span class="sd">        Float with the initial magnetic moment on the doped single-atom.</span>
+<span class="sd">        Defaults to no spin polarization (i.e., magnetic moment of 0).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+
+<span class="sd">    The elemental slab with a single-atom dopant on the surface as an</span>
+<span class="sd">    `ase.Atoms` object.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+
+<span class="sd">    NotImplementedError</span>
+<span class="sd">        If multiple symmetrically equivalent sites are found on the surface to dope.</span>
+<span class="sd">        Note that is intended more as a &quot;guardrail&quot; on current functionality to</span>
+<span class="sd">        match the maturity/implementation of other modules in `autocat` than an</span>
+<span class="sd">        actual error. The error should no longer be present when the</span>
+<span class="sd">        substitution functionality is folded into a more general form.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">all_surface_indices</span> <span class="o">=</span> <span class="n">_find_all_surface_atom_indices</span><span class="p">(</span><span class="n">host_structure</span><span class="p">)</span>
+
+    <span class="n">ase_all_doped_structures</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">all_surface_indices</span><span class="p">:</span>
+        <span class="n">dop_struct</span> <span class="o">=</span> <span class="n">host_structure</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">dop_struct</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">symbol</span> <span class="o">=</span> <span class="n">dopant_element</span>
+        <span class="n">dop_struct</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">magmom</span> <span class="o">=</span> <span class="n">dopant_magnetic_moment</span>
+        <span class="n">ase_all_doped_structures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dop_struct</span><span class="p">)</span>
+
+    <span class="c1"># convert ase substrate to pymatgen structure</span>
+    <span class="n">converter</span> <span class="o">=</span> <span class="n">AseAtomsAdaptor</span><span class="p">()</span>
+    <span class="n">pmg_doped_structures</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">converter</span><span class="o">.</span><span class="n">get_structure</span><span class="p">(</span><span class="n">struct</span><span class="p">)</span> <span class="k">for</span> <span class="n">struct</span> <span class="ow">in</span> <span class="n">ase_all_doped_structures</span>
+    <span class="p">]</span>
+
+    <span class="c1"># check that only one unique surface doped structure</span>
+    <span class="n">matcher</span> <span class="o">=</span> <span class="n">StructureMatcher</span><span class="p">()</span>
+    <span class="n">pmg_symm_equiv_doped_structure</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">matcher</span><span class="o">.</span><span class="n">group_structures</span><span class="p">(</span><span class="n">pmg_doped_structures</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pmg_symm_equiv_doped_structure</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Multiple symmetrically unique sites to dope found.&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="c1"># assumes only a single unique doped structure</span>
+    <span class="n">ase_substituted_structure</span> <span class="o">=</span> <span class="n">ase_all_doped_structures</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># center the single-atom dopant</span>
+    <span class="k">if</span> <span class="n">place_dopant_at_center</span><span class="p">:</span>
+        <span class="n">cent_x</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">ase_substituted_structure</span><span class="o">.</span><span class="n">cell</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span>
+            <span class="o">+</span> <span class="n">ase_substituted_structure</span><span class="o">.</span><span class="n">cell</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="p">)</span>
+        <span class="n">cent_y</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">ase_substituted_structure</span><span class="o">.</span><span class="n">cell</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span>
+            <span class="o">+</span> <span class="n">ase_substituted_structure</span><span class="o">.</span><span class="n">cell</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="p">)</span>
+        <span class="n">cent</span> <span class="o">=</span> <span class="p">(</span><span class="n">cent_x</span><span class="p">,</span> <span class="n">cent_y</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">ase_substituted_structure</span><span class="o">.</span><span class="n">translate</span><span class="p">(</span><span class="n">cent</span><span class="p">)</span>
+        <span class="n">ase_substituted_structure</span><span class="o">.</span><span class="n">wrap</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">ase_substituted_structure</span>
+</code></pre></div></td></tr></table></div>
+      </details>
+  </div>
+
+</div>
+
+
+
+  </div>
+
+  </div>
+
+</div>
+
+              
+            </article>
+            
+          </div>
+        </div>
+        
+          <a href="#" class="md-top md-icon" data-md-component="top" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12Z"/></svg>
+            Back to top
+          </a>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+    <nav class="md-footer__inner md-grid" aria-label="Footer" >
+      
+        
+        <a href="../adsorption/" class="md-footer__link md-footer__link--prev" aria-label="Previous: autocat.adsorption" rel="prev">
+          <div class="md-footer__button md-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+          </div>
+          <div class="md-footer__title">
+            <div class="md-ellipsis">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              autocat.adsorption
+            </div>
+          </div>
+        </a>
+      
+      
+    </nav>
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    <script id="__config" type="application/json">{"base": "../../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.top", "toc.integrate"], "search": "../../../assets/javascripts/workers/search.b97dbffb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.6c7ad80a.min.js"></script>
+      
+        <script src="../../../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
