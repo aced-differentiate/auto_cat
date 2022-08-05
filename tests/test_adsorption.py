@@ -33,7 +33,7 @@ def test_generate_molecule_from_name():
     assert mol["structure"].positions[0] == approx([7.345, 7.5, 6.545])
     # ORR intermediate
     mol = generate_molecule(molecule_name="OH")
-    assert mol["structure"].positions[1][2] == approx(7.985)
+    assert mol["structure"].positions[1][2] == approx(7.845)
     # atom-in-a-box
     mol = generate_molecule(molecule_name="Cl")
     assert len(mol["structure"]) == 1
