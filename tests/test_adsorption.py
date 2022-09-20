@@ -18,6 +18,7 @@ from autocat.adsorption import get_adsorbate_height_estimate
 from autocat.adsorption import get_adsorbate_slab_nn_list
 from autocat.adsorption import get_adsorption_sites
 from autocat.adsorption import AutocatAdsorptionGenerationError
+from autocat.adsorption import adsorption_sites_to_possible_ads_site_list
 
 
 def test_generate_molecule_from_name_error():
@@ -50,6 +51,49 @@ def test_generate_molecule_disk_io():
     )
     traj_file_path = os.path.join(_tmp_dir, "references", "N", "input.traj")
     assert os.path.samefile(mol["traj_file_path"], traj_file_path)
+
+
+def test_adsorption_sites_to_possible_ads_site_list():
+    # Test converting adsorption sites to appropriately formatted list
+
+    with pytest.raises(AutocatAdsorptionGenerationError):
+        adsorption_sites_to_possible_ads_site_list(
+            adsorption_sites=[(0.25, 0.25), (0.0, 0.0)]
+        )
+
+    # test giving adsorption_sites as a list
+    poss_ads, sites = adsorption_sites_to_possible_ads_site_list(
+        adsorption_sites=[(0.3, 0.3), (0.9, 1.4)], adsorbates=["OH", "OOH", "C"]
+    )
+    assert sites == [(0.3, 0.3), (0.9, 1.4)]
+    assert poss_ads == [["OH", "OOH", "C"], ["OH", "OOH", "C"]]
+
+    # test giving adsorbates as a dict
+    poss_ads, sites = adsorption_sites_to_possible_ads_site_list(
+        adsorption_sites=[(0.3, 0.3), (0.9, 1.4)],
+        adsorbates={"OH_1": "OH", "OH_2": "OH", "C*": "C"},
+    )
+    assert sites == [(0.3, 0.3), (0.9, 1.4)]
+    assert poss_ads == [["OH_1", "OH_2", "C*"], ["OH_1", "OH_2", "C*"]]
+
+    # test giving adsorption sites as a dict
+    poss_ads, sites = adsorption_sites_to_possible_ads_site_list(
+        adsorption_sites={"OH": [(0.0, 0.0)], "O": [(0.0, 0.0), (0.5, 0.5)]}
+    )
+    assert sites == [(0.0, 0.0), (0.5, 0.5)]
+    assert poss_ads == [["OH", "O"], ["O"]]
+
+    # test giving both arguments as dicts
+    poss_ads, sites = adsorption_sites_to_possible_ads_site_list(
+        adsorption_sites={
+            "OH_1": [(0.0, 0.0)],
+            "OH_2": [(0.0, 0.0), (0.5, 0.5)],
+            "C*": [(0.5, 0.5)],
+        },
+        adsorbates={"OH_1": "OH", "OH_2": "OH", "C*": "C"},
+    )
+    assert sites == [(0.0, 0.0), (0.5, 0.5)]
+    assert poss_ads == [["OH_1", "OH_2"], ["OH_2", "C*"]]
 
 
 def test_generate_adsorbed_structures_invalid_inputs():
