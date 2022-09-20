@@ -137,6 +137,107 @@ def generate_molecule(
     return {"structure": m, "traj_file_path": traj_file_path}
 
 
+def adsorption_sites_to_possible_ads_site_list(
+    adsorption_sites: Union[Dict[str, AdsorptionSite], AdsorptionSite] = None,
+    adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
+) -> Tuple[List[str], List[List[float]]]:
+    """
+    Takes adsorption sites and converts to a list where each index
+    corresponds to a specific list and is a list of possible adsorbates
+    at that site.
+
+    Parameters
+    ----------
+
+    adsorption_sites (REQUIRED):
+        List of xy coordinates of sites on the surface
+        where any of the adsorbates can be placed.
+        Alternatively, a single dictionary with label and a list of xy
+        coordinates can be provided as input to be used to indicate a separate
+        list of potential sites for each adsorbate.
+
+        Example:
+
+        [(0.0, 0.0), (0.25, 0.25), (0.75, 0.25), (0.5, 0.5)]
+
+        OR
+
+        {
+            "OH": [(0.0, 0.0), (0.25, 0.25)]
+            "H2O": [(0.5, 0.5), (0.75, 0.25)]
+        }
+
+    adsorbates:
+        Dictionary of adsorbate molecule/intermediate names and corresponding
+        `ase.Atoms` object or string to be placed on the host surface.
+
+        Note that the strings that appear as values must be in the list of
+        supported molecules in `autocat.data.intermediates` or in the `ase` g2
+        database. Predefined data in `autocat.data` will take priority over that
+        in `ase`.
+
+        Alternatively, a list of strings can be provided as input.
+        Note that each string has to be *unique* and available in
+        `autocat.data.intermediates` or the `ase` g2 database.
+
+        Example:
+        {
+            "NH": "NH",
+            "N*": "N",
+            "NNH": NNH_atoms_obj,
+            ...
+        }
+
+        OR
+
+        ["NH", "NNH"]
+
+        Required if providing `adsorption_sites` as a list
+
+    Returns
+    -------
+
+    List where each index is the possible adsorbates at each site
+    and a list of all sites
+
+    Example:
+
+    [["OH", "H"], ["H"], ["OH", "OOH"]]
+
+    AND
+
+    [[0.0, 0.0], [0.25, 0.25], [0.7, 0.6]]
+
+    """
+    if adsorption_sites is None:
+        msg = "Adsorption sites must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if isinstance(adsorbates, dict):
+        adsorbates = list(adsorbates.keys())
+
+    if isinstance(adsorption_sites, list):
+        if adsorbates is None:
+            msg = "Adsorbates must be provided if adsorption sites given as a list"
+            raise AutocatAdsorptionGenerationError(msg)
+        possible_ads_site_list = [adsorbates for i in range(len(adsorption_sites))]
+        sites = adsorption_sites
+
+    elif isinstance(adsorption_sites, dict):
+        sites = []
+        possible_ads_site_list = []
+        for ads, ads_sites in adsorption_sites.items():
+            for ads_site in ads_sites:
+                if ads_site not in sites:
+                    sites.append(ads_site)
+                    possible_ads_site_list.append([ads])
+                else:
+                    idx = sites.index(ads_site)
+                    possible_ads_site_list[idx].extend([ads])
+
+    return possible_ads_site_list, sites
+
+
 def generate_adsorbed_structures(
     surface: Union[str, Atoms] = None,
     adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
