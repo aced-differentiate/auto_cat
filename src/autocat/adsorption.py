@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import itertools
 from typing import List
 from typing import Tuple
 from typing import Dict
@@ -140,7 +141,7 @@ def generate_molecule(
 def adsorption_sites_to_possible_ads_site_list(
     adsorption_sites: Union[Dict[str, AdsorptionSite], AdsorptionSite] = None,
     adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
-) -> Tuple[List[str], List[List[float]]]:
+) -> Tuple[List[List[str]], List[List[float]]]:
     """
     Takes adsorption sites and converts to a list where each index
     corresponds to a specific list and is a list of possible adsorbates
@@ -226,16 +227,149 @@ def adsorption_sites_to_possible_ads_site_list(
     elif isinstance(adsorption_sites, dict):
         sites = []
         possible_ads_site_list = []
-        for ads, ads_sites in adsorption_sites.items():
+        for ads_sym, ads_sites in adsorption_sites.items():
             for ads_site in ads_sites:
                 if ads_site not in sites:
                     sites.append(ads_site)
-                    possible_ads_site_list.append([ads])
+                    possible_ads_site_list.append([ads_sym])
                 else:
                     idx = sites.index(ads_site)
-                    possible_ads_site_list[idx].extend([ads])
+                    possible_ads_site_list[idx].extend([ads_sym])
 
     return possible_ads_site_list, sites
+
+
+def enumerate_adsorbed_site_list(
+    adsorption_sites: Union[Dict[str, AdsorptionSite], AdsorptionSite] = None,
+    adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
+    adsorbate_coverage: Dict[str, Union[float, int]] = None,
+):
+    """
+    Generates all adsorption combinations which are restricted by coverages.
+
+    Parameters
+    ----------
+
+    adsorption_sites (REQUIRED):
+        List of xy coordinates of sites on the surface
+        where any of the adsorbates can be placed.
+        Alternatively, a single dictionary with label and a list of xy
+        coordinates can be provided as input to be used to indicate a separate
+        list of potential sites for each adsorbate.
+
+        Example:
+
+        [(0.0, 0.0), (0.25, 0.25), (0.75, 0.25), (0.5, 0.5)]
+
+        OR
+
+        {
+            "OH": [(0.0, 0.0), (0.25, 0.25)]
+            "H2O": [(0.5, 0.5), (0.75, 0.25)]
+        }
+
+    adsorbates:
+        Dictionary of adsorbate molecule/intermediate names and corresponding
+        `ase.Atoms` object or string to be placed on the host surface.
+
+        Note that the strings that appear as values must be in the list of
+        supported molecules in `autocat.data.intermediates` or in the `ase` g2
+        database. Predefined data in `autocat.data` will take priority over that
+        in `ase`.
+
+        Alternatively, a list of strings can be provided as input.
+        Note that each string has to be *unique* and available in
+        `autocat.data.intermediates` or the `ase` g2 database.
+
+        Example:
+        {
+            "NH": "NH",
+            "N*": "N",
+            "NNH": NNH_atoms_obj,
+            ...
+        }
+
+        OR
+
+        ["NH", "NNH"]
+
+        Required if providing `adsorption_sites` as a list
+
+    adsorbate_coverage (REQUIRED):
+        Dictionary indicating the desired coverage of each `adsorbate` specified
+        in `adsorbates`. If each value is an int and >= 1, then it is assumed that
+        this is the maximum number of each adsorbate to place. Otherwise, these values are
+        interpreted as percentages of the number of sites.
+
+        Example:
+        {
+            "OH": 2,
+            "CO": 3,
+        }
+
+        OR
+
+        {
+            "OH": 0.25,
+            "CO": 0.75
+        }
+
+    Returns
+    -------
+        List of all enumerated combinations of adsorbates placed subject to the maximum
+        concentration constraint and corresponding list of sites
+    """
+    if adsorbates is None:
+        msg = "Adsorbates must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if adsorbate_coverage is None:
+        msg = "Adsorbate coverage must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    for ads in adsorbates:
+        if ads not in adsorbate_coverage:
+            msg = f"Coverage not specified for {ads}"
+            raise AutocatAdsorptionGenerationError(msg)
+
+    nested_ads_combos, sites = adsorption_sites_to_possible_ads_site_list(
+        adsorption_sites=adsorption_sites, adsorbates=adsorbates
+    )
+
+    # convert cov percent to max num of each adsorbate
+    if not (
+        all((isinstance(val, int) and val >= 1) for val in adsorbate_coverage.values())
+    ):
+        total_num_sites = len(sites)
+        adsorbate_coverage = {
+            ads: int(np.floor(cov * total_num_sites))
+            for ads, cov in adsorbate_coverage.items()
+        }
+
+    all_ads_combos = itertools.product(*nested_ads_combos)
+
+    filtered_ads_combos = []
+    for ads_combo in all_ads_combos:
+        over_cov_limit = False
+        ads_combo = list(ads_combo)
+        for ads in ads_combo:
+            if ads_combo.count(ads) > adsorbate_coverage[ads]:
+                over_cov_limit = True
+                break
+        if not over_cov_limit:
+            filtered_ads_combos.append(ads_combo)
+
+    # check that combinations given constraints were found
+    if not filtered_ads_combos:
+        msg = """
+        Unable to enumerate adsorption sites.
+        This is most likely due to too restrictive maximum coverages.
+        Please consider allowing unoccupied sites by using `X` in
+        `adsorbates`, `adsorbate_coverage`, and `adsorption_sites`
+        """
+        raise AutocatAdsorptionGenerationError(msg)
+
+    return filtered_ads_combos, sites
 
 
 def generate_adsorbed_structures(
