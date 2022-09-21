@@ -19,6 +19,7 @@ from autocat.adsorption import get_adsorbate_slab_nn_list
 from autocat.adsorption import get_adsorption_sites
 from autocat.adsorption import AutocatAdsorptionGenerationError
 from autocat.adsorption import adsorption_sites_to_possible_ads_site_list
+from autocat.adsorption import enumerate_adsorbed_site_list
 
 
 def test_generate_molecule_from_name_error():
@@ -56,10 +57,15 @@ def test_generate_molecule_disk_io():
 def test_adsorption_sites_to_possible_ads_site_list():
     # Test converting adsorption sites to appropriately formatted list
 
+    # test missing adsorbates
     with pytest.raises(AutocatAdsorptionGenerationError):
         adsorption_sites_to_possible_ads_site_list(
             adsorption_sites=[(0.25, 0.25), (0.0, 0.0)]
         )
+
+    # test missing adsorption sites
+    with pytest.raises(AutocatAdsorptionGenerationError):
+        adsorption_sites_to_possible_ads_site_list(adsorbates=["N"])
 
     # test giving adsorption_sites as a list
     poss_ads, sites = adsorption_sites_to_possible_ads_site_list(
@@ -94,6 +100,79 @@ def test_adsorption_sites_to_possible_ads_site_list():
     )
     assert sites == [(0.0, 0.0), (0.5, 0.5)]
     assert poss_ads == [["OH_1", "OH_2"], ["OH_2", "C*"]]
+
+
+def test_enumerate_adsorbed_site_list_invalid_inputs():
+    # no adsorbates
+    with pytest.raises(AutocatAdsorptionGenerationError):
+        enumerate_adsorbed_site_list(
+            adsorption_sites={"OH": [[0.5, 0.5], [0.6, 0.1]]},
+            adsorbate_coverage={"OH": 2},
+        )
+    # no adsorbate coverage
+    with pytest.raises(AutocatAdsorptionGenerationError):
+        enumerate_adsorbed_site_list(
+            adsorption_sites={"OH": [[0.5, 0.5], [0.6, 0.1]]}, adsorbates=["OH"]
+        )
+    # adsorbate coverage not given for an adsorbate
+    with pytest.raises(AutocatAdsorptionGenerationError):
+        enumerate_adsorbed_site_list(
+            adsorption_sites={"OH": [[0.5, 0.5], [0.6, 0.1]]},
+            adsorbate_coverage={"OH": 2},
+            adsorbates=["OH", "C"],
+        )
+    with pytest.raises(AutocatAdsorptionGenerationError):
+        enumerate_adsorbed_site_list(
+            adsorption_sites={"OH_1": [[0.5, 0.5], [0.6, 0.1]]},
+            adsorbate_coverage={"OH_1": 2},
+            adsorbates={"OH_1": "OH", "C*": "C"},
+        )
+
+
+def test_enumerate_adsorbed_site_list():
+    # cov given as num of adsorbates
+    ads_site_list, sites = enumerate_adsorbed_site_list(
+        adsorbates=["CO", "OH"],
+        adsorbate_coverage={"CO": 2, "OH": 1},
+        adsorption_sites=[(0.0, 0.0), (0.2, 0.1), (0.0, 0.4)],
+    )
+    assert sites == [(0.0, 0.0), (0.2, 0.1), (0.0, 0.4)]
+    assert ads_site_list == [["CO", "CO", "OH"], ["CO", "OH", "CO"], ["OH", "CO", "CO"]]
+
+    # cov given as fractions
+    ads_site_list, sites = enumerate_adsorbed_site_list(
+        adsorbates=["CO", "OH"],
+        adsorbate_coverage={"CO": 0.7, "OH": 0.4},
+        adsorption_sites=[(0.0, 0.0), (0.2, 0.1), (0.0, 0.4)],
+    )
+    assert sites == [(0.0, 0.0), (0.2, 0.1), (0.0, 0.4)]
+    assert ads_site_list == [["CO", "CO", "OH"], ["CO", "OH", "CO"], ["OH", "CO", "CO"]]
+
+    # ensure not going over max cov num
+    ads_site_list, sites = enumerate_adsorbed_site_list(
+        adsorbates=["CO", "OH"],
+        adsorbate_coverage={"CO": 2, "OH": 1},
+        adsorption_sites=[(0.0, 0.0), (0.2, 0.1)],
+    )
+    assert sites == [(0.0, 0.0), (0.2, 0.1)]
+    assert ads_site_list == [["CO", "CO"], ["CO", "OH"], ["OH", "CO"]]
+
+    # ensure not going over max cov fraction
+    ads_site_list, sites = enumerate_adsorbed_site_list(
+        adsorbates=["CO", "OH"],
+        adsorbate_coverage={"CO": 1, "OH": 0.5},
+        adsorption_sites=[(0.0, 0.0), (0.2, 0.1)],
+    )
+    assert sites == [(0.0, 0.0), (0.2, 0.1)]
+    assert ads_site_list == [["CO", "CO"], ["CO", "OH"], ["OH", "CO"]]
+
+    # catches too restrictive cov fraction
+    with pytest.raises(AutocatAdsorptionGenerationError):
+        ads_site_list, sites = enumerate_adsorbed_site_list(
+            adsorbates=["CO"],
+            adsorbate_coverage={"CO": 0.4},
+            adsorption_sites=[(0.0, 0.0), (0.2, 0.1)],
+        )
 
 
 def test_generate_adsorbed_structures_invalid_inputs():
