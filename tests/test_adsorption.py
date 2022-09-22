@@ -2,7 +2,6 @@
 
 import os
 import tempfile
-from tkinter import W
 
 import pytest
 from pytest import approx
