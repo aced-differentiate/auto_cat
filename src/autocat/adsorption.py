@@ -304,7 +304,7 @@ def enumerate_adsorbed_site_list(
         in `adsorbates`. If each value is an int and >= 1, then it is assumed that
         this is the maximum number of each adsorbate to place. Otherwise, these values are
         interpreted as percentages of the number of sites. If you would like a specific
-        adsorbate to not have anny coverage constraints, set it to `np.inf`
+        adsorbate to not have any coverage constraints, set it to `np.inf`
 
         Example:
         {
@@ -474,7 +474,7 @@ def place_multiple_adsorbates(
     Returns
     -------
 
-    List of Atoms objects all symmetrically unique adsorbed structures
+    Atoms object of surface structure with adsorbates placed at specified sites
 
     """
     # input wrangling
