@@ -24,6 +24,7 @@ from autocat.adsorption import AutocatAdsorptionGenerationError
 from autocat.adsorption import adsorption_sites_to_possible_ads_site_list
 from autocat.adsorption import enumerate_adsorbed_site_list
 from autocat.adsorption import place_multiple_adsorbates
+from autocat.adsorption import generate_high_coverage_adsorbed_structures
 
 
 def test_generate_molecule_from_name_error():
@@ -346,6 +347,180 @@ def test_place_multi_ads_rotations():
     assert np.isclose(ads_multi[-3].z, 16.772903679018718)
     assert np.isclose(ads_multi[-1].z, 17.045)
     assert np.isclose(ads_multi[-1].x, 2.87)
+
+
+def test_generate_high_cov_invalid_inputs():
+    surf = generate_surface_structures(species_list=["Fe"])["Fe"]["bcc100"]["structure"]
+    # no surface
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures()
+    # incorrect surface type
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(surface="Fe")
+    # no adsorbates input
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(surface=surf)
+    # incorrect adsorbates type
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(surface=surf, adsorbates=surf)
+    # no adsorbate coverage
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(surface=surf, adsorbates=["H"])
+    # incorrect adsorbate coverage type
+    with pytest.raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf, adsorbates=["H"], adsorbate_coverage=0.5
+        )
+    # incorrect rotations type
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf, adsorbates=["H"], adsorbate_coverage={"H": 9}, rotations="x"
+        )
+    # incorrect adsorption_sites type
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf,
+            adsorbates=["H"],
+            adsorbate_coverage={"H": np.inf},
+            adsorption_sites=(0, 0),
+        )
+    # incorrect use_all_sites type
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf,
+            adsorbates=["H"],
+            adsorbate_coverage={"H": np.inf},
+            use_all_sites=[True, True],
+        )
+    # incorrect site_type input
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf,
+            adsorbates=["H"],
+            adsorbate_coverage={"H": np.inf},
+            site_types="anywhere",
+        )
+    # incorrect site_type type
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf,
+            adsorbates=["H"],
+            adsorbate_coverage={"H": np.inf},
+            site_types=5,
+        )
+    # incorrect site_type value in dict
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf,
+            adsorbates=["H"],
+            adsorbate_coverage={"H": np.inf},
+            site_types={"H": [0.5, "ontop"]},
+        )
+    # incorrect site_type dict fmt
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf,
+            adsorbates=["H"],
+            adsorbate_coverage={"H": np.inf},
+            site_types={"H": 0.5},
+        )
+    # incorrect site_types value in list
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf,
+            adsorbates=["H"],
+            adsorbate_coverage={"H": np.inf},
+            site_types=["ontop", "anywhere"],
+        )
+    # incorrect heights type
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf,
+            adsorbates=["H"],
+            adsorbate_coverage={"H": np.inf},
+            heights=[1.5],
+        )
+    # incorrect anchor_atom_indices type
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf,
+            adsorbates=["H"],
+            adsorbate_coverage={"H": np.inf},
+            anchor_atom_indices=[0, 1],
+        )
+    # adsorbate not in adsorbate_coverage
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf, adsorbates=["H", "X"], adsorbate_coverage={"H": np.inf},
+        )
+
+
+def test_generate_high_cov_use_all_sites():
+    surf = generate_surface_structures(species_list=["Fe"], supercell_dim=(2, 2, 3))[
+        "Fe"
+    ]["bcc100"]["structure"]
+    # test filling all top sites
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["H"],
+        adsorbate_coverage={"H": np.inf},
+        use_all_sites=True,
+        site_types=["ontop"],
+    )
+    assert len(multi_ads_dict) == 1
+    struct = multi_ads_dict[0]["structure"]
+    assert list(struct.symbols).count("H") == 4
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["H", "X"],
+        adsorbate_coverage={"H": 11, "X": 1},
+        use_all_sites=True,
+        site_types=["bridge"],
+    )
+    # has only 2 unique bridge sites
+    # so by symm should only be 1 struct for each
+    assert len(multi_ads_dict) == 2
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["H", "X"],
+        adsorbate_coverage={"H": 0.5, "X": 0.5},
+        use_all_sites=True,
+        site_types=["ontop"],
+    )
+    # has 1 unique top sites (4 total)
+    # so by symm should only be 2 struct
+    # (diagonal and straight)
+    assert len(multi_ads_dict) == 2
+
+    # test with variable vacancies
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["H", "X"],
+        adsorbate_coverage={"H": 0.5, "X": np.inf},
+        use_all_sites=True,
+        site_types=["ontop"],
+    )
+    # has 1 unique top sites (4 total)
+    # so by symm should only be 3 struct
+    # (2 with 2 adsorbates and 1 with 1 adsorbate)
+    assert len(multi_ads_dict) == 3
+
+
+def test_generate_high_cov_rm_X():
+    # test filtering out X to get vacancies
+    surf = generate_surface_structures(species_list=["Fe"], supercell_dim=(2, 2, 3))[
+        "Fe"
+    ]["bcc100"]["structure"]
+    # test filling all top sites
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["H"],
+        adsorbate_coverage={"H": 3, "X": np.inf},
+        use_all_sites=True,
+        site_types=["ontop"],
+    )
+    struct = multi_ads_dict[0]["structure"]
+    assert "X" not in list(struct.symbols)
 
 
 def test_generate_adsorbed_structures_invalid_inputs():
