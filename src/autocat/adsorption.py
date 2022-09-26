@@ -346,10 +346,13 @@ def enumerate_adsorbed_site_list(
         all((isinstance(val, int) and val >= 1) for val in adsorbate_coverage.values())
     ):
         total_num_sites = len(sites)
-        adsorbate_coverage = {
-            ads: int(np.floor(cov * total_num_sites))
-            for ads, cov in adsorbate_coverage.items()
-        }
+        ads_cov = {}
+        for ads, cov in adsorbate_coverage.items():
+            if np.isinf(cov):
+                ads_cov[ads] = np.inf
+            else:
+                ads_cov[ads] = int(np.floor(cov * total_num_sites))
+        adsorbate_coverage = ads_cov
 
     all_ads_combos = itertools.product(*nested_ads_combos)
 
