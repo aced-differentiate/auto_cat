@@ -3,7 +3,6 @@
 import os
 import tempfile
 
-import pytest
 from pytest import approx
 from pytest import raises
 
@@ -28,9 +27,9 @@ from autocat.adsorption import generate_high_coverage_adsorbed_structures
 
 
 def test_generate_molecule_from_name_error():
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         generate_molecule()
-    with pytest.raises(NotImplementedError):
+    with raises(NotImplementedError):
         generate_molecule(molecule_name="N6H7")
 
 
@@ -63,13 +62,13 @@ def test_adsorption_sites_to_possible_ads_site_list():
     # Test converting adsorption sites to appropriately formatted list
 
     # test missing adsorbates
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         adsorption_sites_to_possible_ads_site_list(
             adsorption_sites=[(0.25, 0.25), (0.0, 0.0)]
         )
 
     # test missing adsorption sites
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         adsorption_sites_to_possible_ads_site_list(adsorbates=["N"])
 
     # test giving adsorption_sites as a list
@@ -117,24 +116,24 @@ def test_adsorption_sites_to_possible_ads_site_list():
 
 def test_enumerate_adsorbed_site_list_invalid_inputs():
     # no adsorbates
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         enumerate_adsorbed_site_list(
             adsorption_sites={"OH": [[0.5, 0.5], [0.6, 0.1]]},
             adsorbate_coverage={"OH": 2},
         )
     # no adsorbate coverage
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         enumerate_adsorbed_site_list(
             adsorption_sites={"OH": [[0.5, 0.5], [0.6, 0.1]]}, adsorbates=["OH"]
         )
     # adsorbate coverage not given for an adsorbate
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         enumerate_adsorbed_site_list(
             adsorption_sites={"OH": [[0.5, 0.5], [0.6, 0.1]]},
             adsorbate_coverage={"OH": 2},
             adsorbates=["OH", "C"],
         )
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         enumerate_adsorbed_site_list(
             adsorption_sites={"OH_1": [[0.5, 0.5], [0.6, 0.1]]},
             adsorbate_coverage={"OH_1": 2},
@@ -180,7 +179,7 @@ def test_enumerate_adsorbed_site_list():
     assert ads_site_list == [["CO", "CO"], ["CO", "OH"], ["OH", "CO"]]
 
     # catches too restrictive cov fraction
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         ads_site_list, sites = enumerate_adsorbed_site_list(
             adsorbates=["CO"],
             adsorbate_coverage={"CO": 0.4},
@@ -191,18 +190,18 @@ def test_enumerate_adsorbed_site_list():
 def test_place_multi_adsorbates_invalid_inputs():
     surf = generate_surface_structures(species_list=["Fe"])["Fe"]["bcc100"]["structure"]
     # no surface
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(surface=None)
     # no adsorbates
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(surface=surf, adsorbates=None)
     # no adsorbate sites list
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(
             surface=surf, adsorbates=["OH", "O"], adsorption_sites_list=None
         )
     # no adsorbates at each site list
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(
             surface=surf,
             adsorbates=["OH", "O"],
@@ -210,7 +209,7 @@ def test_place_multi_adsorbates_invalid_inputs():
             adsorbates_at_each_site=None,
         )
     # adsorbates at each site given in incorrect fmt
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(
             surface=surf,
             adsorbates=["OH", "O"],
@@ -218,7 +217,7 @@ def test_place_multi_adsorbates_invalid_inputs():
             adsorbates_at_each_site={"OH": [(0.0, 0.0)], "O": [(0.3, 0.4)]},
         )
     # some adsorbates in adsorbates at each site given as Atoms
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(
             surface=surf,
             adsorbates=["OH", "O"],
@@ -226,7 +225,7 @@ def test_place_multi_adsorbates_invalid_inputs():
             adsorbates_at_each_site=["OH", Atoms("O")],
         )
     # sites and list of adsorbates at each site do not match
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(
             surface=surf,
             adsorbates=["OH", "O"],
@@ -234,7 +233,7 @@ def test_place_multi_adsorbates_invalid_inputs():
             adsorbates_at_each_site=["OH"],
         )
     # wrong fmt of element in adsorbates
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(
             surface=surf,
             adsorbates={"OH": "OH", "C*": ["C"]},
@@ -242,7 +241,7 @@ def test_place_multi_adsorbates_invalid_inputs():
             adsorbates_at_each_site=["OH", "C*"],
         )
     # multiple adsorbates placed at same site
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(
             surface=surf,
             adsorbates=["OH", "N"],
@@ -367,7 +366,7 @@ def test_generate_high_cov_invalid_inputs():
     with raises(AutocatAdsorptionGenerationError):
         generate_high_coverage_adsorbed_structures(surface=surf, adsorbates=["H"])
     # incorrect adsorbate coverage type
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         generate_high_coverage_adsorbed_structures(
             surface=surf, adsorbates=["H"], adsorbate_coverage=0.5
         )
