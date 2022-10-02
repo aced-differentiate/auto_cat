@@ -542,7 +542,7 @@ def place_multiple_adsorbates(
         anchor_list = [
             anchor_atom_indices.get(ads, 0) for ads in adsorbates_at_each_site
         ]
-    elif isinstance(anchor_atom_indices, float):
+    elif isinstance(anchor_atom_indices, int):
         anchor_list = [anchor_atom_indices] * len(adsorption_sites_list)
 
     if rotations is None:
