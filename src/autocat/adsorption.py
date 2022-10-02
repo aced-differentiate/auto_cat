@@ -805,11 +805,6 @@ def generate_high_coverage_adsorbed_structures(
 
     if adsorption_sites is None:
         adsorption_sites = {}
-    elif isinstance(adsorption_sites, dict):
-        # check if the input is a single site for all adsorbates vs separate
-        # sites for each adsorbate
-        if all([ads_key not in adsorption_sites for ads_key in adsorbates]):
-            adsorption_sites = {ads_key: adsorption_sites for ads_key in adsorbates}
     elif not isinstance(adsorption_sites, dict):
         msg = f"Unrecognized input type for adsorption_sites ({type(adsorption_sites)})"
         raise AutocatAdsorptionGenerationError(msg)
