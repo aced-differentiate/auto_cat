@@ -195,6 +195,9 @@ def test_place_multi_adsorbates_invalid_inputs():
     # no adsorbates
     with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(surface=surf, adsorbates=None)
+    # wrong adsorbate type
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(surface=surf, adsorbates={"H"})
     # no adsorbate sites list
     with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(
@@ -318,6 +321,17 @@ def test_place_multi_ads_height_and_anchor_idx():
     )
     assert np.isclose(ads_multi[-4].z, 15.305)
     assert np.isclose(ads_multi[-1].z, 16.805)
+    # anchor idx given for all adsorbates
+    ads_multi = place_multiple_adsorbates(
+        surface=surf,
+        adsorbates=["OH", "CO"],
+        adsorbates_at_each_site=["OH", "CO"],
+        adsorption_sites_list=[(0.0, 0.0), (2.87, 2.87)],
+        heights=1.5,
+        anchor_atom_indices=1,
+    )
+    assert np.isclose(ads_multi[-3].z, 15.805)
+    assert np.isclose(ads_multi[-1].z, 15.805)
 
 
 def test_place_multi_ads_rotations():
