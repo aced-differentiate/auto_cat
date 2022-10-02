@@ -195,9 +195,6 @@ def test_place_multi_adsorbates_invalid_inputs():
     # no adsorbates
     with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(surface=surf, adsorbates=None)
-    # wrong adsorbate type
-    with raises(AutocatAdsorptionGenerationError):
-        place_multiple_adsorbates(surface=surf, adsorbates={"H"})
     # no adsorbate sites list
     with raises(AutocatAdsorptionGenerationError):
         place_multiple_adsorbates(
@@ -210,6 +207,14 @@ def test_place_multi_adsorbates_invalid_inputs():
             adsorbates=["OH", "O"],
             adsorption_sites_list=[(0.0, 0.0), (0.3, 0.4)],
             adsorbates_at_each_site=None,
+        )
+    # wrong adsorbate type
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(
+            surface=surf,
+            adsorbates={"OH", "O"},
+            adsorption_sites_list=[(0.0, 0.0), (0.3, 0.4)],
+            adsorbates_at_each_site=["OH", "O"],
         )
     # adsorbates at each site given in incorrect fmt
     with raises(AutocatAdsorptionGenerationError):
