@@ -454,6 +454,111 @@ def test_generate_high_cov_invalid_inputs():
         )
 
 
+def test_generate_high_cov_valid_inputs():
+    surf = generate_surface_structures(species_list=["Fe"], supercell_dim=(2, 2, 3))[
+        "Fe"
+    ]["bcc100"]["structure"]
+    # rotations as a list
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["OH"],
+        adsorption_sites={"OH": [(0.0, 0.0)]},
+        adsorbate_coverage={"OH": 1},
+        use_all_sites=False,
+        site_types=["ontop"],
+        rotations=[(45.0, "x")],
+    )
+    assert np.isclose(multi_ads_dict[0]["structure"][-1].y, -0.4879036790187179)
+    # site types as a str
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["H"],
+        adsorbate_coverage={"H": np.inf},
+        use_all_sites=True,
+        site_types="ontop",
+    )
+    assert len(multi_ads_dict[0]["structure"]) == len(surf) + 4
+    # heights as float
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["H", "C"],
+        adsorption_sites={"H": [(0.0, 0.0)], "C": [(2.87, 2.87)]},
+        adsorbate_coverage={"H": 1, "C": 1},
+        heights=1.5,
+    )
+    assert np.isclose(multi_ads_dict[0]["structure"][-2].z, 14.37)
+    assert np.isclose(multi_ads_dict[0]["structure"][-1].z, 14.37)
+    # anchor atom idx as int
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["OH", "CO"],
+        adsorption_sites={"OH": [(0.0, 0.0)], "CO": [(2.87, 2.87)]},
+        adsorbate_coverage={"OH": 1, "CO": 1},
+        heights=1.5,
+        anchor_atom_indices=1,
+    )
+    assert np.isclose(multi_ads_dict[0]["structure"][-3].z, 14.37)
+    assert np.isclose(multi_ads_dict[0]["structure"][-1].z, 14.37)
+
+
+def test_generate_high_cov_write_location():
+    surf = generate_surface_structures(species_list=["Fe"], supercell_dim=(2, 2, 3))[
+        "Fe"
+    ]["bcc100"]["structure"]
+    _tmp_dir = tempfile.TemporaryDirectory().name
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["H", "X"],
+        adsorbate_coverage={"H": 11, "X": 1},
+        use_all_sites=True,
+        site_types=["bridge"],
+        write_to_disk=True,
+        write_location=_tmp_dir,
+    )
+    traj_file_path = os.path.join(_tmp_dir, "multiple_adsorbates", "0", "input.traj")
+    assert os.path.samefile(multi_ads_dict[0]["traj_file_path"], traj_file_path)
+    traj_file_path = os.path.join(_tmp_dir, "multiple_adsorbates", "1", "input.traj")
+    assert os.path.samefile(multi_ads_dict[1]["traj_file_path"], traj_file_path)
+
+
+def test_generate_high_cov_dirs_exist_ok():
+    surf = generate_surface_structures(species_list=["Fe"], supercell_dim=(2, 2, 3))[
+        "Fe"
+    ]["bcc100"]["structure"]
+    _tmp_dir = tempfile.TemporaryDirectory().name
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["H", "X"],
+        adsorbate_coverage={"H": 11, "X": 1},
+        use_all_sites=True,
+        site_types=["bridge"],
+        write_to_disk=True,
+        write_location=_tmp_dir,
+    )
+    with raises(FileExistsError):
+        multi_ads_dict = generate_high_coverage_adsorbed_structures(
+            surface=surf,
+            adsorbates=["H", "X"],
+            adsorbate_coverage={"H": 11, "X": 1},
+            use_all_sites=True,
+            site_types=["bridge"],
+            write_to_disk=True,
+            write_location=_tmp_dir,
+        )
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["H", "X"],
+        adsorbate_coverage={"H": 11, "X": 1},
+        use_all_sites=True,
+        site_types=["bridge"],
+        write_to_disk=True,
+        write_location=_tmp_dir,
+        dirs_exist_ok=True,
+    )
+    traj_file_path = os.path.join(_tmp_dir, "multiple_adsorbates", "0", "input.traj")
+    assert os.path.samefile(multi_ads_dict[0]["traj_file_path"], traj_file_path)
+
+
 def test_generate_high_cov_use_all_sites():
     surf = generate_surface_structures(species_list=["Fe"], supercell_dim=(2, 2, 3))[
         "Fe"
