@@ -248,7 +248,7 @@ def enumerate_adsorbed_site_list(
     adsorption_sites: Union[Dict[str, AdsorptionSite], AdsorptionSite] = None,
     adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
     adsorbate_coverage: Dict[str, Union[float, int]] = None,
-):
+) -> Tuple[List[List[str]], List[Tuple[float]]]:
     """
     Generates all adsorption combinations which are restricted by coverages.
 
@@ -384,8 +384,8 @@ def enumerate_adsorbed_site_list(
 def place_multiple_adsorbates(
     surface: Atoms = None,
     adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
-    adsorbates_at_each_site: List[str] = None,
-    adsorption_sites_list: List[List[float]] = None,
+    adsorbates_at_each_site: Sequence[str] = None,
+    adsorption_sites_list: Sequence[Sequence[float]] = None,
     heights: Union[Dict[str, float], float] = None,
     anchor_atom_indices: Union[Dict[str, int], int] = None,
     rotations: Union[Dict[str, RotationOperations], RotationOperations] = None,
@@ -575,14 +575,14 @@ def generate_high_coverage_adsorbed_structures(
     adsorbate_coverage: Dict[str, Union[float, int]] = None,
     adsorption_sites: Union[Dict[str, AdsorptionSite], AdsorptionSite] = None,
     use_all_sites: bool = None,
-    site_types: Union[str, List[str], Dict[str, List[str]]] = None,
+    site_types: Union[str, Sequence[str], Dict[str, Sequence[str]]] = None,
     heights: Union[Dict[str, float], float] = None,
     anchor_atom_indices: Union[Dict[str, int], int] = None,
     rotations: Union[Dict[str, RotationOperations], RotationOperations] = None,
     write_to_disk: bool = False,
     write_location: str = ".",
     dirs_exist_ok: bool = False,
-) -> Dict[str, Dict[str, Dict[str, Dict[str, Any]]]]:
+) -> Dict[int, Dict[str, Dict[str, Any]]]:
     """
 
     Builds structures with multiple adsorbates for high coverage systems.
