@@ -391,8 +391,8 @@ def place_multiple_adsorbates(
     rotations: Union[Dict[str, RotationOperations], RotationOperations] = None,
 ) -> Atoms:
     """
-    Given a list of adsorbates at each site and a corresponding
-    site list, enumerate all unique structural combinations
+    Given a list of adsorbates for each desired site and a corresponding
+    site list, place the adsorbates at each site
 
     Parameters
     ----------
@@ -426,21 +426,23 @@ def place_multiple_adsorbates(
         ["NH", "NNH"]
 
     adsorbates_at_each_site (REQUIRED):
-        List of list of allowed adsorbates at each site.
+        List of adsorbates to be placed at each site specified in `sites_list`.
+        Must be the same length as `sites_list` with all adsorbates
+        specified in `adsorbates`.
 
         Example:
-        [["OH", "H"], ["H"], ["OH", "OOH"]]
+        ["OH", "H", "OH"]
 
     sites_list (REQUIRED):
         List of xy-coords of each site corresponding to the list
         given by `adsorbates_at_each_site`
 
         Example:
-        [[0.0, 0.0], [0.25, 0.25], [0.7, 0.6]]
+        [(0.0, 0.0), (0.25, 0.25), (0.7, 0.6)]
 
     rotations:
         Dictionary of the list of rotation operations to be applied to each
-        adsorbate molecule/intermediate before being placed on the host surface.
+        adsorbate molecule/intermediate type before being placed on the host surface.
         Alternatively, a single list of rotation operations can be provided as
         input to be used for all adsorbates.
 
@@ -458,7 +460,7 @@ def place_multiple_adsorbates(
         molecule.
 
     heights:
-        Dictionary of the height above surface where each adsorbate should be
+        Dictionary of the height above surface where each adsorbate type should be
         placed.
         Alternatively, a single float value can be provided as input to be
         used for all adsorbates.
