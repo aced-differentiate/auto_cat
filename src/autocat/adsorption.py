@@ -273,7 +273,7 @@ def enumerate_adsorbed_site_list(
             "H2O": [(0.5, 0.5), (0.75, 0.25)]
         }
 
-    adsorbates:
+    adsorbates (REQUIRED):
         Dictionary of adsorbate molecule/intermediate names and corresponding
         `ase.Atoms` object or string to be placed on the host surface.
 
@@ -322,8 +322,21 @@ def enumerate_adsorbed_site_list(
 
     Returns
     -------
+
         List of all enumerated combinations of adsorbates placed subject to the maximum
         concentration constraint and corresponding list of sites
+
+        Example:
+
+        [
+            ["OH", "OH", "CO"],
+            ["OH", "CO", "OH"],
+            ["CO", "OH", "OH"]
+        ]
+
+        AND
+
+        [(0.0), (0.25, 0.25), (0.4, 0.6)]
     """
     if adsorbates is None:
         msg = "Adsorbates must be provided"
@@ -688,8 +701,8 @@ def generate_high_coverage_adsorbed_structures(
 
         Defaults to True.
 
-    site_type:
-        Indicates which type of surface site should be occupied by the
+    site_types:
+        Indicates which types of surface site should be occupied by the
         adsorbates. Can be a string or list which is applied to all adsorbates,
         or a dict indicating site types for each adsorbate.
         Ignored if `use_all_sites` is False.
@@ -764,8 +777,8 @@ def generate_high_coverage_adsorbed_structures(
                 "traj_file_path": "/path/to/structure1/traj/file"
             },
             2: {
-                "structure": structure1,
-                "traj_file_path": "/path/to/structure1/traj/file"
+                "structure": structure2,
+                "traj_file_path": "/path/to/structure2/traj/file"
             }
             ...
         }
