@@ -241,7 +241,55 @@ it will cover **up to** half of the top sites with `H`.
 ```
 
 To cover **exactly** half of the sites, instead we can set
-`adsorbate_coverate={"H": 0.5, "X": 0.5}`
+`adsorbate_coverate={"H": 0.5, "X": 0.5}` for example.
+
+If we want to specify the allowed sites for all adsorbates, manually,
+we can supply `adsorption_sites` as a `list` of these sites. For example:
+
+```py
+>>> import numpy as np
+>>> from autocat.surface import generate_surface_structures
+>>> from autocat.adsorption import generate_high_coverage_adsorbed_structures
+>>> surface_dict = generate_surface_structures(
+...     species_list=["Pt"], 
+...     facets={"Pt": ["111"]}, 
+...     n_fixed_layers=2,
+...     supercell_dim=(2,2,3)
+... )
+>>> surface = surface_dict["Pt"]["fcc111"]["structure"]
+>>> multi_ads_dict = generate_high_coverage_adsorbed_structures(
+...     surface=surface,
+...     adsorbates=["H", "X"],
+...     adsorbate_coverage={"H": 3, "X": np.inf},
+...     use_all_sites=False,
+...     adsorption_sites=[(0.0, 0.0), (2.77, 0.0), (1.39, 2.4)]
+... )
+```
+
+We can also specify exactly which sites each adsorbate is allowed to
+occupy by giving `adsorption_sites` as a `dict`. For example, if we wanted 
+to restrict `H` to only be able to occupy `(0.0, 0.0)`, but allow 
+`OH` to occupy either `(0.0, 0.0)` or `(2.77, 0.0)`, we can do as follows:
+
+```py
+>>> import numpy as np
+>>> from autocat.surface import generate_surface_structures
+>>> from autocat.adsorption import generate_high_coverage_adsorbed_structures
+>>> surface_dict = generate_surface_structures(
+...     species_list=["Pt"], 
+...     facets={"Pt": ["111"]}, 
+...     n_fixed_layers=2,
+...     supercell_dim=(2,2,3)
+... )
+>>> surface = surface_dict["Pt"]["fcc111"]["structure"]
+>>> multi_ads_dict = generate_high_coverage_adsorbed_structures(
+...     surface=surface,
+...     adsorbates=["H", "OH"],
+...     adsorbate_coverage={"H": 1, "OH": 2},
+...     use_all_sites=False,
+...     adsorption_sites={"H": [(0.0, 0.0)], "OH":[(0.0, 0.0), (2.77, 0.0)]}
+... )
+```
 
 This function enumerates all unique structures given the coverage and site
 occupation constraints. A dictionary is returned keyed by `int`s for each
