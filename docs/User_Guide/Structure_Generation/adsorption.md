@@ -208,7 +208,7 @@ In the below example, hydrogens are placed at all identified hollow sites.
 ... )
 >>> surface = surface_dict["Pt"]["fcc111"]["structure"]
 >>> multi_ads_dict = generate_high_coverage_adsorbed_structures(
-...     surface=surf,
+...     surface=surface,
 ...     adsorbates=["H"],
 ...     adsorbate_coverage={"H": np.inf},
 ...     use_all_sites=True,
