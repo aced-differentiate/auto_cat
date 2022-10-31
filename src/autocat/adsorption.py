@@ -820,7 +820,7 @@ def generate_high_coverage_adsorbed_structures(
 
     if adsorption_sites is None:
         adsorption_sites = {}
-    elif not isinstance(adsorption_sites, dict):
+    elif not isinstance(adsorption_sites, (dict, list)):
         msg = f"Unrecognized input type for adsorption_sites ({type(adsorption_sites)})"
         raise AutocatAdsorptionGenerationError(msg)
 
