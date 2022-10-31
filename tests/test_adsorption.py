@@ -471,6 +471,11 @@ def test_generate_high_cov_invalid_inputs():
         generate_high_coverage_adsorbed_structures(
             surface=surf, adsorbates=["H", "X"], adsorbate_coverage={"H": np.inf},
         )
+    # adsorbate in adsorbate_coverage but not adsorbates
+    with raises(AutocatAdsorptionGenerationError):
+        generate_high_coverage_adsorbed_structures(
+            surface=surf, adsorbates=["H"], adsorbate_coverage={"X": np.inf, "H": 1},
+        )
 
 
 def test_generate_high_cov_valid_inputs():
@@ -652,7 +657,7 @@ def test_generate_high_cov_rm_X():
     # test filling all top sites
     multi_ads_dict = generate_high_coverage_adsorbed_structures(
         surface=surf,
-        adsorbates=["H"],
+        adsorbates=["H", "X"],
         adsorbate_coverage={"H": 3, "X": np.inf},
         use_all_sites=True,
         site_types=["ontop"],
