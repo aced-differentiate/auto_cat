@@ -518,6 +518,21 @@ def test_generate_high_cov_valid_inputs():
     )
     assert np.isclose(multi_ads_dict[0]["structure"][-3].z, 14.37)
     assert np.isclose(multi_ads_dict[0]["structure"][-1].z, 14.37)
+    # sites as a list
+    multi_ads_dict = generate_high_coverage_adsorbed_structures(
+        surface=surf,
+        adsorbates=["OH", "CO"],
+        adsorption_sites=[(0.0, 0.0), (2.87, 2.87)],
+        adsorbate_coverage={"OH": 1, "CO": 1},
+        anchor_atom_indices={"CO": 1},
+    )
+    assert len(multi_ads_dict) == 1
+    assert np.isclose(multi_ads_dict[0]["structure"][-4].x, 0.0) or np.isclose(
+        multi_ads_dict[0]["structure"][-4].x, 2.87
+    )
+    assert np.isclose(multi_ads_dict[0]["structure"][-1].y, 2.87) or np.isclose(
+        multi_ads_dict[0]["structure"][-1].y, 2.87
+    )
 
 
 def test_generate_high_cov_write_location():
