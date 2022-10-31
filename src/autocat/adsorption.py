@@ -889,6 +889,12 @@ def generate_high_coverage_adsorbed_structures(
             msg = f"{ads_key} not specified in adsorbate_coverage"
             raise AutocatAdsorptionGenerationError(msg)
 
+    # check that all adsorbates in adsorbate_coverage are present in adsorbates
+    for ads_key in adsorbate_coverage:
+        if ads_key not in adsorbates:
+            msg = f"{ads_key} specified in adsorbate_coverage but not adsorbates"
+            raise AutocatAdsorptionGenerationError(msg)
+
     # enumerate all possible adsorbate placement combinations
     enum_ads_at_each_site, sites_list = enumerate_adsorbed_site_list(
         adsorption_sites=adsorption_sites,
