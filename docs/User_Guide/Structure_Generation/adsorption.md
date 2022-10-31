@@ -232,7 +232,7 @@ it will cover **up to** half of the top sites with `H`.
 ... )
 >>> surface = surface_dict["Pt"]["fcc111"]["structure"]
 >>> multi_ads_dict = generate_high_coverage_adsorbed_structures(
-...     surface=surf,
+...     surface=surface,
 ...     adsorbates=["H", "X"],
 ...     adsorbate_coverage={"H": 0.5, "X": np.inf},
 ...     use_all_sites=True,
