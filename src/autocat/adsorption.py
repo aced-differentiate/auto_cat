@@ -953,7 +953,7 @@ def generate_high_coverage_adsorbed_structures(
             dir_path = os.path.join(write_location, "multiple_adsorbates", str(idx),)
             os.makedirs(dir_path, exist_ok=dirs_exist_ok)
             traj_file_path = os.path.join(dir_path, "input.traj")
-            adsorbed_structure.write(traj_file_path)
+            filt_ads_struct.write(traj_file_path)
             print(f"Adsorbate combination #{idx} written to {traj_file_path}")
         ads_dict[idx] = {"structure": filt_ads_struct, "traj_file_path": traj_file_path}
 
