@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import itertools
 from typing import List
 from typing import Tuple
 from typing import Dict
@@ -17,6 +18,7 @@ from ase.collections import g2
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.adsorption import AdsorbateSiteFinder
 from pymatgen.analysis.local_env import get_neighbors_of_site_with_index
+from pymatgen.analysis.structure_matcher import StructureMatcher
 
 from autocat.data.intermediates import NRR_MOLS
 from autocat.data.intermediates import ORR_MOLS
@@ -135,6 +137,827 @@ def generate_molecule(
         print(f"{molecule_name} molecule structure written to {traj_file_path}")
 
     return {"structure": m, "traj_file_path": traj_file_path}
+
+
+def adsorption_sites_to_possible_ads_site_list(
+    adsorption_sites: Union[Dict[str, AdsorptionSite], AdsorptionSite] = None,
+    adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
+) -> Tuple[List[List[str]], List[List[float]]]:
+    """
+    Takes adsorption sites and converts to a list where each index
+    corresponds to a specific list and is a list of possible adsorbates
+    at that site.
+
+    Parameters
+    ----------
+
+    adsorption_sites (REQUIRED):
+        List of xy coordinates of sites on the surface
+        where any of the adsorbates can be placed.
+        Alternatively, a single dictionary with label and a list of xy
+        coordinates can be provided as input to be used to indicate a separate
+        list of potential sites for each adsorbate.
+
+        Example:
+
+        [(0.0, 0.0), (0.25, 0.25), (0.75, 0.25), (0.5, 0.5)]
+
+        OR
+
+        {
+            "OH": [(0.0, 0.0), (0.25, 0.25)]
+            "H2O": [(0.5, 0.5), (0.75, 0.25)]
+        }
+
+    adsorbates:
+        Dictionary of adsorbate molecule/intermediate names and corresponding
+        `ase.Atoms` object or string to be placed on the host surface.
+
+        Note that the strings that appear as values must be in the list of
+        supported molecules in `autocat.data.intermediates` or in the `ase` g2
+        database. Predefined data in `autocat.data` will take priority over that
+        in `ase`.
+
+        Alternatively, a list of strings can be provided as input.
+        Note that each string has to be *unique* and available in
+        `autocat.data.intermediates` or the `ase` g2 database.
+
+        Example:
+        {
+            "NH": "NH",
+            "N*": "N",
+            "NNH": NNH_atoms_obj,
+            ...
+        }
+
+        OR
+
+        ["NH", "NNH"]
+
+        Required if providing `adsorption_sites` as a list
+
+    Returns
+    -------
+
+    List where each index is the possible adsorbates at each site
+    and a list of all sites
+
+    Example:
+
+    [["OH", "H"], ["H"], ["OH", "OOH"]]
+
+    AND
+
+    [[0.0, 0.0], [0.25, 0.25], [0.7, 0.6]]
+
+    """
+    if adsorption_sites is None:
+        msg = "Adsorption sites must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if isinstance(adsorbates, dict):
+        adsorbates = list(adsorbates.keys())
+
+    if isinstance(adsorption_sites, list):
+        if adsorbates is None:
+            msg = "Adsorbates must be provided if adsorption sites given as a list"
+            raise AutocatAdsorptionGenerationError(msg)
+        elif len(adsorption_sites) > len(np.unique(adsorption_sites, axis=0)):
+            adsorption_sites = [
+                tuple(row) for row in np.unique(adsorption_sites, axis=0)
+            ]
+        possible_ads_site_list = [adsorbates for i in range(len(adsorption_sites))]
+        sites = adsorption_sites
+
+    elif isinstance(adsorption_sites, dict):
+        sites = []
+        possible_ads_site_list = []
+        for ads_sym, ads_sites in adsorption_sites.items():
+            for ads_site in ads_sites:
+                if ads_site not in sites:
+                    sites.append(ads_site)
+                    possible_ads_site_list.append([ads_sym])
+                else:
+                    idx = sites.index(ads_site)
+                    possible_ads_site_list[idx].extend([ads_sym])
+
+    return possible_ads_site_list, sites
+
+
+def enumerate_adsorbed_site_list(
+    adsorption_sites: Union[Dict[str, AdsorptionSite], AdsorptionSite] = None,
+    adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
+    adsorbate_coverage: Dict[str, Union[float, int]] = None,
+) -> Tuple[List[List[str]], List[Tuple[float]]]:
+    """
+    Generates all adsorption combinations which are restricted by coverages.
+
+    Parameters
+    ----------
+
+    adsorption_sites (REQUIRED):
+        List of xy coordinates of sites on the surface
+        where any of the adsorbates can be placed.
+        Alternatively, a single dictionary with label and a list of xy
+        coordinates can be provided as input to be used to indicate a separate
+        list of potential sites for each adsorbate.
+
+        Example:
+
+        [(0.0, 0.0), (0.25, 0.25), (0.75, 0.25), (0.5, 0.5)]
+
+        OR
+
+        {
+            "OH": [(0.0, 0.0), (0.25, 0.25)]
+            "H2O": [(0.5, 0.5), (0.75, 0.25)]
+        }
+
+    adsorbates (REQUIRED):
+        Dictionary of adsorbate molecule/intermediate names and corresponding
+        `ase.Atoms` object or string to be placed on the host surface.
+
+        Note that the strings that appear as values must be in the list of
+        supported molecules in `autocat.data.intermediates` or in the `ase` g2
+        database. Predefined data in `autocat.data` will take priority over that
+        in `ase`.
+
+        Alternatively, a list of strings can be provided as input.
+        Note that each string has to be *unique* and available in
+        `autocat.data.intermediates` or the `ase` g2 database.
+
+        Example:
+        {
+            "NH": "NH",
+            "N*": "N",
+            "NNH": NNH_atoms_obj,
+            ...
+        }
+
+        OR
+
+        ["NH", "NNH"]
+
+        Required if providing `adsorption_sites` as a list
+
+    adsorbate_coverage (REQUIRED):
+        Dictionary indicating the desired coverage of each `adsorbate` specified
+        in `adsorbates`. If each value is an int and >= 1, then it is assumed that
+        this is the maximum number of each adsorbate to place. Otherwise, these values are
+        interpreted as percentages of the number of sites. If you would like a specific
+        adsorbate to not have any coverage constraints, set it to `np.inf`
+
+        Example:
+        {
+            "OH": 2,
+            "CO": 3,
+        }
+
+        OR
+
+        {
+            "OH": 0.25,
+            "CO": 0.75
+        }
+
+    Returns
+    -------
+
+        List of all enumerated combinations of adsorbates placed subject to the maximum
+        concentration constraint and corresponding list of sites
+
+        Example:
+
+        [
+            ["OH", "OH", "CO"],
+            ["OH", "CO", "OH"],
+            ["CO", "OH", "OH"]
+        ]
+
+        AND
+
+        [(0.0), (0.25, 0.25), (0.4, 0.6)]
+    """
+    if adsorbates is None:
+        msg = "Adsorbates must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if adsorbate_coverage is None:
+        msg = "Adsorbate coverage must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    for ads in adsorbates:
+        if ads not in adsorbate_coverage:
+            msg = f"Coverage not specified for {ads}"
+            raise AutocatAdsorptionGenerationError(msg)
+
+    nested_ads_combos, sites = adsorption_sites_to_possible_ads_site_list(
+        adsorption_sites=adsorption_sites, adsorbates=adsorbates
+    )
+
+    # convert cov percent to max num of each adsorbate
+    if not (
+        all((isinstance(val, int) and val >= 1) for val in adsorbate_coverage.values())
+    ):
+        total_num_sites = len(sites)
+        ads_cov = {}
+        for ads, cov in adsorbate_coverage.items():
+            if np.isinf(cov):
+                ads_cov[ads] = np.inf
+            else:
+                ads_cov[ads] = int(np.floor(cov * total_num_sites))
+        adsorbate_coverage = ads_cov
+
+    all_ads_combos = itertools.product(*nested_ads_combos)
+
+    filtered_ads_combos = []
+    for ads_combo in all_ads_combos:
+        over_cov_limit = False
+        ads_combo = list(ads_combo)
+        for ads in ads_combo:
+            if ads_combo.count(ads) > adsorbate_coverage[ads]:
+                over_cov_limit = True
+                break
+        if not over_cov_limit:
+            filtered_ads_combos.append(ads_combo)
+
+    # check that combinations given constraints were found
+    if not filtered_ads_combos:
+        msg = """
+        Unable to enumerate adsorption sites.
+        This is most likely due to too restrictive maximum coverages.
+        Please consider allowing unoccupied sites by using `X` in
+        `adsorbates`, `adsorbate_coverage`, and `adsorption_sites`
+        """
+        raise AutocatAdsorptionGenerationError(msg)
+
+    return filtered_ads_combos, sites
+
+
+def place_multiple_adsorbates(
+    surface: Atoms = None,
+    adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
+    adsorbates_at_each_site: Sequence[str] = None,
+    adsorption_sites_list: Sequence[Sequence[float]] = None,
+    heights: Union[Dict[str, float], float] = None,
+    anchor_atom_indices: Union[Dict[str, int], int] = None,
+    rotations: Union[Dict[str, RotationOperations], RotationOperations] = None,
+) -> Atoms:
+    """
+    Given a list of adsorbates for each desired site and a corresponding
+    site list, place the adsorbates at each site
+
+    Parameters
+    ----------
+
+    surface (REQUIRED):
+        Atoms object for the structure of the host surface.
+
+    adsorbates (REQUIRED):
+        Dictionary of adsorbate molecule/intermediate names and corresponding
+        `ase.Atoms` object or string to be placed on the host surface.
+
+        Note that the strings that appear as values must be in the list of
+        supported molecules in `autocat.data.intermediates` or in the `ase` g2
+        database. Predefined data in `autocat.data` will take priority over that
+        in `ase`.
+
+        Alternatively, a list of strings can be provided as input.
+        Note that each string has to be *unique* and available in
+        `autocat.data.intermediates` or the `ase` g2 database.
+
+        Example:
+        {
+            "NH": "NH",
+            "N*": "N",
+            "NNH": NNH_atoms_obj,
+            ...
+        }
+
+        OR
+
+        ["NH", "NNH"]
+
+    adsorbates_at_each_site (REQUIRED):
+        List of adsorbates to be placed at each site specified in `sites_list`.
+        Must be the same length as `sites_list` with all adsorbates
+        specified in `adsorbates`.
+
+        Example:
+        ["OH", "H", "OH"]
+
+    sites_list (REQUIRED):
+        List of xy-coords of each site corresponding to the list
+        given by `adsorbates_at_each_site`
+
+        Example:
+        [(0.0, 0.0), (0.25, 0.25), (0.7, 0.6)]
+
+    rotations:
+        Dictionary of the list of rotation operations to be applied to each
+        adsorbate molecule/intermediate type before being placed on the host surface.
+        Alternatively, a single list of rotation operations can be provided as
+        input to be used for all adsorbates.
+
+        Rotating 90 degrees around the z axis followed by 45 degrees
+        around the y-axis can be specified as
+            [(90.0, "z"), (45.0, "y")]
+
+        Example:
+        {
+            "NH": [(90.0, "z"), (45.0, "y")],
+            "NNH": ...
+        }
+
+        Defaults to [(0, "x")] (i.e., no rotations applied) for each adsorbate
+        molecule.
+
+    heights:
+        Dictionary of the height above surface where each adsorbate type should be
+        placed.
+        Alternatively, a single float value can be provided as input to be
+        used for all adsorbates.
+        If None, will estimate initial height based on covalent radii of the
+        nearest neighbor atoms for each adsorbate.
+
+    anchor_atom_indices:
+        Dictionary of the integer index of the atom in each adsorbate molecule
+        that should be used as anchor when placing it on the surface.
+        Alternatively, a single integer index can be provided as input to be
+        used for all adsorbates.
+        Defaults to the atom at index 0 for each adsorbate molecule.
+
+    Returns
+    -------
+
+    Atoms object of surface structure with adsorbates placed at specified sites
+
+    """
+    # input wrangling
+    if surface is None:
+        msg = "Surface must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if adsorbates is None:
+        msg = "Adsorbates must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if adsorption_sites_list is None:
+        msg = "List of sites must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+    elif len(adsorption_sites_list) > len(np.unique(adsorption_sites_list, axis=0)):
+        msg = "Cannot place multiple adsorbates simultaneously at the same site"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if adsorbates_at_each_site is None:
+        msg = "List of adsorbates to place at each site must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+    elif not isinstance(adsorbates_at_each_site, list):
+        msg = f"Unsupported type for adsorbates_at_each_site {type(adsorbates_at_each_site)}"
+        raise AutocatAdsorptionGenerationError(msg)
+    elif not all(isinstance(ads, str) for ads in adsorbates_at_each_site):
+        msg = "List of adsorbates to place at each site must be flat and contain only strings"
+        raise AutocatAdsorptionGenerationError(msg)
+    elif len(adsorbates_at_each_site) != len(adsorption_sites_list):
+        msg = "List of adsorbates to be placed must be same length as sites list"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    # get Atoms objects for each adsorbate molecule
+    if isinstance(adsorbates, dict):
+        ads_mols = []
+        for ads in adsorbates_at_each_site:
+            if isinstance(adsorbates[ads], str):
+                mol = generate_molecule(adsorbates[ads]).get("structure")
+            elif isinstance(adsorbates[ads], Atoms):
+                mol = adsorbates[ads]
+            else:
+                msg = f"Unrecognized format for adsorbate {ads}"
+                raise AutocatAdsorptionGenerationError(msg)
+            ads_mols.append(mol)
+    elif isinstance(adsorbates, list):
+        ads_mols = [
+            generate_molecule(ads_str).get("structure")
+            for ads_str in adsorbates_at_each_site
+        ]
+    else:
+        msg = f"Unrecognized format for `adsorbates` {type(adsorbates)}"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    # get lists of height, anchor atoms, and rotations for each site
+    if heights is None:
+        heights_list = [None] * len(adsorption_sites_list)
+    elif isinstance(heights, dict):
+        heights_list = [heights.get(ads, None) for ads in adsorbates_at_each_site]
+    elif isinstance(heights, float):
+        heights_list = [heights] * len(adsorption_sites_list)
+
+    if anchor_atom_indices is None:
+        anchor_list = [0] * len(adsorption_sites_list)
+    elif isinstance(anchor_atom_indices, dict):
+        anchor_list = [
+            anchor_atom_indices.get(ads, 0) for ads in adsorbates_at_each_site
+        ]
+    elif isinstance(anchor_atom_indices, int):
+        anchor_list = [anchor_atom_indices] * len(adsorption_sites_list)
+
+    if rotations is None:
+        rots_list = [None] * len(adsorption_sites_list)
+    elif isinstance(rotations, dict):
+        rots_list = [rotations.get(ads, None) for ads in adsorbates_at_each_site]
+    elif isinstance(rotations, (list, tuple)):
+        rots_list = [rotations] * len(adsorption_sites_list)
+
+    ads_surface = surface.copy()
+    for mol, site, height, anchor_idx, rotation in zip(
+        ads_mols, adsorption_sites_list, heights_list, anchor_list, rots_list
+    ):
+        ads_surface = place_adsorbate(
+            surface=ads_surface,
+            adsorbate=mol,
+            adsorption_site=site,
+            height=height,
+            rotations=rotation,
+            anchor_atom_index=anchor_idx,
+        )
+    return ads_surface
+
+
+def generate_high_coverage_adsorbed_structures(
+    surface: Union[str, Atoms] = None,
+    adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
+    adsorbate_coverage: Dict[str, Union[float, int]] = None,
+    adsorption_sites: Union[Dict[str, AdsorptionSite], AdsorptionSite] = None,
+    use_all_sites: bool = None,
+    site_types: Union[str, Sequence[str], Dict[str, Sequence[str]]] = None,
+    heights: Union[Dict[str, float], float] = None,
+    anchor_atom_indices: Union[Dict[str, int], int] = None,
+    rotations: Union[Dict[str, RotationOperations], RotationOperations] = None,
+    write_to_disk: bool = False,
+    write_location: str = ".",
+    dirs_exist_ok: bool = False,
+) -> Dict[int, Dict[str, Dict[str, Any]]]:
+    """
+
+    Builds structures with multiple adsorbates for high coverage systems.
+    For a given composition of adsorbates, all unique structures will be
+    enumerated and returned.
+
+    Parameters
+    ----------
+
+    surface (REQUIRED):
+        Atoms object or path to a file on disk containing the structure of the
+        host surface.
+        Note that the format of the file must be readable with `ase.io`.
+
+    adsorbates (REQUIRED):
+        Dictionary of adsorbate molecule/intermediate names and corresponding
+        `ase.Atoms` object or string to be placed on the host surface.
+
+        Note that the strings that appear as values must be in the list of
+        supported molecules in `autocat.data.intermediates` or in the `ase` g2
+        database. Predefined data in `autocat.data` will take priority over that
+        in `ase`.
+
+        Alternatively, a list of strings can be provided as input.
+        Note that each string has to be *unique* and available in
+        `autocat.data.intermediates` or the `ase` g2 database.
+
+        Example:
+        {
+            "NH": "NH",
+            "N*": "N",
+            "NNH": NNH_atoms_obj,
+            ...
+        }
+
+        OR
+
+        ["NH", "NNH"]
+
+    adsorbate_coverage (REQUIRED):
+        Dictionary indicating the desired coverage of each `adsorbate` specified
+        in `adsorbates`. If each value is an int and >= 1, then it is assumed that
+        this is the maximum number of each adsorbate to place. Otherwise, these values are
+        interpreted as percentages of the number of sites. If you would like a specific
+        adsorbate to not have any coverage constraints, set it to `np.inf`
+
+        Example:
+        {
+            "OH": 2,
+            "CO": 3,
+        }
+
+        OR
+
+        {
+            "OH": 0.25,
+            "CO": 0.75
+        }
+
+    rotations:
+        Dictionary of the list of rotation operations to be applied to each
+        adsorbate molecule/intermediate before being placed on the host surface.
+        Alternatively, a single list of rotation operations can be provided as
+        input to be used for all adsorbates.
+
+        Rotating 90 degrees around the z axis followed by 45 degrees
+        around the y-axis can be specified as
+            [(90.0, "z"), (45.0, "y")]
+
+        Example:
+        {
+            "NH": [(90.0, "z"), (45.0, "y")],
+            "NNH": ...
+        }
+
+        Defaults to [(0, "x")] (i.e., no rotations applied) for each adsorbate
+        molecule.
+
+    adsorption_sites:
+        List of xy coordinates of sites on the surface
+        where any of the adsorbates can be placed.
+        Alternatively, a single dictionary with label and a list of xy
+        coordinates can be provided as input to be used to indicate a separate
+        list of potential sites for each adsorbate.
+
+        Example:
+
+        [(0.0, 0.0), (0.25, 0.25), (0.75, 0.25), (0.5, 0.5)]
+
+        OR
+
+        {
+            "OH": [(0.0, 0.0), (0.25, 0.25)]
+            "H2O": [(0.5, 0.5), (0.75, 0.25)]
+        }
+
+    use_all_sites:
+        Bool specifying if the adsorption sites should be taken to be all of the
+        unique sites of type `site_type`
+
+        NB: If True, overrides any sites defined in `adsorption_sites` for each
+        adsorbate.
+
+        Defaults to True.
+
+    site_types:
+        Indicates which types of surface site should be occupied by the
+        adsorbates. Can be a string or list which is applied to all adsorbates,
+        or a dict indicating site types for each adsorbate.
+        Ignored if `use_all_sites` is False.
+
+        Examples:
+
+        "ontop"
+
+        OR
+
+        ["ontop", "hollow"]
+
+        OR
+
+        {"OH": ["ontop", "hollow"], "H": ["hollow"]}
+
+        Defaults to ["ontop", "bridge", "hollow"] (if `use_all_sites` is True)
+        for all adsorbates.
+
+    heights:
+        Dictionary of the height above surface where each adsorbate should be
+        placed.
+        Alternatively, a single float value can be provided as input to be
+        used for all adsorbates.
+        If None, will estimate initial height based on covalent radii of the
+        nearest neighbor atoms for each adsorbate.
+
+    anchor_atom_indices:
+        Dictionary of the integer index of the atom in each adsorbate molecule
+        that should be used as anchor when placing it on the surface.
+        Alternatively, a single integer index can be provided as input to be
+        used for all adsorbates.
+        Defaults to the atom at index 0 for each adsorbate molecule.
+
+    write_to_disk:
+        Boolean specifying whether the bulk structures generated should be
+        written to disk.
+        Defaults to False.
+
+    write_location:
+        String with the location where the per-species/per-crystal structure
+        directories must be constructed and structure files written to disk.
+        In the specified write_location, the following directory structure
+        will be created:
+
+        adsorbates/[adsorbate_1]/[site_label_1]/[xy_site_coord_1]/input.traj
+        adsorbates/[adsorbate_1]/[site_label_1]/[xy_site_coord_2]/input.traj
+        ...
+        adsorbates/[adsorbate_1]/[site_label_2]/[xy_site_coord_1]/input.traj
+        ...
+        adsorbates/[adsorbate_2]/[site_label_1]/[xy_site_coord_1]/input.traj
+        ...
+
+    dirs_exist_ok:
+        Boolean specifying whether existing directories/files should be
+        overwritten or not. This is passed on to the `os.makedirs` builtin.
+        Defaults to False (raises an error if directories corresponding the
+        species and crystal structure already exist).
+
+    Returns
+    -------
+
+    ads_structures:
+        Dictionary containing all of the configurations of placing the
+        multiple adsorbates
+
+        Example:
+
+        {
+            1: {
+                "structure": structure1,
+                "traj_file_path": "/path/to/structure1/traj/file"
+            },
+            2: {
+                "structure": structure2,
+                "traj_file_path": "/path/to/structure2/traj/file"
+            }
+            ...
+        }
+
+    """
+    if surface is None:
+        msg = "Surface structure must be specified"
+        raise AutocatAdsorptionGenerationError(msg)
+    elif not isinstance(surface, Atoms):
+        msg = f"Unrecognized input type for surface ({type(surface)})"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    # Input wrangling for the different types of parameter values allowed for
+    # the same function arguments.
+
+    if adsorbates is None or not adsorbates:
+        msg = "Adsorbate molecules/intermediates must be specified"
+        raise AutocatAdsorptionGenerationError(msg)
+    elif isinstance(adsorbates, (list, tuple)):
+        adsorbates = {ads_key: ads_key for ads_key in adsorbates}
+    elif not isinstance(adsorbates, dict):
+        msg = f"Unrecognized input type for adsorbates ({type(adsorbates)})"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if adsorbate_coverage is None or not adsorbate_coverage:
+        msg = "Adsorbate molecules/intermediates must be specified"
+        raise AutocatAdsorptionGenerationError(msg)
+    elif not isinstance(adsorbate_coverage, dict):
+        msg = f"Unrecognized input type for adsorbate_coverage ({type(adsorbate_coverage)})"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if rotations is None:
+        rotations = {}
+    elif isinstance(rotations, (list, tuple)):
+        rotations = {ads_key: rotations for ads_key in adsorbates}
+    elif not isinstance(rotations, dict):
+        msg = f"Unrecognized input type for rotations ({type(rotations)})"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if adsorption_sites is None:
+        adsorption_sites = {}
+    elif not isinstance(adsorption_sites, (dict, list)):
+        msg = f"Unrecognized input type for adsorption_sites ({type(adsorption_sites)})"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if use_all_sites is None:
+        use_all_sites = False
+    elif not isinstance(use_all_sites, bool):
+        msg = f"Unrecognized input type for use_all_sites ({type(use_all_sites)})"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if site_types is None:
+        site_types = {ads_key: ["ontop", "bridge", "hollow"] for ads_key in adsorbates}
+    elif isinstance(site_types, dict):
+        for val in site_types.values():
+            if not isinstance(val, list):
+                msg = "All site types in dict must be given as a list for each value"
+                raise AutocatAdsorptionGenerationError(msg)
+            elif False in [s in ["ontop", "bridge", "hollow"] for s in val]:
+                msg = f"Unrecognized site type in {val}"
+                raise AutocatAdsorptionGenerationError(msg)
+    elif isinstance(site_types, list):
+        if False in [s in ["ontop", "bridge", "hollow"] for s in site_types]:
+            msg = f"Unrecognized site type in {site_types}"
+            raise AutocatAdsorptionGenerationError(msg)
+        site_types = {ads_key: site_types for ads_key in adsorbates}
+    elif isinstance(site_types, str):
+        if site_types not in ["ontop", "hollow", "bridge"]:
+            msg = f"Unrecognized site type {site_types}"
+            raise AutocatAdsorptionGenerationError(msg)
+        site_types = {ads_key: [site_types] for ads_key in adsorbates}
+    elif not isinstance(site_types, str):
+        msg = f"Unrecognized input type for site_type ({type(site_types)})"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if heights is None:
+        heights = {}
+    elif isinstance(heights, float):
+        heights = {ads_key: heights for ads_key in adsorbates}
+    elif not isinstance(heights, dict):
+        msg = f"Unrecognized input type for heights ({type(heights)})"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if anchor_atom_indices is None:
+        anchor_atom_indices = {}
+    elif isinstance(anchor_atom_indices, int):
+        anchor_atom_indices = {ads_key: anchor_atom_indices for ads_key in adsorbates}
+    elif not isinstance(anchor_atom_indices, dict):
+        msg = f"Unrecognized input type for anchor_atom_indices ({type(anchor_atom_indices)})"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    # get all adsorption sites if needed
+    if use_all_sites:
+        adsorption_sites = {}
+        for ads_key in site_types:
+            sites_dict = get_adsorption_sites(
+                surface, site_types=site_types[ads_key], symm_reduce=False
+            )
+            sites = []
+            for st in sites_dict:
+                sites.extend(sites_dict[st])
+            xy_sites = [tuple(s[:2]) for s in sites]
+            adsorption_sites[ads_key] = xy_sites
+
+    # check that all adsorbates are specified in adsorbate_coverage
+    for ads_key in adsorbates:
+        if ads_key not in adsorbate_coverage:
+            msg = f"{ads_key} not specified in adsorbate_coverage"
+            raise AutocatAdsorptionGenerationError(msg)
+
+    # check that all adsorbates in adsorbate_coverage are present in adsorbates
+    for ads_key in adsorbate_coverage:
+        if ads_key not in adsorbates:
+            msg = f"{ads_key} specified in adsorbate_coverage but not adsorbates"
+            raise AutocatAdsorptionGenerationError(msg)
+
+    # enumerate all possible adsorbate placement combinations
+    enum_ads_at_each_site, sites_list = enumerate_adsorbed_site_list(
+        adsorption_sites=adsorption_sites,
+        adsorbates=adsorbates,
+        adsorbate_coverage=adsorbate_coverage,
+    )
+
+    # rm trivial case of all vacancies
+    try:
+        enum_ads_at_each_site.remove(["X"] * len(sites_list))
+    except ValueError:
+        pass
+
+    # generate each combination of adsorbate placement on the surface
+    adsorbed_struct_list = []
+    for ads_combo in enum_ads_at_each_site:
+        adsorbed_structure = place_multiple_adsorbates(
+            surface=surface,
+            adsorbates=adsorbates,
+            adsorbates_at_each_site=ads_combo,
+            adsorption_sites_list=sites_list,
+            heights=heights,
+            anchor_atom_indices=anchor_atom_indices,
+            rotations=rotations,
+        )
+        adsorbed_struct_list.append(adsorbed_structure)
+
+    # rm X adsorbates
+    for struct in adsorbed_struct_list:
+        idx_to_delete = []
+        for idx, atom in enumerate(struct):
+            if atom.symbol == "X":
+                idx_to_delete.append(idx)
+        idx_to_delete.sort(reverse=True)
+        for idx in idx_to_delete:
+            del struct[idx]
+
+    # filter structures by matching symmetries
+    matcher = StructureMatcher()
+    conv = AseAtomsAdaptor()
+    adsorbed_struct_list_pym = [
+        conv.get_structure(ase_struct) for ase_struct in adsorbed_struct_list
+    ]
+    filtered_adsorbed_struct_list_pym = [
+        struct_group[0]
+        for struct_group in matcher.group_structures(adsorbed_struct_list_pym)
+    ]
+    filtered_adsorbed_struct_list = [
+        conv.get_atoms(pym_struct) for pym_struct in filtered_adsorbed_struct_list_pym
+    ]
+
+    ads_dict = {}
+    for idx, filt_ads_struct in enumerate(filtered_adsorbed_struct_list):
+        traj_file_path = None
+        if write_to_disk:
+            dir_path = os.path.join(write_location, "multiple_adsorbates", str(idx),)
+            os.makedirs(dir_path, exist_ok=dirs_exist_ok)
+            traj_file_path = os.path.join(dir_path, "input.traj")
+            filt_ads_struct.write(traj_file_path)
+            print(f"Adsorbate combination #{idx} written to {traj_file_path}")
+        ads_dict[idx] = {"structure": filt_ads_struct, "traj_file_path": traj_file_path}
+
+    return ads_dict
 
 
 def generate_adsorbed_structures(
