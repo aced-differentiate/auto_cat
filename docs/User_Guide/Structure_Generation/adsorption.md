@@ -180,3 +180,14 @@ inputs. The example below illustrates this capability, where can be used to spec
 ...     write_to_disk=True,
 ... )
 ```
+
+## Placing more than one adsorbate on a surface
+
+At present, if you wanted to place multiple adsorbates on a surface, there is not
+an equivalent function to `generate_adsorbed_structures`, as this would require
+structure enumeration (stay tuned!).
+
+However, if you wanted to place multiple adsorbates on a surface, *and you know where
+you want to place each of them*, then you can use [`place_multiple_adsorbates`](../../API/Structure_Generation/adsorption.md#autocat.adsorption.place_multiple_adsorbates). For this function, all adsorbates
+provided must be `ase.Atoms` objects. The structure with the adsorbates placed will be returned
+as an `ase.Atoms` ojbect as well. (This is identical behavior to the lower-level [`place_adsorbate`](../../API/Structure_Generation/adsorption.md#autocat.adsorption.place_multiple_adsorbates) function)
