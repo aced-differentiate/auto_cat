@@ -3,11 +3,13 @@
 import os
 import tempfile
 
-import pytest
 from pytest import approx
 from pytest import raises
 
+import numpy as np
+
 from ase.build import molecule
+from ase import Atoms
 
 from autocat.saa import generate_saa_structures
 from autocat.surface import generate_surface_structures
@@ -18,12 +20,13 @@ from autocat.adsorption import get_adsorbate_height_estimate
 from autocat.adsorption import get_adsorbate_slab_nn_list
 from autocat.adsorption import get_adsorption_sites
 from autocat.adsorption import AutocatAdsorptionGenerationError
+from autocat.adsorption import place_multiple_adsorbates
 
 
 def test_generate_molecule_from_name_error():
-    with pytest.raises(AutocatAdsorptionGenerationError):
+    with raises(AutocatAdsorptionGenerationError):
         generate_molecule()
-    with pytest.raises(NotImplementedError):
+    with raises(NotImplementedError):
         generate_molecule(molecule_name="N6H7")
 
 
@@ -50,6 +53,186 @@ def test_generate_molecule_disk_io():
     )
     traj_file_path = os.path.join(_tmp_dir, "references", "N", "input.traj")
     assert os.path.samefile(mol["traj_file_path"], traj_file_path)
+
+
+def test_place_multi_adsorbates_invalid_inputs():
+    surf = generate_surface_structures(species_list=["Fe"])["Fe"]["bcc100"]["structure"]
+    # no surface
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(surface=None)
+    # no adsorbates
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(surface=surf, adsorbates=None)
+    # no adsorbate sites list
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(
+            surface=surf, adsorbates=["OH", "O"], adsorption_sites_list=None
+        )
+    # no adsorbates at each site list
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(
+            surface=surf,
+            adsorbates=["OH", "O"],
+            adsorption_sites_list=[(0.0, 0.0), (0.3, 0.4)],
+            adsorbates_at_each_site=None,
+        )
+    # wrong adsorbate type
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(
+            surface=surf,
+            adsorbates={"OH", "O"},
+            adsorption_sites_list=[(0.0, 0.0), (0.3, 0.4)],
+            adsorbates_at_each_site=["OH", "O"],
+        )
+    # adsorbates at each site given in incorrect fmt
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(
+            surface=surf,
+            adsorbates=["OH", "O"],
+            adsorption_sites_list=[(0.0, 0.0), (0.3, 0.4)],
+            adsorbates_at_each_site={"OH": [(0.0, 0.0)], "O": [(0.3, 0.4)]},
+        )
+    # some adsorbates in adsorbates at each site given as Atoms
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(
+            surface=surf,
+            adsorbates=["OH", "O"],
+            adsorption_sites_list=[(0.0, 0.0), (0.3, 0.4)],
+            adsorbates_at_each_site=["OH", Atoms("O")],
+        )
+    # sites and list of adsorbates at each site do not match
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(
+            surface=surf,
+            adsorbates=["OH", "O"],
+            adsorption_sites_list=[(0.0, 0.0), (0.3, 0.4)],
+            adsorbates_at_each_site=["OH"],
+        )
+    # wrong fmt of element in adsorbates
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(
+            surface=surf,
+            adsorbates={"OH": "OH", "C*": ["C"]},
+            adsorption_sites_list=[(0.0, 0.0), (0.3, 0.4)],
+            adsorbates_at_each_site=["OH", "C*"],
+        )
+    # multiple adsorbates placed at same site
+    with raises(AutocatAdsorptionGenerationError):
+        place_multiple_adsorbates(
+            surface=surf,
+            adsorbates=["OH", "N"],
+            adsorption_sites_list=[(0.0, 0.0), (0.3, 0.4), (0.0, 0.0)],
+            adsorbates_at_each_site=["OH", "OH", "N"],
+        )
+
+
+def test_place_multi_adsorbates_placement():
+    # test that adsorbates are placed in the right locations
+    surf = generate_surface_structures(species_list=["Fe"])["Fe"]["bcc100"]["structure"]
+    # adsorbates given as list
+    ads_multi = place_multiple_adsorbates(
+        surface=surf,
+        adsorbates=["O", "H"],
+        adsorbates_at_each_site=["O", "H"],
+        adsorption_sites_list=[(0.0, 0.0), (0.5, 0.5)],
+    )
+    assert "O" in ads_multi.get_chemical_symbols()
+    assert "H" in ads_multi.get_chemical_symbols()
+    assert ads_multi[-2].symbol == "O"
+    assert np.isclose(ads_multi[-2].x, 0.0)
+    assert np.isclose(ads_multi[-2].y, 0.0)
+    assert ads_multi[-1].symbol == "H"
+    assert np.isclose(ads_multi[-1].x, 0.5)
+    assert np.isclose(ads_multi[-1].y, 0.5)
+    # adsorbates given as dict
+    ads_multi = place_multiple_adsorbates(
+        surface=surf,
+        adsorbates={"O*": "O", "H*": Atoms("H")},
+        adsorbates_at_each_site=["O*", "H*"],
+        adsorption_sites_list=[(0.1, 0.2), (0.7, 0.0)],
+    )
+    assert "O" in ads_multi.get_chemical_symbols()
+    assert "H" in ads_multi.get_chemical_symbols()
+    assert ads_multi[-2].symbol == "O"
+    assert np.isclose(ads_multi[-2].x, 0.1)
+    assert np.isclose(ads_multi[-2].y, 0.2)
+    assert ads_multi[-1].symbol == "H"
+    assert np.isclose(ads_multi[-1].x, 0.7)
+    assert np.isclose(ads_multi[-1].y, 0.0)
+
+
+def test_place_multi_ads_height_and_anchor_idx():
+    surf = generate_surface_structures(species_list=["Fe"])["Fe"]["bcc100"]["structure"]
+    # height given as float
+    ads_multi = place_multiple_adsorbates(
+        surface=surf,
+        adsorbates=["O", "C"],
+        adsorbates_at_each_site=["O", "C"],
+        adsorption_sites_list=[(0.0, 0.0), (2.87, 2.87)],
+        heights=0.5,
+    )
+    assert np.isclose(ads_multi[-1].z, 14.805)
+    assert np.isclose(ads_multi[-2].z, 14.805)
+    # height given as dict
+    ads_multi = place_multiple_adsorbates(
+        surface=surf,
+        adsorbates=["O", "C"],
+        adsorbates_at_each_site=["O", "C"],
+        adsorption_sites_list=[(0.0, 0.0), (2.87, 2.87)],
+        heights={"O": 1.0, "C": 1.5},
+    )
+    assert np.isclose(ads_multi[-1].z, 15.805)
+    assert np.isclose(ads_multi[-2].z, 15.305)
+    # anchor idx specified
+    ads_multi = place_multiple_adsorbates(
+        surface=surf,
+        adsorbates=["OH", "CO"],
+        adsorbates_at_each_site=["OH", "CO"],
+        adsorption_sites_list=[(0.0, 0.0), (2.87, 2.87)],
+        heights={"OH": 1.0, "CO": 2.5},
+        anchor_atom_indices={"CO": 1},
+    )
+    assert np.isclose(ads_multi[-4].z, 15.305)
+    assert np.isclose(ads_multi[-1].z, 16.805)
+    # anchor idx given for all adsorbates
+    ads_multi = place_multiple_adsorbates(
+        surface=surf,
+        adsorbates=["OH", "CO"],
+        adsorbates_at_each_site=["OH", "CO"],
+        adsorption_sites_list=[(0.0, 0.0), (2.87, 2.87)],
+        heights=1.5,
+        anchor_atom_indices=1,
+    )
+    assert np.isclose(ads_multi[-3].z, 15.805)
+    assert np.isclose(ads_multi[-1].z, 15.805)
+
+
+def test_place_multi_ads_rotations():
+    surf = generate_surface_structures(species_list=["Fe"])["Fe"]["bcc100"]["structure"]
+    # same rotation applied to all adsorbate types
+    ads_multi = place_multiple_adsorbates(
+        surface=surf,
+        adsorbates=["OH", "NH"],
+        adsorbates_at_each_site=["OH", "NH"],
+        adsorption_sites_list=[(0.0, 0.0), (2.87, 2.87)],
+        rotations=[(45.0, "x")],
+    )
+    assert np.isclose(ads_multi[-3].y, -0.4879036790187179)
+    assert np.isclose(ads_multi[-3].z, 16.772903679018718)
+    assert np.isclose(ads_multi[-1].y, 2.3679541853575516)
+    assert np.isclose(ads_multi[-1].x, 3.58)
+    # rotations given by dict
+    ads_multi = place_multiple_adsorbates(
+        surface=surf,
+        adsorbates=["OH", "NH"],
+        adsorbates_at_each_site=["OH", "NH"],
+        adsorption_sites_list=[(0.0, 0.0), (2.87, 2.87)],
+        rotations={"OH": [(45.0, "x")], "NH": [(90.0, "z")]},
+    )
+    assert np.isclose(ads_multi[-3].y, -0.4879036790187179)
+    assert np.isclose(ads_multi[-3].z, 16.772903679018718)
+    assert np.isclose(ads_multi[-1].z, 17.045)
+    assert np.isclose(ads_multi[-1].x, 2.87)
 
 
 def test_generate_adsorbed_structures_invalid_inputs():

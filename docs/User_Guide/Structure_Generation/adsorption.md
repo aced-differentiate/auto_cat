@@ -4,9 +4,11 @@ Tools within
 are geared towards generating structures with adsorbates placed on
 a candidate catalyst surface.
 
+## Placing a single adsorbate
+
 The core function of this module is
 [`generate_adsorbed_structures`](../../API/Structure_Generation/adsorption.md#autocat.adsorption.generate_adsorbed_structures)
- for generating multiple adsorbed structures with a single function call.
+ for generating multiple structures with one adsorbate placed via a single function call.
 
 For the oxygen reduction (ORR) and nitrogen reduction (NRR) reactions,
 AutoCat has default starting geometries for all of these intermediates
@@ -178,3 +180,14 @@ inputs. The example below illustrates this capability, where can be used to spec
 ...     write_to_disk=True,
 ... )
 ```
+
+## Placing more than one adsorbate on a surface
+
+At present, if you wanted to place multiple adsorbates on a surface, there is not
+an equivalent function to `generate_adsorbed_structures`, as this would require
+structure enumeration (stay tuned!).
+
+However, if you wanted to place multiple adsorbates on a surface, *and you know where
+you want to place each of them*, then you can use [`place_multiple_adsorbates`](../../API/Structure_Generation/adsorption.md#autocat.adsorption.place_multiple_adsorbates). For this function, all adsorbates
+provided must be `ase.Atoms` objects. The structure with the adsorbates placed will be returned
+as an `ase.Atoms` ojbect as well. (This is identical behavior to the lower-level [`place_adsorbate`](../../API/Structure_Generation/adsorption.md#autocat.adsorption.place_multiple_adsorbates) function)

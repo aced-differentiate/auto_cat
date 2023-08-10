@@ -137,6 +137,194 @@ def generate_molecule(
     return {"structure": m, "traj_file_path": traj_file_path}
 
 
+def place_multiple_adsorbates(
+    surface: Atoms = None,
+    adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
+    adsorbates_at_each_site: Sequence[str] = None,
+    adsorption_sites_list: Sequence[Sequence[float]] = None,
+    heights: Union[Dict[str, float], float] = None,
+    anchor_atom_indices: Union[Dict[str, int], int] = None,
+    rotations: Union[Dict[str, RotationOperations], RotationOperations] = None,
+) -> Atoms:
+    """
+    Given a list of adsorbates for each desired site and a corresponding
+    site list, place the adsorbates at each site
+
+    Parameters
+    ----------
+
+    surface (REQUIRED):
+        Atoms object for the structure of the host surface.
+
+    adsorbates (REQUIRED):
+        Dictionary of adsorbate molecule/intermediate names and corresponding
+        `ase.Atoms` object or string to be placed on the host surface.
+
+        Note that the strings that appear as values must be in the list of
+        supported molecules in `autocat.data.intermediates` or in the `ase` g2
+        database. Predefined data in `autocat.data` will take priority over that
+        in `ase`.
+
+        Alternatively, a list of strings can be provided as input.
+        Note that each string has to be *unique* and available in
+        `autocat.data.intermediates` or the `ase` g2 database.
+
+        Example:
+        {
+            "NH": "NH",
+            "N*": "N",
+            "NNH": NNH_atoms_obj,
+            ...
+        }
+
+        OR
+
+        ["NH", "NNH"]
+
+    adsorbates_at_each_site (REQUIRED):
+        List of adsorbates to be placed at each site specified in `sites_list`.
+        Must be the same length as `sites_list` with all adsorbates
+        specified in `adsorbates`.
+
+        Example:
+        ["OH", "H", "OH"]
+
+    sites_list (REQUIRED):
+        List of xy-coords of each site corresponding to the list
+        given by `adsorbates_at_each_site`
+
+        Example:
+        [(0.0, 0.0), (0.25, 0.25), (0.7, 0.6)]
+
+    rotations:
+        Dictionary of the list of rotation operations to be applied to each
+        adsorbate molecule/intermediate type before being placed on the host surface.
+        Alternatively, a single list of rotation operations can be provided as
+        input to be used for all adsorbates.
+
+        Rotating 90 degrees around the z axis followed by 45 degrees
+        around the y-axis can be specified as
+            [(90.0, "z"), (45.0, "y")]
+
+        Example:
+        {
+            "NH": [(90.0, "z"), (45.0, "y")],
+            "NNH": ...
+        }
+
+        Defaults to [(0, "x")] (i.e., no rotations applied) for each adsorbate
+        molecule.
+
+    heights:
+        Dictionary of the height above surface where each adsorbate type should be
+        placed.
+        Alternatively, a single float value can be provided as input to be
+        used for all adsorbates.
+        If None, will estimate initial height based on covalent radii of the
+        nearest neighbor atoms for each adsorbate.
+
+    anchor_atom_indices:
+        Dictionary of the integer index of the atom in each adsorbate molecule
+        that should be used as anchor when placing it on the surface.
+        Alternatively, a single integer index can be provided as input to be
+        used for all adsorbates.
+        Defaults to the atom at index 0 for each adsorbate molecule.
+
+    Returns
+    -------
+
+    Atoms object of surface structure with adsorbates placed at specified sites
+
+    """
+    # input wrangling
+    if surface is None:
+        msg = "Surface must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if adsorbates is None:
+        msg = "Adsorbates must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if adsorption_sites_list is None:
+        msg = "List of sites must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+    elif len(adsorption_sites_list) > len(np.unique(adsorption_sites_list, axis=0)):
+        msg = "Cannot place multiple adsorbates simultaneously at the same site"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    if adsorbates_at_each_site is None:
+        msg = "List of adsorbates to place at each site must be provided"
+        raise AutocatAdsorptionGenerationError(msg)
+    elif not isinstance(adsorbates_at_each_site, list):
+        msg = f"Unsupported type for adsorbates_at_each_site {type(adsorbates_at_each_site)}"
+        raise AutocatAdsorptionGenerationError(msg)
+    elif not all(isinstance(ads, str) for ads in adsorbates_at_each_site):
+        msg = "List of adsorbates to place at each site must be flat and contain only strings"
+        raise AutocatAdsorptionGenerationError(msg)
+    elif len(adsorbates_at_each_site) != len(adsorption_sites_list):
+        msg = "List of adsorbates to be placed must be same length as sites list"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    # get Atoms objects for each adsorbate molecule
+    if isinstance(adsorbates, dict):
+        ads_mols = []
+        for ads in adsorbates_at_each_site:
+            if isinstance(adsorbates[ads], str):
+                mol = generate_molecule(adsorbates[ads]).get("structure")
+            elif isinstance(adsorbates[ads], Atoms):
+                mol = adsorbates[ads]
+            else:
+                msg = f"Unrecognized format for adsorbate {ads}"
+                raise AutocatAdsorptionGenerationError(msg)
+            ads_mols.append(mol)
+    elif isinstance(adsorbates, list):
+        ads_mols = [
+            generate_molecule(ads_str).get("structure")
+            for ads_str in adsorbates_at_each_site
+        ]
+    else:
+        msg = f"Unrecognized format for `adsorbates` {type(adsorbates)}"
+        raise AutocatAdsorptionGenerationError(msg)
+
+    # get lists of height, anchor atoms, and rotations for each site
+    if heights is None:
+        heights_list = [None] * len(adsorption_sites_list)
+    elif isinstance(heights, dict):
+        heights_list = [heights.get(ads, None) for ads in adsorbates_at_each_site]
+    elif isinstance(heights, float):
+        heights_list = [heights] * len(adsorption_sites_list)
+
+    if anchor_atom_indices is None:
+        anchor_list = [0] * len(adsorption_sites_list)
+    elif isinstance(anchor_atom_indices, dict):
+        anchor_list = [
+            anchor_atom_indices.get(ads, 0) for ads in adsorbates_at_each_site
+        ]
+    elif isinstance(anchor_atom_indices, int):
+        anchor_list = [anchor_atom_indices] * len(adsorption_sites_list)
+
+    if rotations is None:
+        rots_list = [None] * len(adsorption_sites_list)
+    elif isinstance(rotations, dict):
+        rots_list = [rotations.get(ads, None) for ads in adsorbates_at_each_site]
+    elif isinstance(rotations, (list, tuple)):
+        rots_list = [rotations] * len(adsorption_sites_list)
+
+    ads_surface = surface.copy()
+    for mol, site, height, anchor_idx, rotation in zip(
+        ads_mols, adsorption_sites_list, heights_list, anchor_list, rots_list
+    ):
+        ads_surface = place_adsorbate(
+            surface=ads_surface,
+            adsorbate=mol,
+            adsorption_site=site,
+            height=height,
+            rotations=rotation,
+            anchor_atom_index=anchor_idx,
+        )
+    return ads_surface
+
+
 def generate_adsorbed_structures(
     surface: Union[str, Atoms] = None,
     adsorbates: Union[Dict[str, Union[str, Atoms]], Sequence[str]] = None,
