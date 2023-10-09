@@ -231,6 +231,7 @@ class CandidateSelector:
         hhi_type: str = "production",
         include_segregation_energies: bool = None,
         segregation_energy_data_source: str = None,
+        beta: float = None,
     ):
         """
         Constructor.
@@ -244,6 +245,7 @@ class CandidateSelector:
             - MLI: maximum likelihood of improvement (default)
             - Random
             - MU: maximum uncertainty
+            - UCB: upper confidence bound
 
         num_candidates_to_pick:
             Number of candidates to choose from the dataset
@@ -268,6 +270,10 @@ class CandidateSelector:
             Options:
             - "raban1999": A.V. Raban, et. al. Phys. Rev. B 59, 15990 (1999)
             - "rao2020": K. K. Rao, et. al. Topics in Catalysis volume 63, pages728-741 (2020)
+
+        beta:
+            If using UCB as the acquisition function, this parameter determines the weight
+            of the uncertainty term
         """
         self._acquisition_function = "Random"
         self.acquisition_function = acquisition_function
@@ -290,6 +296,9 @@ class CandidateSelector:
         self._segregation_energy_data_source = "raban1999"
         self.segregation_energy_data_source = segregation_energy_data_source
 
+        self._beta = 0.1
+        self.beta = beta
+
     @property
     def acquisition_function(self):
         return self._acquisition_function
@@ -297,11 +306,11 @@ class CandidateSelector:
     @acquisition_function.setter
     def acquisition_function(self, acquisition_function):
         if acquisition_function is not None:
-            if acquisition_function in ["MLI", "MU", "Random"]:
+            if acquisition_function in ["MLI", "MU", "Random", "UCB"]:
                 self._acquisition_function = acquisition_function
             else:
                 msg = f"Unrecognized acquisition function {acquisition_function}\
-                     Please select one of 'MLI', 'MU', or 'Random'"
+                     Please select one of 'MLI', 'MU', 'Random', or 'UCB'"
                 raise CandidateSelectorError(msg)
 
     @property
@@ -375,6 +384,15 @@ class CandidateSelector:
                      Please select one of 'raban1999' or 'rao2020'"
                 raise CandidateSelectorError(msg)
 
+    @property
+    def beta(self):
+        return self._beta
+
+    @beta.setter
+    def beta(self, beta):
+        if beta is not None:
+            self._beta = beta
+
     def __repr__(self) -> str:
         pt = PrettyTable()
         pt.field_names = ["", "Candidate Selector"]
@@ -388,6 +406,8 @@ class CandidateSelector:
         pt.add_row(
             ["segregation energies data source", self.segregation_energy_data_source]
         )
+        if self.acquisition_function == "UCB":
+            pt.add_row(["beta", self.beta])
         pt.max_width = 70
         return str(pt)
 
@@ -403,6 +423,8 @@ class CandidateSelector:
             ]:
                 if getattr(self, prop) != getattr(other, prop):
                     return False
+            if not np.isclose(self.beta, other.beta):
+                return False
             return np.array_equal(self.target_window, other.target_window)
         return False
 
@@ -507,6 +529,16 @@ class CandidateSelector:
                         for mean, std in zip(predictions, uncertainties)
                     ]
                 )
+                * hhi_scores
+                * segreg_energy_scores
+            )
+
+        elif aq == "UCB":
+            if uncertainties is None or predictions is None:
+                msg = "For 'UCB', both uncertainties and predictions must be supplied"
+                raise CandidateSelectorError(msg)
+            aq_scores = (
+                (predictions + np.sqrt(self.beta) * uncertainties)
                 * hhi_scores
                 * segreg_energy_scores
             )
