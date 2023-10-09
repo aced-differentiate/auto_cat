@@ -831,6 +831,10 @@ def test_candidate_selector_setup():
             include_segregation_energies=True,
             segregation_energy_data_source="FAKE_SOURCE",
         )
+    cs = CandidateSelector(acquisition_function="UCB")
+    assert np.isclose(cs.beta, 0.1)
+    cs = CandidateSelector(acquisition_function="UCB", beta=0.4)
+    assert np.isclose(cs.beta, 0.4)
 
 
 def test_candidate_selector_from_jsonified_dict():
@@ -960,6 +964,10 @@ def test_candidate_selector_eq():
 
     cs2.segregation_energy_data_source = "rao2020"
     assert not cs == cs2
+    cs2.segregation_energy_data_source = "raban1999"
+
+    cs2.beta = 0.8
+    assert not cs == cs2
 
 
 def test_candidate_selector_copy():
@@ -1060,6 +1068,14 @@ def test_candidate_selector_choose_candidate():
         design_space=ds, uncertainties=unc, predictions=pred
     )
     assert parent_idx[0] == 1
+
+    cs.acquisition_function = "UCB"
+    cs.beta = 0.2
+    pred2 = np.array([3.0, 0.3, 8.9, 9.0])
+    unc2 = np.array([0.1, 0.2, 1.0, 0.3])
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds, predictions=pred2, uncertainties=unc2
+    )
 
 
 def test_candidate_selector_choose_candidate_hhi_weighting():
