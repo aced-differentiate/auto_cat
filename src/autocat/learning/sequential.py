@@ -246,6 +246,7 @@ class CandidateSelector:
             - Random
             - MU: maximum uncertainty
             - UCB: upper confidence bound
+            - LCB: lower confidence bound
 
         num_candidates_to_pick:
             Number of candidates to choose from the dataset
@@ -272,7 +273,7 @@ class CandidateSelector:
             - "rao2020": K. K. Rao, et. al. Topics in Catalysis volume 63, pages728-741 (2020)
 
         beta:
-            If using UCB as the acquisition function, this parameter determines the weight
+            If using UCB/LCB as the acquisition function, this parameter determines the weight
             of the uncertainty term
         """
         self._acquisition_function = "Random"
@@ -306,11 +307,11 @@ class CandidateSelector:
     @acquisition_function.setter
     def acquisition_function(self, acquisition_function):
         if acquisition_function is not None:
-            if acquisition_function in ["MLI", "MU", "Random", "UCB"]:
+            if acquisition_function in ["MLI", "MU", "Random", "UCB", "LCB"]:
                 self._acquisition_function = acquisition_function
             else:
                 msg = f"Unrecognized acquisition function {acquisition_function}\
-                     Please select one of 'MLI', 'MU', 'Random', or 'UCB'"
+                     Please select one of 'MLI', 'MU', 'Random', 'UCB', or 'LCB'"
                 raise CandidateSelectorError(msg)
 
     @property
@@ -406,7 +407,7 @@ class CandidateSelector:
         pt.add_row(
             ["segregation energies data source", self.segregation_energy_data_source]
         )
-        if self.acquisition_function == "UCB":
+        if self.acquisition_function in ["UCB", "LCB"]:
             pt.add_row(["beta", self.beta])
         pt.max_width = 70
         return str(pt)
@@ -503,25 +504,21 @@ class CandidateSelector:
 
         aq = self.acquisition_function
         if aq == "Random":
-            aq_scores = (
-                np.random.choice(ds_size, size=ds_size, replace=False)
-                * hhi_scores
-                * segreg_energy_scores
-            )
+            raw_scores = np.random.choice(ds_size, size=ds_size, replace=False)
 
         elif aq == "MU":
             if uncertainties is None:
                 msg = "For 'MU', the uncertainties must be supplied"
                 raise CandidateSelectorError(msg)
-            aq_scores = uncertainties.copy() * hhi_scores * segreg_energy_scores
+            raw_scores = uncertainties.copy()
 
-        elif aq == "MLI":
+        elif aq in ["MLI", "UCB", "LCB"]:
             if uncertainties is None or predictions is None:
-                msg = "For 'MLI', both uncertainties and predictions must be supplied"
+                msg = f"For {aq}, both uncertainties and predictions must be supplied"
                 raise CandidateSelectorError(msg)
-            target_window = self.target_window
-            aq_scores = (
-                np.array(
+            if aq == "MLI":
+                target_window = self.target_window
+                raw_scores = np.array(
                     [
                         get_overlap_score(
                             mean, std, x2=target_window[1], x1=target_window[0]
@@ -529,19 +526,11 @@ class CandidateSelector:
                         for mean, std in zip(predictions, uncertainties)
                     ]
                 )
-                * hhi_scores
-                * segreg_energy_scores
-            )
-
-        elif aq == "UCB":
-            if uncertainties is None or predictions is None:
-                msg = "For 'UCB', both uncertainties and predictions must be supplied"
-                raise CandidateSelectorError(msg)
-            aq_scores = (
-                (predictions + np.sqrt(self.beta) * uncertainties)
-                * hhi_scores
-                * segreg_energy_scores
-            )
+            elif aq == "UCB":
+                raw_scores = predictions + np.sqrt(self.beta) * uncertainties
+            elif aq == "LCB":
+                raw_scores = predictions - np.sqrt(self.beta) * uncertainties
+        aq_scores = raw_scores * hhi_scores * segreg_energy_scores
 
         next_idx = np.argsort(aq_scores[allowed_idx])[-self.num_candidates_to_pick :]
         sorted_array = aq_scores[allowed_idx][next_idx]
