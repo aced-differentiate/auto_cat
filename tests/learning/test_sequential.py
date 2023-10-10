@@ -221,6 +221,7 @@ def test_sequential_learner_write_json():
             "include_segregation_energies": False,
             "target_window": None,
             "segregation_energy_data_source": "raban1999",
+            "beta": 0.1,
         }
         assert sl["sl_kwargs"] == {
             "iteration_count": 0,
@@ -259,6 +260,7 @@ def test_sequential_learner_write_json():
             "include_segregation_energies": False,
             "target_window": None,
             "segregation_energy_data_source": "raban1999",
+            "beta": 0.1,
         }
         assert sl["sl_kwargs"].get("iteration_count") == 1
         assert sl["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
@@ -333,6 +335,7 @@ def test_sequential_learner_to_jsonified_dict():
         "include_segregation_energies": False,
         "target_window": None,
         "segregation_energy_data_source": "raban1999",
+        "beta": 0.1,
     }
     assert jsonified_dict["sl_kwargs"] == {
         "iteration_count": 0,
@@ -369,6 +372,7 @@ def test_sequential_learner_to_jsonified_dict():
         "include_segregation_energies": False,
         "target_window": None,
         "segregation_energy_data_source": "raban1999",
+        "beta": 0.1,
     }
     assert jsonified_dict["sl_kwargs"].get("iteration_count") == 1
     assert jsonified_dict["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
