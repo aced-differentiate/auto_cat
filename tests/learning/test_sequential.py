@@ -222,6 +222,7 @@ def test_sequential_learner_write_json():
             "target_window": None,
             "segregation_energy_data_source": "raban1999",
             "beta": 0.1,
+            "epsilon": 0.9,
         }
         assert sl["sl_kwargs"] == {
             "iteration_count": 0,
@@ -261,6 +262,7 @@ def test_sequential_learner_write_json():
             "target_window": None,
             "segregation_energy_data_source": "raban1999",
             "beta": 0.1,
+            "epsilon": 0.9,
         }
         assert sl["sl_kwargs"].get("iteration_count") == 1
         assert sl["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
@@ -336,6 +338,7 @@ def test_sequential_learner_to_jsonified_dict():
         "target_window": None,
         "segregation_energy_data_source": "raban1999",
         "beta": 0.1,
+        "epsilon": 0.9,
     }
     assert jsonified_dict["sl_kwargs"] == {
         "iteration_count": 0,
@@ -373,6 +376,7 @@ def test_sequential_learner_to_jsonified_dict():
         "target_window": None,
         "segregation_energy_data_source": "raban1999",
         "beta": 0.1,
+        "epsilon": 0.9,
     }
     assert jsonified_dict["sl_kwargs"].get("iteration_count") == 1
     assert jsonified_dict["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
@@ -839,6 +843,9 @@ def test_candidate_selector_setup():
     assert np.isclose(cs.beta, 0.1)
     cs = CandidateSelector(acquisition_function="UCB", beta=0.4)
     assert np.isclose(cs.beta, 0.4)
+    cs = CandidateSelector(acquisition_function="LCBAdaptive")
+    assert np.isclose(cs.beta, 9)
+    assert np.isclose(cs.epsilon, 0.9)
 
 
 def test_candidate_selector_from_jsonified_dict():
@@ -859,6 +866,7 @@ def test_candidate_selector_from_jsonified_dict():
         "include_segregation_energies": True,
         "segregation_energy_data_source": "rao2020",
         "beta": 0.75,
+        "epsilon": 0.4,
     }
     cs = CandidateSelector.from_jsonified_dict(j_dict)
     assert cs.acquisition_function == "MLI"
@@ -868,6 +876,7 @@ def test_candidate_selector_from_jsonified_dict():
     assert cs.hhi_type == "reserves"
     assert cs.segregation_energy_data_source == "rao2020"
     assert np.isclose(cs.beta, 0.75)
+    assert np.isclose(cs.epsilon, 0.4)
 
 
 def test_candidate_selector_to_jsonified_dict():
@@ -879,6 +888,8 @@ def test_candidate_selector_to_jsonified_dict():
         hhi_type="reserves",
         include_segregation_energies=True,
         segregation_energy_data_source="rao2020",
+        beta=0.05,
+        epsilon=4,
     )
     conv_j_dict = cs.to_jsonified_dict()
     assert conv_j_dict.get("acquisition_function") == "MLI"
@@ -887,6 +898,8 @@ def test_candidate_selector_to_jsonified_dict():
     assert conv_j_dict.get("hhi_type") == "reserves"
     assert conv_j_dict.get("segregation_energy_data_source") == "rao2020"
     assert np.array_equal(conv_j_dict.get("target_window"), [-10.0, np.inf])
+    assert np.isclose(conv_j_dict.get("beta"), 0.05)
+    assert np.isclose(conv_j_dict.get("epsilon"), 4)
 
 
 def test_write_candidate_selector_as_json():
@@ -897,6 +910,8 @@ def test_write_candidate_selector_as_json():
             include_hhi=True,
             hhi_type="reserves",
             target_window=[-np.inf, 0.0],
+            beta=4,
+            epsilon=0.3,
         )
         cs.write_json_to_disk(write_location=_tmp_dir, json_name="cs.json")
         # loads back written json
@@ -906,6 +921,8 @@ def test_write_candidate_selector_as_json():
         assert np.array_equal(written_cs.get("target_window"), [-np.inf, 0.0])
         assert written_cs.get("include_hhi")
         assert written_cs.get("hhi_type") == "reserves"
+        assert np.isclose(written_cs.get("beta"), 4)
+        assert np.isclose(written_cs.get("epsilon"), 0.3)
 
 
 def test_get_candidate_selector_from_json():
@@ -973,6 +990,10 @@ def test_candidate_selector_eq():
     cs2.segregation_energy_data_source = "raban1999"
 
     cs2.beta = 0.8
+    assert not cs == cs2
+    cs2.beta = 0.1
+
+    cs2.epsilon = 0.1
     assert not cs == cs2
 
 
@@ -1097,9 +1118,38 @@ def test_candidate_selector_choose_candidate():
     pred3 = np.array([3.0, 0.3, 8.9, 9.0])
     unc3 = np.array([0.1, 0.2, 1.0, 0.3])
     parent_idx, _, _ = cs.choose_candidate(
-        design_space=ds, predictions=pred2, uncertainties=unc2
+        design_space=ds, predictions=pred3, uncertainties=unc3
     )
     assert parent_idx[0] == 3
+
+    # test LCBAdaptive
+    cs.acquisition_function = "LCBAdaptive"
+    cs.beta = 9
+    cs.epsilon = 0.9
+    # need both uncertainty and predictions for LCBAdaptive
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    # needs iteration count for LCBAdaptive
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(
+            design_space=ds, uncertainties=unc, predictions=pred
+        )
+    pred4 = np.array([3.0, 0.3, 20.0, 10.0])
+    unc4 = np.array([0.1, 0.2, 5.0, 0.03])
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds,
+        predictions=pred4,
+        uncertainties=unc4,
+        number_of_labelled_data_pts=1,
+    )
+    assert parent_idx[0] == 3
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds,
+        predictions=pred4,
+        uncertainties=unc4,
+        number_of_labelled_data_pts=30,
+    )
+    assert parent_idx[0] == 2
 
 
 def test_candidate_selector_choose_candidate_hhi_weighting():
