@@ -381,7 +381,8 @@ class CandidateSelector:
             if segregation_energy_data_source in ["raban1999", "rao2020"]:
                 self._segregation_energy_data_source = segregation_energy_data_source
             else:
-                msg = f"Unrecognized segregation energy data source {segregation_energy_data_source}.\
+                msg = f"Unrecognized segregation energy data source\
+                    {segregation_energy_data_source}.\
                      Please select one of 'raban1999' or 'rao2020'"
                 raise CandidateSelectorError(msg)
 
