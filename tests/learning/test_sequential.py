@@ -854,6 +854,7 @@ def test_candidate_selector_from_jsonified_dict():
         "hhi_type": "reserves",
         "include_segregation_energies": True,
         "segregation_energy_data_source": "rao2020",
+        "beta": 0.75,
     }
     cs = CandidateSelector.from_jsonified_dict(j_dict)
     assert cs.acquisition_function == "MLI"
@@ -862,6 +863,7 @@ def test_candidate_selector_from_jsonified_dict():
     assert cs.include_segregation_energies
     assert cs.hhi_type == "reserves"
     assert cs.segregation_energy_data_source == "rao2020"
+    assert np.isclose(cs.beta, 0.75)
 
 
 def test_candidate_selector_to_jsonified_dict():
