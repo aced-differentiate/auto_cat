@@ -232,6 +232,7 @@ class CandidateSelector:
         include_segregation_energies: bool = None,
         segregation_energy_data_source: str = None,
         beta: float = None,
+        epsilon: float = None,
     ):
         """
         Constructor.
@@ -247,6 +248,16 @@ class CandidateSelector:
             - MU: maximum uncertainty
             - UCB: upper confidence bound
             - LCB: lower confidence bound
+            - LCBAdaptive: adaptive lower confidence bound described by
+
+                AQ_j = mu_j - epsilon^n * sqrt(beta) * sigma_j
+                for candidate j.
+
+                For more details see:
+                Siemenn, et. al., npj Comp. Mater, 9, 79 (2023)
+
+                N.B. the above reference uses beta directly,
+                here we take the root to maintain consistency
 
         num_candidates_to_pick:
             Number of candidates to choose from the dataset
@@ -273,8 +284,13 @@ class CandidateSelector:
             - "rao2020": K. K. Rao, et. al. Topics in Catalysis volume 63, pages728-741 (2020)
 
         beta:
-            If using UCB/LCB as the acquisition function, this parameter determines the weight
-            of the uncertainty term
+            If using UCB/LCB/LCBAdaptive as the acquisition function,
+            this parameter determines the weight of the uncertainty term
+
+        epsilon:
+            If using LCBAdaptive as the acquisition function,
+            this is an additonal parameter for weighting of the uncertainty term
+            as a function of iteration count
         """
         self._acquisition_function = "Random"
         self.acquisition_function = acquisition_function
@@ -297,8 +313,11 @@ class CandidateSelector:
         self._segregation_energy_data_source = "raban1999"
         self.segregation_energy_data_source = segregation_energy_data_source
 
-        self._beta = 0.1
+        self._beta = 9 if self.acquisition_function == "LCBAdaptive" else 0.1
         self.beta = beta
+
+        self._epsilon = 0.9
+        self.epsilon = epsilon
 
     @property
     def acquisition_function(self):
@@ -307,11 +326,18 @@ class CandidateSelector:
     @acquisition_function.setter
     def acquisition_function(self, acquisition_function):
         if acquisition_function is not None:
-            if acquisition_function in ["MLI", "MU", "Random", "UCB", "LCB"]:
+            if acquisition_function in [
+                "MLI",
+                "MU",
+                "Random",
+                "UCB",
+                "LCB",
+                "LCBAdaptive",
+            ]:
                 self._acquisition_function = acquisition_function
             else:
                 msg = f"Unrecognized acquisition function {acquisition_function}\
-                     Please select one of 'MLI', 'MU', 'Random', 'UCB', or 'LCB'"
+                     Please select one of 'MLI', 'MU', 'Random', 'UCB', 'LCB', 'LCBAdaptive'"
                 raise CandidateSelectorError(msg)
 
     @property
@@ -395,6 +421,15 @@ class CandidateSelector:
         if beta is not None:
             self._beta = beta
 
+    @property
+    def epsilon(self):
+        return self._epsilon
+
+    @epsilon.setter
+    def epsilon(self, epsilon):
+        if epsilon is not None:
+            self._epsilon = epsilon
+
     def __repr__(self) -> str:
         pt = PrettyTable()
         pt.field_names = ["", "Candidate Selector"]
@@ -425,7 +460,9 @@ class CandidateSelector:
             ]:
                 if getattr(self, prop) != getattr(other, prop):
                     return False
-            if not np.isclose(self.beta, other.beta):
+            if not np.isclose(self.beta, other.beta) or not np.isclose(
+                self.epsilon, other.epsilon
+            ):
                 return False
             return np.array_equal(self.target_window, other.target_window)
         return False
@@ -450,6 +487,7 @@ class CandidateSelector:
         allowed_idx: Array = None,
         predictions: Array = None,
         uncertainties: Array = None,
+        number_of_labelled_data_pts: int = None,
     ):
         """
         Choose the next candidate(s) from a design space
@@ -470,6 +508,9 @@ class CandidateSelector:
 
         uncertainties:
             Uncertainties for all structures in the DesignSpace
+
+        number_of_labelled_data_pts:
+            The number of data points for which labels have been calculated
 
         Returns
         -------
@@ -513,7 +554,7 @@ class CandidateSelector:
                 raise CandidateSelectorError(msg)
             raw_scores = uncertainties.copy()
 
-        elif aq in ["MLI", "UCB", "LCB"]:
+        elif aq in ["MLI", "UCB", "LCB", "LCBAdaptive"]:
             if uncertainties is None or predictions is None:
                 msg = f"For {aq}, both uncertainties and predictions must be supplied"
                 raise CandidateSelectorError(msg)
@@ -531,6 +572,17 @@ class CandidateSelector:
                 raw_scores = predictions + np.sqrt(self.beta) * uncertainties
             elif aq == "LCB":
                 raw_scores = predictions - np.sqrt(self.beta) * uncertainties
+            elif aq == "LCBAdaptive":
+                if number_of_labelled_data_pts is None:
+                    msg = "For LCBAdaptive the iteration count must be provided"
+                    raise CandidateSelectorError(msg)
+                raw_scores = (
+                    predictions
+                    - self.epsilon ** number_of_labelled_data_pts
+                    * np.sqrt(self.beta)
+                    * uncertainties
+                )
+
         aq_scores = raw_scores * hhi_scores * segreg_energy_scores
 
         next_idx = np.argsort(aq_scores[allowed_idx])[-self.num_candidates_to_pick :]
@@ -556,6 +608,7 @@ class CandidateSelector:
             "include_segregation_energies": self.include_segregation_energies,
             "segregation_energy_data_source": self.segregation_energy_data_source,
             "beta": self.beta,
+            "epsilon": self.epsilon,
         }
 
     def write_json_to_disk(
@@ -589,6 +642,7 @@ class CandidateSelector:
                 "segregation_energy_data_source"
             ),
             beta=all_data.get("beta"),
+            epsilon=all_data.get("epsilon"),
         )
 
     @staticmethod
