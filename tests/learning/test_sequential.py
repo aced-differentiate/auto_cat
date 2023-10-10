@@ -1069,13 +1069,31 @@ def test_candidate_selector_choose_candidate():
     )
     assert parent_idx[0] == 1
 
+    # test UCB
     cs.acquisition_function = "UCB"
     cs.beta = 0.2
+    # need both uncertainty and predictions for UCB
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
     pred2 = np.array([3.0, 0.3, 8.9, 9.0])
     unc2 = np.array([0.1, 0.2, 1.0, 0.3])
     parent_idx, _, _ = cs.choose_candidate(
         design_space=ds, predictions=pred2, uncertainties=unc2
     )
+    assert parent_idx[0] == 2
+
+    # test LCB
+    cs.acquisition_function = "LCB"
+    cs.beta = 0.8
+    # need both uncertainty and predictions for LCB
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    pred3 = np.array([3.0, 0.3, 8.9, 9.0])
+    unc3 = np.array([0.1, 0.2, 1.0, 0.3])
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds, predictions=pred2, uncertainties=unc2
+    )
+    assert parent_idx[0] == 3
 
 
 def test_candidate_selector_choose_candidate_hhi_weighting():
