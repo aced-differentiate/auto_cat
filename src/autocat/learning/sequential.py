@@ -883,6 +883,7 @@ class SequentialLearner:
                 allowed_idx=~train_idx,
                 predictions=preds,
                 uncertainties=unc,
+                number_of_labelled_data_pts=sum(train_idx),
             )
         # if fully searched, no more candidate structures
         else:
