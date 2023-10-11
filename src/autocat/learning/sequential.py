@@ -437,11 +437,17 @@ class CandidateSelector:
         if self.include_hhi:
             pt.add_row(["hhi type", self.hhi_type])
         pt.add_row(["include segregation energies?", self.include_segregation_energies])
-        pt.add_row(
-            ["segregation energies data source", self.segregation_energy_data_source]
-        )
-        if self.acquisition_function in ["UCB", "LCB"]:
+        if self.include_segregation_energies:
+            pt.add_row(
+                [
+                    "segregation energies data source",
+                    self.segregation_energy_data_source,
+                ]
+            )
+        if self.acquisition_function in ["UCB", "LCB", "LCBAdaptive"]:
             pt.add_row(["beta", self.beta])
+        if self.acquisition_function == "LCBAdaptive":
+            pt.add_row(["epsilon", self.epsilon])
         pt.max_width = 70
         return str(pt)
 
