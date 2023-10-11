@@ -844,7 +844,7 @@ def test_candidate_selector_setup():
     cs = CandidateSelector(acquisition_function="UCB", beta=0.4)
     assert np.isclose(cs.beta, 0.4)
     cs = CandidateSelector(acquisition_function="LCBAdaptive")
-    assert np.isclose(cs.beta, 9)
+    assert np.isclose(cs.beta, 3)
     assert np.isclose(cs.epsilon, 0.9)
 
 

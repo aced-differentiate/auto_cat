@@ -250,14 +250,11 @@ class CandidateSelector:
             - LCB: lower confidence bound
             - LCBAdaptive: adaptive lower confidence bound described by
 
-                AQ_j = mu_j - epsilon^n * sqrt(beta) * sigma_j
+                AQ_j = mu_j - epsilon^n * beta * sigma_j
                 for candidate j.
 
                 For more details see:
                 Siemenn, et. al., npj Comp. Mater, 9, 79 (2023)
-
-                N.B. the above reference uses beta directly,
-                here we take the root to maintain consistency
 
         num_candidates_to_pick:
             Number of candidates to choose from the dataset
@@ -313,7 +310,7 @@ class CandidateSelector:
         self._segregation_energy_data_source = "raban1999"
         self.segregation_energy_data_source = segregation_energy_data_source
 
-        self._beta = 9 if self.acquisition_function == "LCBAdaptive" else 0.1
+        self._beta = 3 if self.acquisition_function == "LCBAdaptive" else 0.1
         self.beta = beta
 
         self._epsilon = 0.9
@@ -569,9 +566,9 @@ class CandidateSelector:
                     ]
                 )
             elif aq == "UCB":
-                raw_scores = predictions + np.sqrt(self.beta) * uncertainties
+                raw_scores = predictions + self.beta * uncertainties
             elif aq == "LCB":
-                raw_scores = predictions - np.sqrt(self.beta) * uncertainties
+                raw_scores = predictions - self.beta * uncertainties
             elif aq == "LCBAdaptive":
                 if number_of_labelled_data_pts is None:
                     msg = "For LCBAdaptive the iteration count must be provided"
