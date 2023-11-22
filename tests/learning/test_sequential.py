@@ -1167,11 +1167,6 @@ def test_candidate_selector_choose_candidate():
     # need both uncertainty and predictions for LCBAdaptive
     with pytest.raises(CandidateSelectorError):
         parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
-    # needs iteration count for LCBAdaptive
-    with pytest.raises(CandidateSelectorError):
-        parent_idx, _, _ = cs.choose_candidate(
-            design_space=ds, uncertainties=unc, predictions=pred
-        )
     pred4 = np.array([3.0, 0.3, 20.0, 10.0])
     unc4 = np.array([0.1, 0.2, 5.0, 0.03])
     parent_idx, _, _ = cs.choose_candidate(
@@ -1188,6 +1183,43 @@ def test_candidate_selector_choose_candidate():
         number_of_labelled_data_pts=30,
     )
     assert parent_idx[0] == 2
+
+    # test acquisition strategy
+    fas = FixedAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="MU",
+        fixed_cyclic_strategy=[0, 0, 1],
+    )
+    cs.beta = 3.0
+    cs.acquisition_strategy = fas
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds,
+        predictions=pred4,
+        uncertainties=unc4,
+        number_of_labelled_data_pts=0,
+    )
+    assert parent_idx == 2
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds,
+        predictions=pred4,
+        uncertainties=unc4,
+        number_of_labelled_data_pts=1,
+    )
+    assert parent_idx == 2
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds,
+        predictions=pred4,
+        uncertainties=unc4,
+        number_of_labelled_data_pts=2,
+    )
+    assert parent_idx == 3
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds,
+        predictions=pred4,
+        uncertainties=unc4,
+        number_of_labelled_data_pts=3,
+    )
+    assert parent_idx == 2
 
 
 def test_candidate_selector_choose_candidate_hhi_weighting():
