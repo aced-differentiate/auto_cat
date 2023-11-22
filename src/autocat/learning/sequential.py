@@ -272,7 +272,7 @@ class FixedAcquisitionStrategy:
 
     def __repr__(self) -> str:
         pt = PrettyTable()
-        pt.field_names = ["", "Acquisition Function Selector"]
+        pt.field_names = ["", "Fixed Acquisition Strategy"]
         pt.add_row(["exploit_acquisition_function", self.exploit_acquisition_function])
         pt.add_row(["explore_acquisition_function", self.explore_acquisition_function])
         pt.add_row(["fixed_cyclic_strategy", self.fixed_cyclic_strategy])
@@ -414,6 +414,7 @@ class CandidateSelector:
     def __init__(
         self,
         acquisition_function: str = None,
+        acquisition_strategy: FixedAcquisitionStrategy = None,
         num_candidates_to_pick: int = None,
         target_window: Array = None,
         include_hhi: bool = None,
@@ -444,6 +445,10 @@ class CandidateSelector:
 
                 For more details see:
                 Siemenn, et. al., npj Comp. Mater, 9, 79 (2023)
+
+        acquisition_strategy:
+            Strategy towards selecting acquisition function at each
+            iteration. Supercedes `acquisition_function` if provided
 
         num_candidates_to_pick:
             Number of candidates to choose from the dataset
@@ -480,6 +485,9 @@ class CandidateSelector:
         """
         self._acquisition_function = "Random"
         self.acquisition_function = acquisition_function
+
+        self._acquisition_strategy = None
+        self.acquisition_strategy = acquisition_strategy
 
         self._num_candidates_to_pick = 1
         self.num_candidates_to_pick = num_candidates_to_pick
@@ -525,6 +533,23 @@ class CandidateSelector:
                 msg = f"Unrecognized acquisition function {acquisition_function}\
                      Please select one of 'MLI', 'MU', 'Random', 'UCB', 'LCB', 'LCBAdaptive'"
                 raise CandidateSelectorError(msg)
+
+    @property
+    def acquisition_strategy(self):
+        return self._acquisition_strategy
+
+    @acquisition_strategy.setter
+    def acquisition_strategy(self, acquisition_strategy):
+        if acquisition_strategy is not None and isinstance(
+            acquisition_strategy, FixedAcquisitionStrategy
+        ):
+            self._acquisition_strategy = acquisition_strategy
+        elif acquisition_strategy is None:
+            pass
+        else:
+            msg = f"Unrecognized acquisition strategy {acquisition_strategy}\
+                 Currently only FixedAcquisitionStrategy is supported"
+            raise CandidateSelectorError(msg)
 
     @property
     def num_candidates_to_pick(self):
@@ -619,7 +644,6 @@ class CandidateSelector:
     def __repr__(self) -> str:
         pt = PrettyTable()
         pt.field_names = ["", "Candidate Selector"]
-        pt.add_row(["acquisition function", self.acquisition_function])
         pt.add_row(["# of candidates to pick", self.num_candidates_to_pick])
         pt.add_row(["target window", self.target_window])
         pt.add_row(["include hhi?", self.include_hhi])
@@ -633,10 +657,26 @@ class CandidateSelector:
                     self.segregation_energy_data_source,
                 ]
             )
-        if self.acquisition_function in ["UCB", "LCB", "LCBAdaptive"]:
-            pt.add_row(["beta", self.beta])
-        if self.acquisition_function == "LCBAdaptive":
-            pt.add_row(["epsilon", self.epsilon])
+        if self.acquisition_strategy is not None:
+            aqs = [
+                self.acquisition_strategy.exploit_acquisition_function,
+                self.acquisition_strategy.explore_acquisition_function,
+            ]
+            if aqs[0] in ["UCB", "LCB", "LCBAdaptive"] or aqs[1] in [
+                "UCB",
+                "LCB",
+                "LCBAdaptive",
+            ]:
+                pt.add_row(["beta", self.beta])
+            if "LCBAdaptive" in aqs:
+                pt.add_row(["epsilon", self.epsilon])
+            return str(pt) + "\n" + str(self.acquisition_strategy)
+        else:
+            pt.add_row(["acquisition function", self.acquisition_function])
+            if self.acquisition_function in ["UCB", "LCB", "LCBAdaptive"]:
+                pt.add_row(["beta", self.beta])
+            if self.acquisition_function == "LCBAdaptive":
+                pt.add_row(["epsilon", self.epsilon])
         pt.max_width = 70
         return str(pt)
 
@@ -680,6 +720,7 @@ class CandidateSelector:
         predictions: Array = None,
         uncertainties: Array = None,
         number_of_labelled_data_pts: int = None,
+        start_reference: int = 0,
     ):
         """
         Choose the next candidate(s) from a design space
@@ -718,6 +759,11 @@ class CandidateSelector:
         """
         ds_size = len(design_space)
 
+        if number_of_labelled_data_pts is None:
+            number_of_labelled_data_pts = ds_size - sum(
+                np.isnan(design_space.design_space_labels)
+            )
+
         if allowed_idx is None:
             if True in np.isnan(design_space.design_space_labels):
                 allowed_idx = np.where(np.isnan(design_space.design_space_labels))[0]
@@ -736,7 +782,14 @@ class CandidateSelector:
                 design_space.design_space_structures
             )
 
-        aq = self.acquisition_function
+        if self.acquisition_strategy is not None:
+            aq = self.acquisition_strategy.select_acquisition_function(
+                number_of_labelled_data_pts=number_of_labelled_data_pts,
+                start_reference=start_reference,
+            )
+        else:
+            aq = self.acquisition_function
+
         if aq == "Random":
             raw_scores = np.random.choice(ds_size, size=ds_size, replace=False)
 
