@@ -30,6 +30,8 @@ from autocat.learning.sequential import (
     calculate_segregation_energy_scores,
     get_overlap_score,
 )
+from autocat.learning.sequential import FixedAcquisitionStrategy
+from autocat.learning.sequential import AcquisitionFunctionSelectorError
 from autocat.learning.sequential import CandidateSelector
 from autocat.learning.sequential import CandidateSelectorError
 from autocat.learning.sequential import simulated_sequential_learning
@@ -794,6 +796,42 @@ def test_get_design_space_from_json():
         assert np.array_equal(
             acds_from_json.design_space_labels, labels, equal_nan=True
         )
+
+
+def test_fixed_aq_strat_setup():
+    # Test defaults for fixed acquisition strategy
+    fas = FixedAcquisitionStrategy()
+    assert fas.acquisition_function_history is None
+    assert fas.exploit_acquisition_function == "MLI"
+    assert fas.explore_acquisition_function == "Random"
+    assert fas.fixed_cyclic_strategy == [0, 1]
+
+    fas = FixedAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="MU",
+        fixed_cyclic_strategy=[0, 1, 0, 0, 1],
+    )
+    assert fas.acquisition_function_history is None
+    assert fas.exploit_acquisition_function == "LCB"
+    assert fas.explore_acquisition_function == "MU"
+    assert fas.fixed_cyclic_strategy == [0, 1, 0, 0, 1]
+
+
+def test_fixed_aq_strat_select():
+    # Test selecting acquisition function using fixed strategy
+    cycle = [0, 0, 0, 1, 1]
+    fas = FixedAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="Random",
+        fixed_cyclic_strategy=cycle,
+    )
+    aqs_picked = []
+    for i in range(10):
+        aqs_picked.append(fas.select_acquisition_function(i))
+    assert fas.acquisition_function_history == aqs_picked
+    aq_map = {0: "Random", 1: "LCB"}
+    pattern = [aq_map[i] for i in cycle + cycle]
+    assert fas.acquisition_function_history == pattern
 
 
 def test_candidate_selector_setup():
