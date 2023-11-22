@@ -1,6 +1,7 @@
 import copy
 import os
 import json
+import itertools
 from typing import List
 from typing import Dict
 
@@ -653,6 +654,194 @@ class CandidateSelector:
         with open(json_name, "r") as f:
             all_data = json.load(f)
         return CandidateSelector.from_jsonified_dict(all_data)
+
+
+class AcquisitionFunctionSelectorError(Exception):
+    pass
+
+
+class FixedAcquisitionStrategy:
+    def __init__(
+        self,
+        exploit_acquisition_function: str = None,
+        explore_acquisition_function: str = None,
+        fixed_cyclic_strategy: List[int] = None,
+        afs_kwargs: Dict[str, int] = None,
+    ):
+        """
+        Constructor.
+
+        Parameters
+        ----------
+
+        exploitative_acquisition_function:
+            Acquisition function that is more exploitative
+            (e.g. MLI)
+
+        explorative_acquisition_function:
+            Acquisition function that is more explorative
+            (e.g. Random)
+
+        fixed_cyclic_strategy:
+            Unit cycle for selecting acquisition function with 0/1 corresponding
+            to explore/exploit acquisition function
+
+            e.g. [0, 0, 1] corresponds to alternating pattern of using the explore
+            acquisition function twice and exploit acquisition function once
+
+            Default: [0, 1] (represents an alternating pattern between
+            the two acquisition functions)
+
+        """
+
+        self._explore_acquisition_function = "Random"
+        self.explore_acquisition_function = explore_acquisition_function
+
+        self._exploit_acquisition_function = "MLI"
+        self.exploit_acquisition_function = exploit_acquisition_function
+
+        self._fixed_cyclic_strategy = [0, 1]
+        self.fixed_cyclic_strategy = fixed_cyclic_strategy
+
+        # other miscellaneous kw arguments
+        self.afs_kwargs = afs_kwargs if afs_kwargs else {}
+        if "acquisition_function_history" not in self.afs_kwargs:
+            self.afs_kwargs.update({"acquisition_function_history": None})
+
+    def __repr__(self) -> str:
+        pt = PrettyTable()
+        pt.field_names = ["", "Acquisition Function Selector"]
+        pt.add_row(["exploit_acquisition_function", self.exploit_acquisition_function])
+        pt.add_row(["explore_acquisition_function", self.explore_acquisition_function])
+        pt.add_row(["fixed_cyclic_strategy", self.fixed_cyclic_strategy])
+        if self.fixed_cyclic_strategy == "fixed_cycle":
+            pt.add_row(["cyclic schedule", self.fixed_cyclic_strategy])
+        return str(pt)
+
+    def copy(self):
+        """
+        Returns a copy
+        """
+        fas = self.__class__(
+            exploit_acquisition_function=self.exploit_acquisition_function,
+            explore_acquisition_function=self.explore_acquisition_function,
+            fixed_cyclic_strategy=self.fixed_cyclic_strategy,
+        )
+        fas.afs_kwargs = copy.deepcopy(self.afs_kwargs)
+        return fas
+
+    @property
+    def explore_acquisition_function(self):
+        return self._explore_acquisition_function
+
+    @explore_acquisition_function.setter
+    def explore_acquisition_function(self, explore_acquisition_function):
+        if explore_acquisition_function is not None:
+            self._explore_acquisition_function = explore_acquisition_function
+
+    @property
+    def exploit_acquisition_function(self):
+        return self._exploit_acquisition_function
+
+    @exploit_acquisition_function.setter
+    def exploit_acquisition_function(self, exploit_acquisition_function):
+        if exploit_acquisition_function is not None:
+            self._exploit_acquisition_function = exploit_acquisition_function
+
+    @property
+    def fixed_cyclic_strategy(self):
+        return self._fixed_cyclic_strategy
+
+    @fixed_cyclic_strategy.setter
+    def fixed_cyclic_strategy(self, fixed_cyclic_strategy):
+        if fixed_cyclic_strategy is not None:
+            self._fixed_cyclic_strategy = fixed_cyclic_strategy
+
+    @property
+    def acquisition_function_history(self):
+        return self.afs_kwargs.get("acquisition_function_history", None)
+
+    def select_acquisition_function(
+        self, number_of_labelled_data_pts: int, start_reference: int = 0
+    ):
+        """
+        Selects acquisition function based on number of labelled data points so far
+        within a given search
+
+        Parameters
+        ----------
+
+        number_of_labelled_data_pts:
+            The number of data points for which labels have been calculated
+
+        start_reference:
+            Number of labelled data points fixed cycle should start from.
+            Useful if changing strategy mid-search
+
+            e.g. for fixed schedule [0, 0, 0, 1] and start_reference=3 will
+            start from the last element of this cycle
+
+        """
+        aqs = [self.explore_acquisition_function, self.exploit_acquisition_function]
+
+        cycle = self.fixed_cyclic_strategy
+
+        start = start_reference + number_of_labelled_data_pts % len(cycle)
+
+        selector = itertools.islice(itertools.cycle(cycle), start, None)
+
+        acquisition_function_hist = self.afs_kwargs.get("acquisition_function_history")
+        if acquisition_function_hist is None:
+            acquisition_function_hist = []
+
+        # next acquisition function
+        next_aqf = aqs[next(selector)]
+        acquisition_function_hist.append(next_aqf)
+        self.afs_kwargs.update(
+            {"acquisition_function_history": acquisition_function_hist}
+        )
+
+        return next_aqf
+
+    def to_jsonified_dict(self) -> Dict:
+        """
+        Returns a jsonified dict representation
+        """
+        return {
+            "exploit_acquisition_function": self.exploit_acquisition_function,
+            "explore_acquisition_function": self.explore_acquisition_function,
+            "fixed_cyclic_strategy": self.fixed_cyclic_strategy,
+            "afs_kwargs": self.afs_kwargs,
+        }
+
+    def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
+        """
+        Writes `FixedAcquisitionStrategy` to disk as a json
+        """
+        jsonified_list = self.to_jsonified_dict()
+
+        if json_name is None:
+            json_name = "fixed_acquisition_strategy.json"
+
+        json_path = os.path.join(write_location, json_name)
+
+        with open(json_path, "w") as f:
+            json.dump(jsonified_list, f)
+
+    @staticmethod
+    def from_jsonified_dict(all_data: Dict):
+        return FixedAcquisitionStrategy(
+            exploit_acquisition_function=all_data.get("exploit_acquisition_function"),
+            explore_acquisition_function=all_data.get("explore_acquisition_function"),
+            fixed_cyclic_strategy=all_data.get("fixed_cyclic_strategy"),
+            afs_kwargs=all_data.get("afs_kwargs", {}),
+        )
+
+    @staticmethod
+    def from_json(json_name: str):
+        with open(json_name, "r") as f:
+            all_data = json.load(f)
+        return FixedAcquisitionStrategy.from_jsonified_dict(all_data)
 
 
 class SequentialLearnerError(Exception):
