@@ -846,6 +846,9 @@ class CandidateSelector:
             target_window = [float(x) for x in target_window]
         return {
             "acquisition_function": self.acquisition_function,
+            "acquisition_strategy": self.acquisition_strategy.to_jsonified_dict()
+            if self.acquisition_strategy
+            else None,
             "num_candidates_to_pick": self.num_candidates_to_pick,
             "target_window": target_window,
             "include_hhi": self.include_hhi,
