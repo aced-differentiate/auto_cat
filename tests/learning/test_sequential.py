@@ -217,6 +217,7 @@ def test_sequential_learner_write_json():
         }
         assert sl["candidate_selector"] == {
             "acquisition_function": "MU",
+            "acquisition_strategy": None,
             "num_candidates_to_pick": 2,
             "hhi_type": "production",
             "include_hhi": False,
@@ -257,6 +258,7 @@ def test_sequential_learner_write_json():
         }
         assert sl["candidate_selector"] == {
             "acquisition_function": "MU",
+            "acquisition_strategy": None,
             "num_candidates_to_pick": 2,
             "hhi_type": "production",
             "include_hhi": False,
@@ -333,6 +335,7 @@ def test_sequential_learner_to_jsonified_dict():
     }
     assert jsonified_dict["candidate_selector"] == {
         "acquisition_function": "MU",
+        "acquisition_strategy": None,
         "num_candidates_to_pick": 2,
         "hhi_type": "production",
         "include_hhi": False,
@@ -371,6 +374,7 @@ def test_sequential_learner_to_jsonified_dict():
     }
     assert jsonified_dict["candidate_selector"] == {
         "acquisition_function": "MU",
+        "acquisition_strategy": None,
         "num_candidates_to_pick": 2,
         "hhi_type": "production",
         "include_hhi": False,
@@ -834,6 +838,50 @@ def test_cyclic_aq_strat_select():
     assert fas.acquisition_function_history == pattern
 
 
+def test_cyclic_to_jsonified_dict():
+    # Tests converting cyclic to json dict
+    cycle = [0, 0, 0, 1, 1]
+    cas = CyclicAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="Random",
+        fixed_cyclic_strategy=cycle,
+    )
+    for i in range(5):
+        cas.select_acquisition_function(i)
+    conv_j_dict = cas.to_jsonified_dict()
+    assert conv_j_dict.get("exploit_acquisition_function") == "LCB"
+    assert conv_j_dict.get("explore_acquisition_function") == "Random"
+    assert conv_j_dict.get("fixed_cyclic_strategy") == [0, 0, 0, 1, 1]
+    assert conv_j_dict.get("afs_kwargs") == {
+        "acquisition_function_history": ["Random"] * 3 + ["LCB"] * 2
+    }
+
+
+def test_cyclic_selector_from_jsonified_dict():
+    # Tests generating cyclic from a json dict
+
+    # test defaults
+    j_dict = {}
+    cas = CyclicAcquisitionStrategy.from_jsonified_dict(j_dict)
+    assert cas.explore_acquisition_function == "Random"
+    assert cas.exploit_acquisition_function == "MLI"
+    assert cas.fixed_cyclic_strategy == [0, 1]
+    assert cas.afs_kwargs == {"acquisition_function_history": None}
+
+    # test specifying parameters
+    j_dict = {
+        "explore_acquisition_function": "MU",
+        "exploit_acquisition_function": "LCBAdaptive",
+        "fixed_cyclic_strategy": [0, 1, 1, 0],
+        "afs_kwargs": {"acquisition_function_history": ["MU", "LCBAdaptive"]},
+    }
+    cas = CyclicAcquisitionStrategy.from_jsonified_dict(j_dict)
+    assert cas.explore_acquisition_function == "MU"
+    assert cas.exploit_acquisition_function == "LCBAdaptive"
+    assert cas.fixed_cyclic_strategy == [0, 1, 1, 0]
+    assert cas.afs_kwargs == {"acquisition_function_history": ["MU", "LCBAdaptive"]}
+
+
 def test_candidate_selector_setup():
     # Test setting up the candidate selector
     with pytest.raises(CandidateSelectorError):
@@ -884,6 +932,9 @@ def test_candidate_selector_setup():
     cs = CandidateSelector(acquisition_function="LCBAdaptive")
     assert np.isclose(cs.beta, 3)
     assert np.isclose(cs.epsilon, 0.9)
+    cas = CyclicAcquisitionStrategy()
+    cs = CandidateSelector(acquisition_strategy=cas)
+    assert isinstance(cs.acquisition_strategy, CyclicAcquisitionStrategy)
 
 
 def test_candidate_selector_from_jsonified_dict():
@@ -931,6 +982,7 @@ def test_candidate_selector_to_jsonified_dict():
     )
     conv_j_dict = cs.to_jsonified_dict()
     assert conv_j_dict.get("acquisition_function") == "MLI"
+    assert conv_j_dict.get("acquisition_strategy") is None
     assert conv_j_dict.get("include_hhi")
     assert conv_j_dict.get("include_segregation_energies")
     assert conv_j_dict.get("hhi_type") == "reserves"
@@ -938,6 +990,21 @@ def test_candidate_selector_to_jsonified_dict():
     assert np.array_equal(conv_j_dict.get("target_window"), [-10.0, np.inf])
     assert np.isclose(conv_j_dict.get("beta"), 0.05)
     assert np.isclose(conv_j_dict.get("epsilon"), 4)
+    cas = CyclicAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="MU",
+        fixed_cyclic_strategy=[0, 1, 1, 0],
+        afs_kwargs={"acquisition_function_history": ["MU", "LCB"]},
+    )
+    cs = CandidateSelector(acquisition_strategy=cas,)
+    cas_dict = {
+        "explore_acquisition_function": "MU",
+        "exploit_acquisition_function": "LCB",
+        "fixed_cyclic_strategy": [0, 1, 1, 0],
+        "afs_kwargs": {"acquisition_function_history": ["MU", "LCB"]},
+    }
+    conv_j_dict = cs.to_jsonified_dict()
+    assert conv_j_dict.get("acquisition_strategy") == cas_dict
 
 
 def test_write_candidate_selector_as_json():
