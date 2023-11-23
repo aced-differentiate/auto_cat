@@ -798,8 +798,8 @@ def test_get_design_space_from_json():
         )
 
 
-def test_fixed_aq_strat_setup():
-    # Test defaults for fixed acquisition strategy
+def test_cyclic_aq_strat_setup():
+    # Test defaults for cyclic acquisition strategy
     fas = CyclicAcquisitionStrategy()
     assert fas.acquisition_function_history is None
     assert fas.exploit_acquisition_function == "MLI"
@@ -817,8 +817,8 @@ def test_fixed_aq_strat_setup():
     assert fas.fixed_cyclic_strategy == [0, 1, 0, 0, 1]
 
 
-def test_fixed_aq_strat_select():
-    # Test selecting acquisition function using fixed strategy
+def test_cyclic_aq_strat_select():
+    # Test selecting acquisition function using cyclic strategy
     cycle = [0, 0, 0, 1, 1]
     fas = CyclicAcquisitionStrategy(
         exploit_acquisition_function="LCB",
