@@ -428,6 +428,48 @@ def test_sequential_learner_to_jsonified_dict():
     assert jsonified_dict["sl_kwargs"].get("uncertainties") == None
 
 
+def test_sequential_learner_to_jsonified_dict_with_strat():
+    # Tests writing a SequentialLearner to disk as a json
+    sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["110"]})["Ag"]["fcc110"][
+        "structure"
+    ]
+    sub1 = place_adsorbate(sub1, Atoms("B"))
+    sub2 = generate_surface_structures(["Li"], facets={"Li": ["100"]})["Li"]["bcc100"][
+        "structure"
+    ]
+    sub2 = place_adsorbate(sub2, Atoms("Al"))
+    sub3 = generate_surface_structures(["Ti"], facets={"Ti": ["0001"]})["Ti"][
+        "hcp0001"
+    ]["structure"]
+    sub3 = place_adsorbate(sub3, Atoms("H"))
+    structs = [sub1, sub2, sub3]
+    labels = np.array([0.1, 0.2, np.nan])
+    featurizer = Featurizer(featurizer_class=ElementProperty, preset="magpie")
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor, featurizer=featurizer)
+    cyc_strat = CyclicAcquisitionStrategy(
+        exploit_acquisition_function="LCBAdaptive",
+        explore_acquisition_function="MU",
+        fixed_cyclic_strategy=[0, 1, 1],
+        afs_kwargs={"acquisition_function_history": ["Random", "MLI"]},
+    )
+    candidate_selector = CandidateSelector(
+        acquisition_strategy=cyc_strat, num_candidates_to_pick=2
+    )
+    acds = DesignSpace(structs, labels)
+    acsl = SequentialLearner(
+        acds, predictor=predictor, candidate_selector=candidate_selector,
+    )
+    jsonified_dict = acsl.to_jsonified_dict()
+    cyc_dict = {
+        "exploit_acquisition_function": "LCBAdaptive",
+        "explore_acquisition_function": "MU",
+        "fixed_cyclic_strategy": [0, 1, 1],
+        "afs_kwargs": {"acquisition_function_history": ["Random", "MLI"]},
+    }
+    assert jsonified_dict["candidate_selector"]["acquisition_strategy"] == cyc_dict
+
+
 def test_sequential_learner_iterate():
     # Tests iterate method
     sub1 = generate_surface_structures(["Ca"], facets={"Ca": ["111"]})["Ca"]["fcc111"][
