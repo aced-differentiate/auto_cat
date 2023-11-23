@@ -966,6 +966,16 @@ def test_candidate_selector_from_jsonified_dict():
     assert cs.segregation_energy_data_source == "rao2020"
     assert np.isclose(cs.beta, 0.75)
     assert np.isclose(cs.epsilon, 0.4)
+    # test with acquisition strategy
+    j_dict["acquisition_strategy"] = {
+        "explore_acquisition_function": "MU",
+        "exploit_acquisition_function": "LCBAdaptive",
+        "fixed_cyclic_strategy": [0, 1, 1, 0],
+        "afs_kwargs": {"acquisition_function_history": ["MU", "LCBAdaptive"]},
+    }
+    cs = CandidateSelector.from_jsonified_dict(j_dict)
+    assert isinstance(cs.acquisition_strategy, CyclicAcquisitionStrategy)
+    assert cs.acquisition_strategy.acquisition_function_history == ["MU", "LCBAdaptive"]
 
 
 def test_candidate_selector_to_jsonified_dict():
