@@ -222,7 +222,7 @@ class AcquisitionFunctionSelectorError(Exception):
     pass
 
 
-class FixedAcquisitionStrategy:
+class CyclicAcquisitionStrategy:
     def __init__(
         self,
         exploit_acquisition_function: str = None,
@@ -378,7 +378,7 @@ class FixedAcquisitionStrategy:
 
     def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
         """
-        Writes `FixedAcquisitionStrategy` to disk as a json
+        Writes `CyclicAcquisitionStrategy` to disk as a json
         """
         jsonified_list = self.to_jsonified_dict()
 
@@ -392,7 +392,7 @@ class FixedAcquisitionStrategy:
 
     @staticmethod
     def from_jsonified_dict(all_data: Dict):
-        return FixedAcquisitionStrategy(
+        return CyclicAcquisitionStrategy(
             exploit_acquisition_function=all_data.get("exploit_acquisition_function"),
             explore_acquisition_function=all_data.get("explore_acquisition_function"),
             fixed_cyclic_strategy=all_data.get("fixed_cyclic_strategy"),
@@ -403,7 +403,7 @@ class FixedAcquisitionStrategy:
     def from_json(json_name: str):
         with open(json_name, "r") as f:
             all_data = json.load(f)
-        return FixedAcquisitionStrategy.from_jsonified_dict(all_data)
+        return CyclicAcquisitionStrategy.from_jsonified_dict(all_data)
 
 
 class CandidateSelectorError(Exception):
@@ -414,7 +414,7 @@ class CandidateSelector:
     def __init__(
         self,
         acquisition_function: str = None,
-        acquisition_strategy: FixedAcquisitionStrategy = None,
+        acquisition_strategy: CyclicAcquisitionStrategy = None,
         num_candidates_to_pick: int = None,
         target_window: Array = None,
         include_hhi: bool = None,
@@ -541,14 +541,14 @@ class CandidateSelector:
     @acquisition_strategy.setter
     def acquisition_strategy(self, acquisition_strategy):
         if acquisition_strategy is not None and isinstance(
-            acquisition_strategy, FixedAcquisitionStrategy
+            acquisition_strategy, CyclicAcquisitionStrategy
         ):
             self._acquisition_strategy = acquisition_strategy
         elif acquisition_strategy is None:
             pass
         else:
             msg = f"Unrecognized acquisition strategy {acquisition_strategy}\
-                 Currently only FixedAcquisitionStrategy is supported"
+                 Currently only CyclicAcquisitionStrategy is supported"
             raise CandidateSelectorError(msg)
 
     @property

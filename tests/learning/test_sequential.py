@@ -30,7 +30,7 @@ from autocat.learning.sequential import (
     calculate_segregation_energy_scores,
     get_overlap_score,
 )
-from autocat.learning.sequential import FixedAcquisitionStrategy
+from autocat.learning.sequential import CyclicAcquisitionStrategy
 from autocat.learning.sequential import AcquisitionFunctionSelectorError
 from autocat.learning.sequential import CandidateSelector
 from autocat.learning.sequential import CandidateSelectorError
@@ -800,13 +800,13 @@ def test_get_design_space_from_json():
 
 def test_fixed_aq_strat_setup():
     # Test defaults for fixed acquisition strategy
-    fas = FixedAcquisitionStrategy()
+    fas = CyclicAcquisitionStrategy()
     assert fas.acquisition_function_history is None
     assert fas.exploit_acquisition_function == "MLI"
     assert fas.explore_acquisition_function == "Random"
     assert fas.fixed_cyclic_strategy == [0, 1]
 
-    fas = FixedAcquisitionStrategy(
+    fas = CyclicAcquisitionStrategy(
         exploit_acquisition_function="LCB",
         explore_acquisition_function="MU",
         fixed_cyclic_strategy=[0, 1, 0, 0, 1],
@@ -820,7 +820,7 @@ def test_fixed_aq_strat_setup():
 def test_fixed_aq_strat_select():
     # Test selecting acquisition function using fixed strategy
     cycle = [0, 0, 0, 1, 1]
-    fas = FixedAcquisitionStrategy(
+    fas = CyclicAcquisitionStrategy(
         exploit_acquisition_function="LCB",
         explore_acquisition_function="Random",
         fixed_cyclic_strategy=cycle,
@@ -1185,7 +1185,7 @@ def test_candidate_selector_choose_candidate():
     assert parent_idx[0] == 2
 
     # test acquisition strategy
-    fas = FixedAcquisitionStrategy(
+    fas = CyclicAcquisitionStrategy(
         exploit_acquisition_function="LCB",
         explore_acquisition_function="MU",
         fixed_cyclic_strategy=[0, 0, 1],
