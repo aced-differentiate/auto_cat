@@ -705,6 +705,7 @@ class CandidateSelector:
         """
         cs = self.__class__(
             acquisition_function=self.acquisition_function,
+            acquisition_strategy=self.acquisition_strategy,
             num_candidates_to_pick=self.num_candidates_to_pick,
             target_window=self.target_window,
             include_hhi=self.include_hhi,
