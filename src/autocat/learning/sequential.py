@@ -879,8 +879,12 @@ class CandidateSelector:
         target_window = all_data.get("target_window")
         if target_window is not None:
             target_window = np.array(target_window)
+        cas = all_data.get("acquisition_strategy")
+        if cas is not None:
+            cas = CyclicAcquisitionStrategy.from_jsonified_dict(cas)
         return CandidateSelector(
             acquisition_function=all_data.get("acquisition_function"),
+            acquisition_strategy=cas,
             num_candidates_to_pick=all_data.get("num_candidates_to_pick"),
             target_window=target_window,
             include_hhi=all_data.get("include_hhi"),
