@@ -608,6 +608,14 @@ def test_design_space_setup():
     # test different number of structures and labels
     with pytest.raises(DesignSpaceError):
         acds = DesignSpace([sub1], labels)
+    # test setting up with feature matrix
+    X = np.array([[1.2, 3.5], [6, 9], [10, 50]])
+    labels = np.array([-90, 0.0, np.nan])
+    acds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+    assert np.array_equal(acds.feature_matrix, X)
+    # test mismatch in feature matrix shape and num labels
+    with pytest.raises(DesignSpaceError):
+        acds = DesignSpace(feature_matrix=X, design_space_labels=np.array([0.0]))
 
 
 def test_delitem_design_space():
@@ -664,6 +672,19 @@ def test_delitem_design_space():
         acds._design_space_labels, np.array([8, np.nan, 0.3]), equal_nan=True
     )
     assert acds.design_space_structures == [sub1, sub2, sub3]
+    # test deleting with feature matrix
+    X = np.array([[4, 4], [7, 7], [9.9, 10.0], [1, 2]])
+    labels = np.array([9, 8, 7, 4])
+    acds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+    del acds[1]
+    assert len(acds) == 3
+    assert np.array_equal(acds.feature_matrix, np.array([[4, 4], [9.9, 10], [1, 2]]))
+    assert np.array_equal(acds.design_space_labels, np.array([9, 7, 4]))
+    # test deleting multiple
+    del acds[[0, 2]]
+    assert len(acds) == 1
+    assert np.array_equal(acds.feature_matrix, np.array([[9.9, 10]]))
+    assert np.array_equal(acds.design_space_labels, np.array([7]))
 
 
 def test_eq_design_space():
@@ -706,6 +727,18 @@ def test_eq_design_space():
     acds3 = DesignSpace(structs, labels)
     assert acds != acds3
 
+    # test w feature matrix trivial case
+    X = np.array([[4, 5], [10, 100], [60, 45]])
+    labels = np.array([5, 6, 9])
+    acds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+    acds1 = DesignSpace(feature_matrix=X, design_space_labels=labels)
+    assert acds == acds1
+
+    # test w diff feature matrix
+    X1 = np.array([[30, 30, 2], [10, 100], [60, 45]])
+    acds2 = DesignSpace(feature_matrix=X1, design_space_labels=labels)
+    assert acds != acds2
+
 
 def test_updating_design_space():
     sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["100"]})["Ag"]["fcc100"][
@@ -722,7 +755,7 @@ def test_updating_design_space():
     ]["structure"]
     structs = [sub1, sub2, sub3]
     labels = np.array([4.0, 5.0, 6.0])
-    acds = DesignSpace(structs, labels)
+    acds = DesignSpace(design_space_structures=structs, design_space_labels=labels)
 
     # Test trying to update just structures
     with pytest.raises(DesignSpaceError):
@@ -741,6 +774,20 @@ def test_updating_design_space():
     # Test trying to give structures that are not Atoms objects
     with pytest.raises(AssertionError):
         acds.update([sub1, np.array(20.0)], np.array([3.0, 4.0]))
+
+    # Test updating feature matrix
+    X = np.array([[1.0, 4.0, 5.0], [0.1, 50.0, 90.0], [-2.0, 4.0, 5.0]])
+    acds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+    acds.update(
+        feature_matrix=np.array([[2.0, 2.0, 2.0], [1.0, 4.0, 5.0]]),
+        labels=np.array([-10.0, -45.0]),
+    )
+    assert np.array_equal(acds.feature_matrix, np.vstack((X, [2.0, 2.0, 2.0])))
+    assert np.array_equal(acds.design_space_labels, np.array([-45.0, 5.0, 6.0, -10.0]))
+
+    # Test wrong number of features
+    with pytest.raises(AssertionError):
+        acds.update(feature_matrix=np.array([2.3, 4.0, 5.0]), labels=np.array([4.0]))
 
 
 def test_write_design_space_as_json():
@@ -774,11 +821,18 @@ def test_design_space_to_jsonified_dict():
     ]
     structs = [sub1, sub2]
     labels = np.array([0.3, 0.8])
-    acds = DesignSpace(design_space_structures=structs, design_space_labels=labels,)
+    X = np.array([[5, 5, 5], [8, 8, 8]])
+    acds = DesignSpace(
+        design_space_structures=structs, design_space_labels=labels, feature_matrix=X
+    )
     jsonified_dict = acds.to_jsonified_dict()
     json_structs = [ase_decoder(jsonified_dict["structures"][i]) for i in range(2)]
     assert structs == json_structs
     assert np.array_equal(labels, jsonified_dict["labels"])
+    assert np.array_equal(X, jsonified_dict["feature_matrix"])
+    acds = DesignSpace(design_space_structures=structs, design_space_labels=labels,)
+    jsonified_dict = acds.to_jsonified_dict()
+    assert jsonified_dict.get("feature_matrix") is None
 
 
 def test_design_space_from_jsonified_dict():
@@ -791,6 +845,7 @@ def test_design_space_from_jsonified_dict():
     ]
     structs = [sub1, sub2]
     encoded_structs = [atoms_encoder(struct) for struct in structs]
+    X = np.array([[8, 8, 8, 8], [-1, -2, -6, -8]])
     labels = np.array([0.3, 0.8])
 
     with pytest.raises(DesignSpaceError):
@@ -817,6 +872,9 @@ def test_design_space_from_jsonified_dict():
     ds = DesignSpace.from_jsonified_dict(j_dict)
     assert ds.design_space_structures == structs
     assert np.array_equal(ds.design_space_labels, labels)
+    j_dict = {"structures": encoded_structs, "labels": labels, "feature_matrix": X}
+    ds = DesignSpace.from_jsonified_dict(j_dict)
+    assert np.array_equal(ds.feature_matrix, X)
 
 
 def test_get_design_space_from_json():
@@ -1380,6 +1438,13 @@ def test_candidate_selector_choose_candidate_hhi_weighting():
     )
     assert parent_idx[0] == 0
     assert aq_scores[0] > aq_scores[1]
+    # test catches not provided structures
+    X = np.array([[8, 7], [6, 5]])
+    ds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, aq_scores = cs.choose_candidate(
+            design_space=ds, uncertainties=unc, predictions=pred
+        )
 
 
 def test_candidate_selector_choose_candidate_segregation_energy_weighting():
@@ -1407,6 +1472,13 @@ def test_candidate_selector_choose_candidate_segregation_energy_weighting():
     )
     assert parent_idx[0] == 0
     assert aq_scores[0] > aq_scores[1]
+    # test catches not provided structures
+    X = np.array([[8, 7], [6, 5]])
+    ds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, aq_scores = cs.choose_candidate(
+            design_space=ds, uncertainties=unc, predictions=pred
+        )
 
 
 def test_simulated_sequential_histories():
