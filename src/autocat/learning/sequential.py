@@ -27,7 +27,10 @@ class DesignSpaceError(Exception):
 
 class DesignSpace:
     def __init__(
-        self, design_space_structures: List[Atoms], design_space_labels: Array,
+        self,
+        design_space_structures: List[Atoms] = None,
+        design_space_labels: Array = None,
+        feature_matrix: Array = None,
     ):
         """
         Constructor.
@@ -35,23 +38,44 @@ class DesignSpace:
         Parameters
         ----------
 
-        design_space_structures:
-            List of all structures within the design space
-
         design_space_labels:
             Labels corresponding to all structures within the design space.
             If label not yet known, set to np.nan
 
+        design_space_structures:
+            List of all structures within the design space
+
+        feature_matrix:
+            Feature matrix of full design space. Takes priority over
+            `design_space_structures` if provided
+
         """
-        if len(design_space_structures) != design_space_labels.shape[0]:
-            msg = f"Number of structures ({len(design_space_structures)})\
-                 and labels ({design_space_labels.shape[0]}) must match"
+        if feature_matrix is None and design_space_structures is None:
+            msg = "Either a feature matrix or list of design space structures\
+                 must be provided"
             raise DesignSpaceError(msg)
 
-        self._design_space_structures = [
-            struct.copy() for struct in design_space_structures
-        ]
         self._design_space_labels = design_space_labels.copy()
+
+        self._feature_matrix = None
+        if feature_matrix is not None:
+            if len(feature_matrix) != design_space_labels.shape[0]:
+                msg = f"Number of rows ({len(feature_matrix)})\
+                     and labels ({design_space_labels.shape[0]}) must match"
+                raise DesignSpaceError(msg)
+            self._feature_matrix = feature_matrix
+
+        if design_space_structures is not None:
+            if len(design_space_structures) != design_space_labels.shape[0]:
+                msg = f"Number of structures ({len(design_space_structures)})\
+                     and labels ({design_space_labels.shape[0]}) must match"
+                raise DesignSpaceError(msg)
+
+            self._design_space_structures = [
+                struct.copy() for struct in design_space_structures
+            ]
+        else:
+            self._design_space_structures = []
 
     def __repr__(self) -> str:
         pt = PrettyTable()
@@ -59,7 +83,12 @@ class DesignSpace:
         pt.add_row(["total # of systems", len(self)])
         num_unknown = sum(np.isnan(self.design_space_labels))
         pt.add_row(["# of unlabelled systems", num_unknown])
-        pt.add_row(["unique species present", self.species_list])
+        pt.add_row(
+            [
+                "unique species present",
+                self.species_list if self.species_list else "unknown",
+            ]
+        )
         max_label = max(self.design_space_labels)
         pt.add_row(["maximum label", max_label])
         min_label = min(self.design_space_labels)
@@ -68,7 +97,11 @@ class DesignSpace:
         return str(pt)
 
     def __len__(self):
-        return len(self.design_space_structures)
+        return (
+            len(self.feature_matrix)
+            if self.feature_matrix is not None
+            else len(self.design_space_structures)
+        )
 
     # TODO: non-dunder method for deleting systems
     def __delitem__(self, i):
@@ -82,9 +115,12 @@ class DesignSpace:
         mask = np.ones(len(self), dtype=bool)
         mask[i] = 0
         self._design_space_labels = self.design_space_labels[mask]
-        structs = self.design_space_structures
-        masked_structs = [structs[j] for j in range(len(self)) if mask[j]]
-        self._design_space_structures = masked_structs
+        if self.feature_matrix is not None:
+            self._feature_matrix = self.feature_matrix[mask]
+        if self.design_space_structures:
+            structs = self.design_space_structures
+            masked_structs = [structs[j] for j in range(len(self)) if mask[j]]
+            self._design_space_structures = masked_structs
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, DesignSpace):
@@ -94,6 +130,12 @@ class DesignSpace:
                 self_structs = self.design_space_structures
                 o_structs = other.design_space_structures
                 if not self_structs == o_structs:
+                    return False
+
+                # check feature matrices are equal
+                self_feature_matrix = self.feature_matrix
+                o_feature_matrix = other.feature_matrix
+                if not np.array_equal(self_feature_matrix, o_feature_matrix):
                     return False
 
                 # check their labels are equal
@@ -109,6 +151,7 @@ class DesignSpace:
         acds = self.__class__(
             design_space_structures=self.design_space_structures,
             design_space_labels=self.design_space_labels,
+            feature_matrix=self.feature_matrix,
         )
         return acds
 
@@ -131,16 +174,33 @@ class DesignSpace:
         raise DesignSpaceError(msg)
 
     @property
-    def species_list(self):
-        species_list = []
-        for s in self.design_space_structures:
-            # get all unique species
-            found_species = np.unique(s.get_chemical_symbols()).tolist()
-            new_species = [spec for spec in found_species if spec not in species_list]
-            species_list.extend(new_species)
-        return species_list
+    def feature_matrix(self):
+        return self._feature_matrix
 
-    def update(self, structures: List[Atoms], labels: Array):
+    @feature_matrix.setter
+    def feature_matrix(self, feature_matrix):
+        msg = "Please use `update` method to update the design space."
+        raise DesignSpaceError(msg)
+
+    @property
+    def species_list(self):
+        if self._design_space_structures:
+            species_list = []
+            for s in self.design_space_structures:
+                # get all unique species
+                found_species = np.unique(s.get_chemical_symbols()).tolist()
+                new_species = [
+                    spec for spec in found_species if spec not in species_list
+                ]
+                species_list.extend(new_species)
+            return species_list
+
+    def update(
+        self,
+        structures: List[Atoms] = None,
+        labels: Array = None,
+        feature_matrix: Array = None,
+    ):
         """
         Updates design space given structures and corresponding labels.
         If structure already in design space, the label is updated.
@@ -154,7 +214,26 @@ class DesignSpace:
         labels:
             Corresponding labels to `structures`
         """
-        if (structures is not None) and (labels is not None):
+        if feature_matrix is not None and structures is not None:
+            msg = "Please provide only the feature matrix or list of structures"
+            raise DesignSpaceError(msg)
+
+        if (feature_matrix is not None) and (labels is not None):
+            if isinstance(feature_matrix, np.ndarray):
+                feature_matrix = feature_matrix.tolist()
+            assert len(feature_matrix) == len(labels)
+            assert len(feature_matrix[0]) == self.feature_matrix.shape[1]
+            for i, vec in enumerate(feature_matrix):
+                # if structure already in design space, update label
+                if vec in self.feature_matrix.tolist():
+                    idx = self.feature_matrix.tolist().index(vec)
+                    self._design_space_labels[idx] = labels[i]
+                else:
+                    self._feature_matrix = np.vstack((self._feature_matrix, vec))
+                    self._design_space_labels = np.append(
+                        self.design_space_labels, labels[i]
+                    )
+        elif (structures is not None) and (labels is not None):
             assert len(structures) == len(labels)
             assert all(isinstance(struct, Atoms) for struct in structures)
             for i, struct in enumerate(structures):
@@ -177,7 +256,15 @@ class DesignSpace:
         for struct in self.design_space_structures:
             collected_structs.append(atoms_encoder(struct))
         jsonified_labels = [float(x) for x in self.design_space_labels]
-        return {"structures": collected_structs, "labels": jsonified_labels}
+        if self.feature_matrix is not None:
+            jsonified_feat_mat = self.feature_matrix.tolist()
+        else:
+            jsonified_feat_mat = None
+        return {
+            "structures": collected_structs,
+            "labels": jsonified_labels,
+            "feature_matrix": jsonified_feat_mat,
+        }
 
     def write_json_to_disk(
         self, json_name: str = None, write_location: str = ".",
@@ -196,19 +283,30 @@ class DesignSpace:
 
     @staticmethod
     def from_jsonified_dict(all_data: Dict):
-        if all_data.get("structures") is None or all_data.get("labels") is None:
-            msg = "Both structures and labels must be provided"
+        if all_data.get("structures") is None and all_data.get("feature_matrix"):
+            msg = "Either structures or feature matrix must be provided"
             raise DesignSpaceError(msg)
-        try:
-            structures = []
-            for encoded_atoms in all_data["structures"]:
-                structures.append(atoms_decoder(encoded_atoms))
-        except (json.JSONDecodeError, TypeError):
-            msg = "Please ensure design space structures encoded using `ase.io.jsonio.encode`"
+        if all_data.get("labels") is None:
+            msg = "Design space labels must be provided"
             raise DesignSpaceError(msg)
+        structures = None
+        if all_data.get("structures"):
+            try:
+                structures = []
+                for encoded_atoms in all_data["structures"]:
+                    structures.append(atoms_decoder(encoded_atoms))
+            except (json.JSONDecodeError, TypeError):
+                msg = "Please ensure design space structures encoded using `ase.io.jsonio.encode`"
+                raise DesignSpaceError(msg)
         labels = np.array(all_data["labels"])
+        if all_data.get("feature_matrix") is not None:
+            feature_matrix = np.array(all_data["feature_matrix"])
+        else:
+            feature_matrix = None
         return DesignSpace(
-            design_space_structures=structures, design_space_labels=labels,
+            design_space_structures=structures,
+            design_space_labels=labels,
+            feature_matrix=feature_matrix,
         )
 
     @staticmethod
@@ -773,12 +871,19 @@ class CandidateSelector:
 
         hhi_scores = np.ones(ds_size)
         if self.include_hhi:
+            if not design_space.design_space_structures:
+                msg = "At present HHI can only be included when structures are provided"
+                raise CandidateSelectorError(msg)
             hhi_scores = calculate_hhi_scores(
                 design_space.design_space_structures, self.hhi_type
             )
 
         segreg_energy_scores = np.ones(ds_size)
         if self.include_segregation_energies:
+            if not design_space.design_space_structures:
+                msg = "At present segregation energies can only be included when structures\
+                      are provided"
+                raise CandidateSelectorError(msg)
             segreg_energy_scores = calculate_segregation_energy_scores(
                 design_space.design_space_structures
             )
