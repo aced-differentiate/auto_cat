@@ -44,19 +44,21 @@ def test_fit():
     regressor = GaussianProcessRegressor()
     acsc = Predictor(regressor=regressor, featurizer=featurizer)
     acsc.fit(
-        training_structures=structs, y=labels,
+        training_systems=structs, y=labels,
     )
     assert acsc.is_fit
     assert check_is_fitted(acsc.regressor) is None
+    assert acsc.trained_on_structures
 
     # check no longer fit after changing featurizer
     featurizer.species_list = ["Pt", "Fe", "Ru", "O", "H", "N"]
     featurizer.kwargs = {"rcut": 7.0, "nmax": 8, "lmax": 8}
     acsc.featurizer = featurizer
     assert not acsc.is_fit
+    assert not acsc.trained_on_structures
 
     acsc.fit(
-        training_structures=structs, y=labels,
+        training_systems=structs, y=labels,
     )
     assert acsc.is_fit
 
@@ -64,6 +66,18 @@ def test_fit():
     regressor = KernelRidge()
     acsc.regressor = regressor
     assert not acsc.is_fit
+    assert not acsc.trained_on_structures
+
+    # fit on feature matrix
+    X = np.array([[1, 2], [3, 4], [5, 6]])
+    labels = np.array([0.1, 0.2, 0.3])
+    acsc = Predictor(regressor=regressor, featurizer=featurizer)
+    acsc.fit(
+        training_systems=X, y=labels,
+    )
+    assert acsc.is_fit
+    assert check_is_fitted(acsc.regressor) is None
+    assert not acsc.trained_on_structures
 
 
 def test_predict():
@@ -89,7 +103,7 @@ def test_predict():
     regressor = GaussianProcessRegressor()
     acsc = Predictor(regressor=regressor, featurizer=featurizer)
     acsc.fit(
-        training_structures=structs[:-3], y=labels[:-3],
+        training_systems=structs[:-3], y=labels[:-3],
     )
     pred, unc = acsc.predict([structs[-3]],)
     assert len(pred) == 1
@@ -104,11 +118,36 @@ def test_predict():
     # Test prediction on model without uncertainty
     acsc.regressor = KernelRidge()
     acsc.fit(
-        training_structures=structs[:-3], y=labels[:-3],
+        training_systems=structs[:-3], y=labels[:-3],
     )
     pred, unc = acsc.predict([structs[-2]],)
     assert len(pred) == 1
     assert unc is None
+
+    # test with feature matrix directly
+    X = np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6], [0.7, 0.8]])
+    y = np.array([40, 50, 60, 70])
+    acsc = Predictor(regressor=KernelRidge())
+    acsc.fit(X, y)
+
+    # catch mismatch in training/predicting fmt
+    with pytest.raises(PredictorError):
+        acsc.predict([structs[-2]])
+
+    # catch incorrect fmt for predict on single data pt
+    X_test = np.array([1, 2])
+    with pytest.raises(PredictorError):
+        acsc.predict(X_test)
+
+    # predict on single system
+    X_test = X_test.reshape(1, -1)
+    pred, _ = acsc.predict(X_test)
+    assert len(pred) == 1
+
+    # predict on multiple systems with matrix
+    X_test = np.array([[6, 8], [-9, 3]])
+    pred, _ = acsc.predict(X_test)
+    assert len(pred) == 2
 
 
 def test_score():
@@ -134,7 +173,7 @@ def test_score():
     regressor = GaussianProcessRegressor()
     acsc = Predictor(regressor=regressor, featurizer=featurizer)
     acsc.fit(
-        training_structures=structs[:-3], y=labels[:-3],
+        training_systems=structs[:-3], y=labels[:-3],
     )
     mae = acsc.score(structs[-3:], labels[-3:])
     assert isinstance(mae, float)
