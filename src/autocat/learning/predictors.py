@@ -48,6 +48,7 @@ class Predictor:
 
         """
         self.is_fit = False
+        self.trained_on_structures = False
 
         self._regressor = RandomForestRegressor()
         self.regressor = regressor
@@ -61,8 +62,11 @@ class Predictor:
         regressor_name = type(self.regressor)
         pt.add_row(["regressor", regressor_name])
         pt.add_row(["is fit?", self.is_fit])
-        feat_str = str(self.featurizer)
-        return str(pt) + "\n" + feat_str
+        pt.add_row(["trained on structures?", self.trained_on_structures])
+        if self.trained_on_structures:
+            feat_str = str(self.featurizer)
+            return str(pt) + "\n" + feat_str
+        return str(pt)
 
     @property
     def regressor(self):
@@ -74,6 +78,7 @@ class Predictor:
             self._regressor = copy.deepcopy(regressor)
             if self.is_fit:
                 self.is_fit = False
+                self.trained_on_structures = False
                 self.X_ = None
                 self.y_ = None
 
@@ -87,6 +92,7 @@ class Predictor:
             self._featurizer = copy.deepcopy(featurizer)
             if self.is_fit:
                 self.is_fit = False
+                self.trained_on_structures = False
                 self.X_ = None
                 self.y_ = None
 
@@ -171,7 +177,9 @@ class Predictor:
         return Predictor.from_jsonified_dict(all_data=all_data)
 
     def fit(
-        self, training_structures: List[Union[Atoms, str]], y: np.ndarray,
+        self,
+        training_systems: Union[List[Union[Atoms, str]], np.ndarray],
+        y: np.ndarray,
     ):
         """
         Given a list of structures and labels will featurize
@@ -181,7 +189,7 @@ class Predictor:
         ----------
 
         training_structures:
-            List of structures to be trained upon
+            List of Atoms structures or feature matrix to be trained upon
 
         y:
             Numpy array of labels corresponding to training structures
@@ -193,13 +201,17 @@ class Predictor:
         trained_model:
             Trained `sklearn` model object
         """
-        self.X_ = self.featurizer.featurize_multiple(training_structures)
         self.y_ = y
+        if isinstance(training_systems, np.ndarray):
+            self.X_ = np.array(training_systems)
+        else:
+            self.X_ = self.featurizer.featurize_multiple(training_systems)
+            self.trained_on_structures = True
         self.regressor.fit(self.X_, self.y_)
         self.is_fit = True
 
     def predict(
-        self, testing_structures: List[Atoms],
+        self, testing_systems: Union[List[Atoms], np.ndarray],
     ):
         """
         From a trained model, will predict on given structures
@@ -207,8 +219,8 @@ class Predictor:
         Parameters
         ----------
 
-        testing_structures:
-            List of Atoms objects to make predictions on
+        testing_systems:
+            List of Atoms objects or feature matrix to make predictions on
 
         Returns
         -------
@@ -222,7 +234,25 @@ class Predictor:
 
         """
         assert self.is_fit
-        featurized_input = self.featurizer.featurize_multiple(testing_structures)
+        if isinstance(testing_systems, np.ndarray):
+            if self.trained_on_structures:
+                msg = "Cannot predict for matrix since trained on structures\
+                     Please maintain consistency in either using feature matrix or\
+                         structures + featurizer"
+                raise PredictorError(msg)
+            if len(testing_systems.shape) == 1:
+                msg = f"Received a vector of shape {testing_systems.shape}. \
+                    If predicting on a single system please reshape to \
+                    (1, {testing_systems.shape[0]})"
+                raise PredictorError(msg)
+            featurized_input = testing_systems
+        else:
+            if not self.trained_on_structures:
+                msg = "Cannot predict for structure since trained on feature matrix\
+                     Please maintain consistency in either using feature matrix or\
+                         structures + featurizer"
+                raise PredictorError(msg)
+            featurized_input = self.featurizer.featurize_multiple(testing_systems)
         try:
             predicted_labels, unc = self.regressor.predict(
                 featurized_input, return_std=True
@@ -236,7 +266,7 @@ class Predictor:
     # TODO: "score" -> "get_scores"?
     def score(
         self,
-        structures: List[Atoms],
+        systems: Union[List[Atoms], np.ndarray],
         labels: np.ndarray,
         metric: str = "mae",
         return_predictions: bool = False,
@@ -248,8 +278,8 @@ class Predictor:
         Parameters
         ----------
 
-        structures:
-            List of Atoms objects of structures to be tested on
+        systems:
+            List of Atoms objects or feature matrix of structures to be predicted on
 
         labels:
             Labels for the testing structures
@@ -272,7 +302,7 @@ class Predictor:
         """
         assert self.is_fit
 
-        pred_label, unc = self.predict(structures)
+        pred_label, unc = self.predict(systems)
 
         score_func = {"mae": mean_absolute_error, "mse": mean_squared_error}
 
