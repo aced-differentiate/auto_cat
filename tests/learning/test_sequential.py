@@ -1537,6 +1537,7 @@ def test_simulated_sequential_histories():
     assert len(sl.predictions_history) == 3
     assert len(sl.predictions_history[-1]) == len(acds)
     assert len(sl.candidate_index_history) == 2
+    assert len(sl.acquisition_score_history) == 2
 
 
 def test_simulated_sequential_batch_added():
