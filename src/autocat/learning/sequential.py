@@ -1021,6 +1021,7 @@ class SequentialLearner:
         design_space: DesignSpace,
         predictor: Predictor = None,
         candidate_selector: CandidateSelector = None,
+        fixed_target: bool = True,
         sl_kwargs: Dict[str, int] = None,
     ):
         """
@@ -1038,6 +1039,13 @@ class SequentialLearner:
         candidate_selector:
             CandidateSelector used for calculating scores and selecting candidates
             for each iteration
+
+        fixed_target:
+            Whether to keep the target bounds fixed or move based on identified
+            candidates. E.g. in a maximization problem keep target value fixed or
+            change according to maximum observed value in search so far.
+            Currently only implemented for maximization and minimization problems
+            Defaults to having a fixed target
         """
         # TODO: move predefined attributes (train_idx, candidate_idxs) to a
         # different container (not kwargs)
@@ -1050,6 +1058,9 @@ class SequentialLearner:
 
         self._candidate_selector = CandidateSelector()
         self.candidate_selector = candidate_selector
+
+        self._fixed_target = True
+        self.fixed_target = fixed_target
 
         # other miscellaneous kw arguments
         self.sl_kwargs = sl_kwargs if sl_kwargs else {}
@@ -1132,6 +1143,15 @@ class SequentialLearner:
             self._candidate_selector = candidate_selector.copy()
 
     @property
+    def fixed_target(self):
+        return self._fixed_target
+
+    @fixed_target.setter
+    def fixed_target(self, fixed_target):
+        if fixed_target is not None and isinstance(fixed_target, bool):
+            self._fixed_target = fixed_target
+
+    @property
     def iteration_count(self):
         return self.sl_kwargs.get("iteration_count", 0)
 
@@ -1198,6 +1218,7 @@ class SequentialLearner:
 
         This process consists of:
         - retraining the predictor
+        - adjusting the target bounds if `fixed_target` is False
         - predicting candidate properties and calculating candidate scores (if
         fully explored returns None)
         - selecting the next batch of candidates for objective evaluation (if
@@ -1252,6 +1273,23 @@ class SequentialLearner:
 
         # make sure haven't fully searched design space
         if any([np.isnan(label) for label in dlabels]):
+            if not self.fixed_target:
+                # update target window
+                labels = self.design_space.design_space_labels
+                window = self.candidate_selector.target_window
+                if True not in np.isinf(window):
+                    msg = "Movable bounds on target window not currently implemented"
+                    raise SequentialLearnerError(msg)
+                if not np.isinf(window[0]):
+                    # maximization problem
+                    # ie. window = (val, inf)
+                    window[0] = np.maximum(np.nanmax(labels), window[0])
+                elif not np.isinf(window[1]):
+                    # minimization problem
+                    # ie. window = (-inf, val)
+                    window[1] = np.minimum(np.nanmin(labels), window[1])
+                self.candidate_selector.target_window = window
+            # pick next candidate
             candidate_idx, _, aq_scores = self.candidate_selector.choose_candidate(
                 design_space=self.design_space,
                 allowed_idx=~train_idx,
