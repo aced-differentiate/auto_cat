@@ -549,6 +549,44 @@ def test_sequential_learner_iterate():
     assert len(acsl.train_idx_history) == 3
     assert np.count_nonzero(acsl.train_idx_history[-1]) == 4
 
+    # test iterate with feature matrix
+    X = np.array([[3, 6, 9], [2, 4, 6], [4, 8, 12], [5, 10, 15]])
+    labels = np.array([11.0, 25.0, np.nan, np.nan])
+    acds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor)
+    acsl = SequentialLearner(acds, predictor=predictor)
+
+    assert acsl.iteration_count == 0
+
+    acsl.iterate()
+    assert acsl.iteration_count == 1
+    assert acsl.predictions is not None
+    assert len(acsl.predictions_history) == 1
+    assert len(acsl.predictions_history[0]) == len(acds)
+    assert acsl.uncertainties is not None
+    assert len(acsl.uncertainties_history) == 1
+    assert len(acsl.uncertainties_history[0]) == len(acds)
+    assert acsl.candidate_indices is not None
+    assert acsl.candidate_index_history is not None
+    assert acsl.candidate_index_history == [acsl.candidate_indices]
+    assert len(acsl.train_idx_history) == 1
+    assert np.count_nonzero(acsl.train_idx_history[-1]) == 2
+
+    cand_ind1 = acsl.candidate_indices[0]
+    acsl.design_space.update(feature_matrix=[[4, 8, 12]], labels=np.array([13.0]))
+    acsl.iterate()
+    assert acsl.iteration_count == 2
+
+    # checks being iterated a second time to fully explore the design space
+    cand_ind2 = acsl.candidate_indices[0]
+    assert cand_ind1 != cand_ind2
+    assert acsl.candidate_index_history == [[cand_ind1], [cand_ind2]]
+    assert len(acsl.uncertainties_history) == 2
+    assert len(acsl.predictions_history) == 2
+    assert len(acsl.train_idx_history) == 2
+    assert np.count_nonzero(acsl.train_idx_history[-1]) == 3
+
 
 def test_sequential_learner_setup():
     # Tests setting up an SL object
