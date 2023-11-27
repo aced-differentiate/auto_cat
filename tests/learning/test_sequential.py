@@ -238,6 +238,7 @@ def test_sequential_learner_write_json():
             "candidate_indices": None,
             "candidate_index_history": None,
             "acquisition_scores": None,
+            "acquisition_score_history": None,
         }
 
     # test after iteration
@@ -293,6 +294,10 @@ def test_sequential_learner_write_json():
             == acsl.acquisition_scores.tolist()
         )
         assert sl["sl_kwargs"].get("acquisition_scores") is not None
+        assert sl["sl_kwargs"].get("acquisition_score_history") == [
+            a.tolist() for a in acsl.acquisition_score_history
+        ]
+        assert sl["sl_kwargs"].get("acquisition_score_history") is not None
 
 
 def test_sequential_learner_to_jsonified_dict():
@@ -356,6 +361,7 @@ def test_sequential_learner_to_jsonified_dict():
         "candidate_indices": None,
         "candidate_index_history": None,
         "acquisition_scores": None,
+        "acquisition_score_history": None,
     }
 
     # test after iteration
@@ -412,6 +418,10 @@ def test_sequential_learner_to_jsonified_dict():
         == acsl.acquisition_scores.tolist()
     )
     assert jsonified_dict["sl_kwargs"].get("acquisition_scores") is not None
+    assert jsonified_dict["sl_kwargs"].get("acquisition_score_history") == [
+        a.tolist() for a in acsl.acquisition_score_history
+    ]
+    assert jsonified_dict["sl_kwargs"].get("acquisition_score_history") is not None
 
     # test when no uncertainty
     regressor = RandomForestRegressor()
