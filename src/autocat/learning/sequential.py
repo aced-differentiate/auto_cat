@@ -1204,14 +1204,24 @@ class SequentialLearner:
         fully explored returns None)
         """
 
-        dstructs = self.design_space.design_space_structures
+        # dstructs = self.design_space.design_space_structures
+        dsystems = (
+            self.design_space.feature_matrix
+            if self.design_space.feature_matrix is not None
+            else self.design_space.design_space_structures
+        )
         dlabels = self.design_space.design_space_labels
 
         mask_nans = ~np.isnan(dlabels)
-        masked_structs = [struct for i, struct in enumerate(dstructs) if mask_nans[i]]
+        if isinstance(dsystems, np.ndarray):
+            masked_systems = dsystems[np.where(mask_nans)]
+        else:
+            masked_systems = [
+                struct for i, struct in enumerate(dsystems) if mask_nans[i]
+            ]
         masked_labels = dlabels[np.where(mask_nans)]
 
-        self.predictor.fit(masked_structs, masked_labels)
+        self.predictor.fit(masked_systems, masked_labels)
 
         train_idx = np.zeros(len(dlabels), dtype=bool)
         train_idx[np.where(mask_nans)] = 1
@@ -1222,7 +1232,7 @@ class SequentialLearner:
         train_idx_hist.append(train_idx)
         self.sl_kwargs.update({"train_idx_history": train_idx_hist})
 
-        preds, unc = self.predictor.predict(dstructs)
+        preds, unc = self.predictor.predict(dsystems)
 
         # update predictions and store in history
         self.sl_kwargs.update({"predictions": preds})
