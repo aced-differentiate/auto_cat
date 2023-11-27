@@ -588,6 +588,54 @@ def test_sequential_learner_iterate():
     assert np.count_nonzero(acsl.train_idx_history[-1]) == 3
 
 
+def test_sequential_learner_fixed_target():
+    # Tests having movable target value (max)
+    X = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
+    y = np.array([1, 3, np.nan, np.nan])
+    ds = DesignSpace(feature_matrix=X, design_space_labels=y)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor)
+    cs = CandidateSelector(acquisition_function="MLI", target_window=[4, np.inf])
+    acsl = SequentialLearner(
+        ds, predictor=predictor, candidate_selector=cs, fixed_target=False
+    )
+    acsl.iterate()
+    assert np.array_equal(acsl.candidate_selector.target_window, [4, np.inf])
+
+    acsl.design_space.update(feature_matrix=[[9, 10, 11, 12]], labels=np.array([17.0]))
+    acsl.iterate()
+    assert np.array_equal(acsl.candidate_selector.target_window, [17, np.inf])
+
+    # Tests having movable target value (min)
+    X = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
+    y = np.array([np.nan, -10, np.nan, -3])
+    ds = DesignSpace(feature_matrix=X, design_space_labels=y)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor)
+    cs = CandidateSelector(acquisition_function="MLI", target_window=[-np.inf, -11])
+    acsl = SequentialLearner(
+        ds, predictor=predictor, candidate_selector=cs, fixed_target=False
+    )
+    acsl.iterate()
+    assert np.array_equal(acsl.candidate_selector.target_window, [-np.inf, -11])
+    acsl.design_space.update(feature_matrix=[[1, 2, 3, 4]], labels=np.array([-90.0]))
+    acsl.iterate()
+    assert np.array_equal(acsl.candidate_selector.target_window, [-np.inf, -90.0])
+
+    # catches trying to have movable window
+    X = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
+    y = np.array([np.nan, -10, np.nan, -3])
+    ds = DesignSpace(feature_matrix=X, design_space_labels=y)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor)
+    cs = CandidateSelector(acquisition_function="MLI", target_window=[-25, -1])
+    acsl = SequentialLearner(
+        ds, predictor=predictor, candidate_selector=cs, fixed_target=False
+    )
+    with pytest.raises(SequentialLearnerError):
+        acsl.iterate()
+
+
 def test_sequential_learner_setup():
     # Tests setting up an SL object
     sub1 = generate_surface_structures(["Ir"], facets={"Ir": ["100"]})["Ir"]["fcc100"][
