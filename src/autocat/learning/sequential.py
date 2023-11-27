@@ -1427,6 +1427,7 @@ def multiple_simulated_sequential_learning_runs(
     number_parallel_jobs: int = None,
     predictor: Predictor = None,
     candidate_selector: CandidateSelector = None,
+    fixed_target: bool = True,
     init_training_size: int = 10,
     number_of_sl_loops: int = None,
     write_to_disk: bool = False,
@@ -1450,6 +1451,13 @@ def multiple_simulated_sequential_learning_runs(
         CandidateSelector that specifies settings for candidate selection.
         This is where acquisition function, targets, etc. are
         specified.
+
+    fixed_target:
+        Whether to keep the target bounds fixed or move based on identified
+        candidates. E.g. in a maximization problem keep target value fixed or
+        change according to maximum observed value in search so far.
+        Currently only implemented for maximization and minimization problems
+        Defaults to having a fixed target
 
     init_training_size:
         Size of the initial training set to be selected from
@@ -1509,6 +1517,7 @@ def multiple_simulated_sequential_learning_runs(
                 full_design_space=full_design_space,
                 predictor=predictor,
                 candidate_selector=candidate_selector,
+                fixed_target=fixed_target,
                 number_of_sl_loops=number_of_sl_loops,
                 init_training_size=init_training_size,
             )
@@ -1533,6 +1542,7 @@ def simulated_sequential_learning(
     full_design_space: DesignSpace,
     predictor: Predictor = None,
     candidate_selector: CandidateSelector = None,
+    fixed_target: bool = True,
     init_training_size: int = 10,
     number_of_sl_loops: int = None,
     write_to_disk: bool = False,
@@ -1557,6 +1567,13 @@ def simulated_sequential_learning(
         CandidateSelector that specifies settings for candidate selection.
         This is where acquisition function, targets, etc. are
         specified.
+
+    fixed_target:
+        Whether to keep the target bounds fixed or move based on identified
+        candidates. E.g. in a maximization problem keep target value fixed or
+        change according to maximum observed value in search so far.
+        Currently only implemented for maximization and minimization problems
+        Defaults to having a fixed target
 
     init_training_size:
         Size of the initial training set to be selected from
@@ -1641,7 +1658,10 @@ def simulated_sequential_learning(
     ds = DesignSpace(full_design_space.design_space_structures, dummy_labels)
     ds.update(init_structs, init_labels)
     sl = SequentialLearner(
-        design_space=ds, predictor=predictor, candidate_selector=candidate_selector,
+        design_space=ds,
+        predictor=predictor,
+        candidate_selector=candidate_selector,
+        fixed_target=fixed_target,
     )
     # first iteration on initial dataset
     sl.iterate()
