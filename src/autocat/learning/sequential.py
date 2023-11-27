@@ -75,7 +75,7 @@ class DesignSpace:
                 struct.copy() for struct in design_space_structures
             ]
         else:
-            self._design_space_structures = []
+            self._design_space_structures = None
 
     def __repr__(self) -> str:
         pt = PrettyTable()
