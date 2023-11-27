@@ -1075,6 +1075,8 @@ class SequentialLearner:
             self.sl_kwargs.update({"candidate_index_history": None})
         if "acquisition_scores" not in self.sl_kwargs:
             self.sl_kwargs.update({"acquisition_scores": None})
+        if "acquisition_score_history" not in self.sl_kwargs:
+            self.sl_kwargs.update({"acquisition_score_history": None})
 
     def __repr__(self) -> str:
         pt = PrettyTable()
@@ -1156,6 +1158,10 @@ class SequentialLearner:
     @property
     def acquisition_scores(self):
         return self.sl_kwargs.get("acquisition_scores", None)
+
+    @property
+    def acquisition_score_history(self):
+        return self.sl_kwargs.get("acquisition_score_history")
 
     @property
     def candidate_structures(self):
@@ -1247,6 +1253,13 @@ class SequentialLearner:
         else:
             candidate_idx = None
             aq_scores = None
+        aq_hist = self.sl_kwargs.get("acquisition_score_history")
+        if aq_hist is None:
+            aq_hist = []
+        if aq_scores is not None:
+            # new scores to add to history
+            aq_hist.append(aq_scores)
+            self.sl_kwargs.update({"acquisition_score_history": aq_hist})
         self.sl_kwargs.update({"candidate_indices": candidate_idx})
         self.sl_kwargs.update({"acquisition_scores": aq_scores})
 
@@ -1334,6 +1347,7 @@ class SequentialLearner:
                     "predictions_history",
                     "uncertainties_history",
                     "candidate_index_history",
+                    "acquisition_score_history",
                 ]:
                     sl_kwargs[k] = [np.array(i) for i in raw_sl_kwargs[k]]
                 elif k == "iteration_count":
