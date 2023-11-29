@@ -283,7 +283,10 @@ class DesignSpace:
 
     @staticmethod
     def from_jsonified_dict(all_data: Dict):
-        if all_data.get("structures") is None and all_data.get("feature_matrix"):
+        if (
+            all_data.get("structures") is None
+            and all_data.get("feature_matrix") is None
+        ):
             msg = "Either structures or feature matrix must be provided"
             raise DesignSpaceError(msg)
         if all_data.get("labels") is None:
