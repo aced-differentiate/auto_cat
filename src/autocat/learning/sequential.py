@@ -252,9 +252,11 @@ class DesignSpace:
         """
         Returns a jsonified dict representation
         """
-        collected_structs = []
-        for struct in self.design_space_structures:
-            collected_structs.append(atoms_encoder(struct))
+        collected_structs = None
+        if self.design_space_structures is not None:
+            collected_structs = []
+            for struct in self.design_space_structures:
+                collected_structs.append(atoms_encoder(struct))
         jsonified_labels = [float(x) for x in self.design_space_labels]
         if self.feature_matrix is not None:
             jsonified_feat_mat = self.feature_matrix.tolist()
