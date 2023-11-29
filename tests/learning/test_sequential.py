@@ -968,7 +968,8 @@ def test_design_space_from_jsonified_dict():
     ds = DesignSpace.from_jsonified_dict(j_dict)
     assert ds.design_space_structures == structs
     assert np.array_equal(ds.design_space_labels, labels)
-    j_dict = {"structures": encoded_structs, "labels": labels, "feature_matrix": X}
+    # only feature matrix, not structures
+    j_dict = {"labels": labels, "feature_matrix": X}
     ds = DesignSpace.from_jsonified_dict(j_dict)
     assert np.array_equal(ds.feature_matrix, X)
 
