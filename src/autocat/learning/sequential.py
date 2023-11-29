@@ -1645,11 +1645,16 @@ def simulated_sequential_learning(
     init_idx = np.zeros(ds_size, dtype=bool)
     init_idx[np.random.choice(ds_size, init_training_size, replace=False)] = 1
 
-    init_structs = [
-        full_design_space.design_space_structures[idx]
-        for idx, b in enumerate(init_idx)
-        if b
-    ]
+    if full_design_space.feature_matrix is not None:
+        init_systems = full_design_space.feature_matrix[np.where(init_idx)]
+        use_feature_matrix = True
+    else:
+        init_systems = [
+            full_design_space.design_space_structures[idx]
+            for idx, b in enumerate(init_idx)
+            if b
+        ]
+        use_feature_matrix = False
     init_labels = full_design_space.design_space_labels.copy()
     init_labels = init_labels[np.where(init_idx)]
 
@@ -1660,8 +1665,15 @@ def simulated_sequential_learning(
     # set up learner that is used for iteration
     dummy_labels = np.empty(len(full_design_space))
     dummy_labels[:] = np.nan
-    ds = DesignSpace(full_design_space.design_space_structures, dummy_labels)
-    ds.update(init_structs, init_labels)
+    ds = DesignSpace(
+        design_space_structures=full_design_space.design_space_structures,
+        design_space_labels=dummy_labels,
+        feature_matrix=full_design_space.feature_matrix,
+    )
+    if use_feature_matrix:
+        ds.update(feature_matrix=init_systems, labels=init_labels)
+    else:
+        ds.update(structures=init_systems, labels=init_labels)
     sl = SequentialLearner(
         design_space=ds,
         predictor=predictor,
@@ -1675,11 +1687,16 @@ def simulated_sequential_learning(
     for i in range(number_of_sl_loops):
         print(f"Sequential Learning Iteration #{i+1}")
         if sl.candidate_indices is not None:
-            next_structs = sl.candidate_structures
-            next_labels = full_design_space.design_space_labels.take(
-                sl.candidate_indices
-            )
-            sl.design_space.update(next_structs, next_labels)
+            next_sys_indices = sl.candidate_indices
+            next_labels = full_design_space.design_space_labels.take(next_sys_indices)
+            if use_feature_matrix:
+                next_systems = full_design_space.feature_matrix.take(
+                    next_sys_indices, axis=0
+                )
+                sl.design_space.update(feature_matrix=next_systems, labels=next_labels)
+            else:
+                next_systems = sl.candidate_structures
+                sl.design_space.update(structures=next_systems, labels=next_labels)
             sl.iterate()
 
     if write_to_disk:
