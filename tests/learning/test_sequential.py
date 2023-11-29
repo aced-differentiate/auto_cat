@@ -1626,6 +1626,37 @@ def test_simulated_sequential_histories():
     assert len(sl.candidate_index_history) == 2
     assert len(sl.acquisition_score_history) == 2
 
+    # test using a feature matrix
+    ds_featmat = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15]])
+    ds_labels = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    acds = DesignSpace(feature_matrix=ds_featmat, design_space_labels=ds_labels)
+    candidate_selector = CandidateSelector(
+        acquisition_function="MLI", num_candidates_to_pick=2, target_window=(0.9, 2.1)
+    )
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor)
+    sl = simulated_sequential_learning(
+        full_design_space=acds,
+        init_training_size=1,
+        number_of_sl_loops=2,
+        candidate_selector=candidate_selector,
+        predictor=predictor,
+    )
+
+    # Test number of sl loops
+    assert sl.iteration_count == 3
+
+    # Test initial training size
+    assert sl.train_idx_history[0].sum() == 1
+
+    # Test keeping track of pred and unc history
+    assert len(sl.uncertainties_history) == 3
+    assert len(sl.uncertainties_history[0]) == len(acds)
+    assert len(sl.predictions_history) == 3
+    assert len(sl.predictions_history[-1]) == len(acds)
+    assert len(sl.candidate_index_history) == 2
+    assert len(sl.acquisition_score_history) == 2
+
 
 def test_simulated_sequential_batch_added():
     # Tests adding N candidates on each loop
@@ -1647,6 +1678,25 @@ def test_simulated_sequential_batch_added():
     ds_structs = [base_struct1, base_struct2, sub1, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
     acds = DesignSpace(ds_structs, ds_labels)
+    sl = simulated_sequential_learning(
+        full_design_space=acds,
+        predictor=predictor,
+        candidate_selector=candidate_selector,
+        number_of_sl_loops=num_loops,
+        init_training_size=1,
+    )
+    # should add 2 candidates on first loop
+    assert len(sl.candidate_index_history[0]) == 2
+    # since only 1 left, should add it on the next
+    assert len(sl.candidate_index_history[1]) == 1
+
+    # Test with feature matrix
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor)
+    num_loops = 2
+    ds_feat_matr = np.array([[9, 8], [7, 6], [5, 4], [3, 2]])
+    ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
+    acds = DesignSpace(feature_matrix=ds_feat_matr, design_space_labels=ds_labels)
     sl = simulated_sequential_learning(
         full_design_space=acds,
         predictor=predictor,
@@ -1703,6 +1753,50 @@ def test_simulated_sequential_num_loops():
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([5.0, 6.0, 7.0])
     acds = DesignSpace(ds_structs, ds_labels)
+    candidate_selector.num_candidates_to_pick = 1
+
+    sl = simulated_sequential_learning(
+        full_design_space=acds,
+        predictor=predictor,
+        candidate_selector=candidate_selector,
+        init_training_size=1,
+    )
+    assert len(sl.uncertainties_history) == 3
+    assert sl.iteration_count == 3
+
+    # test with feature matrix
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor)
+    candidate_selector = CandidateSelector(
+        acquisition_function="Random", num_candidates_to_pick=3
+    )
+    ds_feat_matr = np.array([[9, 8], [7, 6], [3, 2], [1, 0]])
+    ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
+    acds = DesignSpace(feature_matrix=ds_feat_matr, design_space_labels=ds_labels)
+    # Test default number of loops
+    sl = simulated_sequential_learning(
+        full_design_space=acds,
+        predictor=predictor,
+        candidate_selector=candidate_selector,
+        init_training_size=1,
+    )
+    assert len(sl.predictions_history) == 2
+    assert sl.iteration_count == 2
+
+    # Test catches maximum number of loops
+    with pytest.raises(SequentialLearnerError):
+        sl = simulated_sequential_learning(
+            full_design_space=acds,
+            predictor=predictor,
+            candidate_selector=candidate_selector,
+            init_training_size=1,
+            number_of_sl_loops=3,
+        )
+
+    # Test with default num loops and default num candidates
+    ds_feat_matr = np.array([[7, 6], [5, 4], [3, 2]])
+    ds_labels = np.array([5.0, 6.0, 7.0])
+    acds = DesignSpace(feature_matrix=ds_feat_matr, design_space_labels=ds_labels)
     candidate_selector.num_candidates_to_pick = 1
 
     sl = simulated_sequential_learning(
@@ -1771,6 +1865,48 @@ def test_simulated_sequential_write_to_disk():
             sl.design_space.design_space_labels,
             sl_written.design_space.design_space_labels,
         )
+        # test with feature matrix
+        regressor = RandomForestRegressor(n_estimators=125)
+        predictor = Predictor(regressor=regressor)
+        candidate_selector = CandidateSelector(
+            acquisition_function="Random", num_candidates_to_pick=2
+        )
+        ds_feat_matr = np.array([[2, 3, 5], [-1, -2, -3], [-1, 0, 1]])
+        ds_labels = np.array([0, 1, 2])
+        acds = DesignSpace(feature_matrix=ds_feat_matr, design_space_labels=ds_labels)
+        sl = simulated_sequential_learning(
+            full_design_space=acds,
+            init_training_size=2,
+            number_of_sl_loops=1,
+            predictor=predictor,
+            candidate_selector=candidate_selector,
+            write_to_disk=True,
+            write_location=_tmp_dir,
+        )
+        # check data written as json
+        json_path = os.path.join(_tmp_dir, "sequential_learner.json")
+        sl_written = SequentialLearner.from_json(json_path)
+        assert sl.iteration_count == sl_written.iteration_count
+        assert np.array_equal(sl.predictions_history, sl_written.predictions_history)
+        assert np.array_equal(
+            sl.uncertainties_history, sl_written.uncertainties_history
+        )
+        assert np.array_equal(
+            sl.candidate_index_history, sl_written.candidate_index_history
+        )
+        assert np.array_equal(sl.candidate_indices, sl_written.candidate_indices)
+        assert np.array_equal(sl.predictions, sl_written.predictions)
+        assert np.array_equal(sl.uncertainties, sl_written.uncertainties)
+        assert isinstance(sl_written.predictor.regressor, RandomForestRegressor)
+        assert sl_written.predictor.regressor.n_estimators == 125
+        assert sl.candidate_selector == sl_written.candidate_selector
+        assert np.array_equal(
+            sl.design_space.design_space_labels,
+            sl_written.design_space.design_space_labels,
+        )
+        assert np.array_equal(
+            sl.design_space.feature_matrix, sl_written.design_space.feature_matrix
+        )
 
 
 def test_simulated_sequential_learning_fully_explored():
@@ -1789,6 +1925,21 @@ def test_simulated_sequential_learning_fully_explored():
     ds_structs = [base_struct1, base_struct2, sub2]
     ds_labels = np.array([0.0, np.nan, 4.0])
     acds = DesignSpace(ds_structs, ds_labels)
+    candidate_selector = CandidateSelector(acquisition_function="MU")
+    with pytest.raises(SequentialLearnerError):
+        sl = simulated_sequential_learning(
+            full_design_space=acds,
+            init_training_size=1,
+            number_of_sl_loops=2,
+            predictor=predictor,
+            candidate_selector=candidate_selector,
+        )
+    # test with feature matrix
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor)
+    ds_feat_matr = np.array([[0, 1], [1, 2], [3, 4]])
+    ds_labels = np.array([0.0, np.nan, 4.0])
+    acds = DesignSpace(feature_matrix=ds_feat_matr, design_space_labels=ds_labels)
     candidate_selector = CandidateSelector(acquisition_function="MU")
     with pytest.raises(SequentialLearnerError):
         sl = simulated_sequential_learning(
