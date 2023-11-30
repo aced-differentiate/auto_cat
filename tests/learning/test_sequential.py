@@ -481,6 +481,7 @@ def test_sequential_learner_to_jsonified_dict_with_strat():
 
 
 def test_sequential_learner_iterate():
+    # TODO make candidate selection deterministic
     # Tests iterate method
     sub1 = generate_surface_structures(["Ca"], facets={"Ca": ["111"]})["Ca"]["fcc111"][
         "structure"
@@ -574,7 +575,9 @@ def test_sequential_learner_iterate():
     assert np.count_nonzero(acsl.train_idx_history[-1]) == 2
 
     cand_ind1 = acsl.candidate_indices[0]
-    acsl.design_space.update(feature_matrix=[[4, 8, 12]], labels=np.array([13.0]))
+    acsl.design_space.update(
+        feature_matrix=np.array([X[cand_ind1]]), labels=np.array([13.0])
+    )
     acsl.iterate()
     assert acsl.iteration_count == 2
 
