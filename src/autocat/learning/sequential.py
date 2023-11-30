@@ -1191,7 +1191,7 @@ class SequentialLearner:
     @property
     def candidate_structures(self):
         idxs = self.candidate_indices
-        if idxs is not None:
+        if idxs is not None and self.design_space.design_space_structures is not None:
             return [self.design_space.design_space_structures[i] for i in idxs]
 
     @property
