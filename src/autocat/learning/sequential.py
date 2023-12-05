@@ -12,6 +12,7 @@ from ase import Atoms
 from ase.io.jsonio import encode as atoms_encoder
 from ase.io.jsonio import decode as atoms_decoder
 from scipy import stats
+from olympus import Surface
 
 from autocat.learning.predictors import Predictor
 from autocat.data.hhi import HHI
@@ -319,6 +320,262 @@ class DesignSpace:
         with open(json_name, "r") as f:
             all_data = json.load(f)
         return DesignSpace.from_jsonified_dict(all_data)
+
+
+class SyntheticDesignSpaceError(Exception):
+    pass
+
+
+class SyntheticDesignSpace:
+    def __init__(
+        self,
+        surface_kind: str = None,
+        num_dimensions: int = None,
+        discretization_width: float = None,
+        noise_scale: float = None,
+    ):
+        """
+        Constructor.
+
+        Wrapper for Olympus surfaces to generate synthetic design spaces.
+        The parameter space of the function will be mapped to the unit
+        hypercube.
+
+        Parameters
+        ----------
+
+        surface_kind:
+            String specifying the kind of surface to be used (e.g. AckleyPath).
+            Options are available in Olympus
+
+        num_dimensions:
+            Dimensionality of the function in value space
+
+        discretization_width:
+            Width between points in each axis when discretizing the unit hypercube
+
+        noise_scale:
+            Standard deviation of noise to be applied to the values (if desired)
+            Default is no noise provided
+
+        """
+        self.initialized = False
+
+        self._num_dimensions = 2
+        self.num_dimensions = num_dimensions
+
+        self._surface_kind = "AckleyPath"
+        self.surface_kind = surface_kind
+
+        self._discretization_width = 0.01
+        self.discretization_width = discretization_width
+
+        self._noise_scale = 0
+        self.noise_scale = noise_scale
+
+        self.initialize()
+
+    def __repr__(self) -> str:
+        pt = PrettyTable()
+        pt.field_names = ["", "SyntheticDesignSpace"]
+        pt.add_row(["surface kind", self.surface_kind])
+        pt.add_row(["number of dimensions", self.num_dimensions])
+        pt.add_row(["discretization width", self.discretization_width])
+        pt.add_row(["noise scale", self.noise_scale])
+        pt.add_row(["initialized?", self.initialized])
+        if self.initialized:
+            pt.add_row(["total # of discretized points", len(self)])
+            surface_max_value = self.surface.maxima
+            pt.add_row(["surface maxima", surface_max_value])
+            surface_min_value = self.surface.minima
+            pt.add_row(["surface minima", surface_min_value])
+        pt.max_width = 70
+        return str(pt)
+
+    def __len__(self):
+        return len(self.feature_matrix)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, SyntheticDesignSpace):
+            # check that they are the same length
+            if len(self) == len(other):
+                # check feature matrices are equal
+                self_feature_matrix = self.feature_matrix
+                o_feature_matrix = other.feature_matrix
+                if not np.array_equal(self_feature_matrix, o_feature_matrix):
+                    return False
+
+                # check their labels are equal
+                self_labels = self.design_space_labels
+                o_labels = other.design_space_labels
+                return np.array_equal(self_labels, o_labels)
+        return False
+
+    def copy(self):
+        """
+        Returns a copy of the design space
+        """
+        sds = self.__class__(
+            surface_kind=self.surface_kind,
+            num_dimensions=self.num_dimensions,
+            discretization_width=self.discretization_width,
+            noise_scale=self.noise_scale,
+        )
+
+        sds._noise = self._noise.copy()
+        sds.initialized = self.initialized
+
+        return sds
+
+    @property
+    def num_dimensions(self):
+        return self._num_dimensions
+
+    @num_dimensions.setter
+    def num_dimensions(self, num_dimensions):
+        if num_dimensions is not None:
+            self._num_dimensions = num_dimensions
+            self.initialized = False
+
+    @property
+    def discretization_width(self):
+        return self._discretization_width
+
+    @discretization_width.setter
+    def discretization_width(self, discretization_width):
+        if discretization_width is not None:
+            self._discretization_width = discretization_width
+            self.initialized = False
+
+    @property
+    def noise_scale(self):
+        return self._noise_scale
+
+    @noise_scale.setter
+    def noise_scale(self, noise_scale):
+        if noise_scale is not None:
+            self._noise_scale = noise_scale
+            self.initialized = False
+
+    @property
+    def surface_kind(self):
+        return self._surface_kind
+
+    @surface_kind.setter
+    def surface_kind(self, surface_kind):
+        if surface_kind is not None:
+            self._surface_kind = surface_kind
+            self.initialized = False
+
+    @property
+    def noise(self):
+        if not self.initialized:
+            msg = "Please initialize using the `initialize` method"
+            raise SyntheticDesignSpaceError(msg)
+        return self._noise
+
+    @property
+    def surface(self):
+        if not self.initialized:
+            msg = "Please initialize using the `initialize` method"
+            raise SyntheticDesignSpaceError(msg)
+        return self._surface
+
+    @property
+    def feature_matrix(self):
+        if not self.initialized:
+            msg = "Please initialize using the `initialize` method"
+            raise SyntheticDesignSpaceError(msg)
+        return self._feature_matrix
+
+    @property
+    def design_space_labels(self):
+        if not self.initialized:
+            msg = "Please initialize using the `initialize` method"
+            raise SyntheticDesignSpaceError(msg)
+        return self._design_space_labels
+
+    def initialize(self):
+        """
+        Initializes the parameter space, surface, and objective space
+        """
+        # generate parameter space
+        width = self.discretization_width
+        axes = [np.arange(0.0, 1.0 + width, width) for _ in range(self.num_dimensions)]
+        parameter_space = np.array(list(itertools.product(*axes)))
+        self._feature_matrix = parameter_space
+
+        # generate noiseless surface
+        self._surface = Surface(kind=self.surface_kind, param_dim=self.num_dimensions)
+        objective_space = np.array(self._surface.run(parameter_space)).reshape(-1,)
+
+        # add noise (if desired)
+        noise = np.random.normal(scale=self.noise_scale, size=len(parameter_space))
+        self._noise = noise
+
+        # store objective space
+        self._design_space_labels = objective_space + noise
+        self.initialized = True
+
+    def to_jsonified_dict(self) -> Dict:
+        """
+        Returns a jsonified dict representation
+        """
+        jsonified_labels = None
+        if self.design_space_labels is not None:
+            jsonified_labels = [float(x) for x in self.design_space_labels]
+        jsonified_feat_mat = None
+        if self.feature_matrix is not None:
+            jsonified_feat_mat = self.feature_matrix.tolist()
+        jsonified_noise = None
+        if self.noise is not None:
+            jsonified_noise = self.noise.tolist()
+        return {
+            "surface_kind": self.surface_kind,
+            "num_dimensions": self.num_dimensions,
+            "discretization_width": self.discretization_width,
+            "noise_scale": self.noise_scale,
+            "initialized": self.initialized,
+            "labels": jsonified_labels,
+            "feature_matrix": jsonified_feat_mat,
+            "noise": jsonified_noise,
+        }
+
+    def write_json_to_disk(
+        self, json_name: str = None, write_location: str = ".",
+    ):
+        """
+        Writes DesignSpace to disk as a json
+        """
+        collected_jsons = self.to_jsonified_dict()
+        # set default json name if needed
+        if json_name is None:
+            json_name = "sds.json"
+
+        json_path = os.path.join(write_location, json_name)
+        with open(json_path, "w") as f:
+            json.dump(collected_jsons, f)
+
+    @staticmethod
+    def from_jsonified_dict(all_data: Dict):
+        sds = SyntheticDesignSpace(
+            surface_kind=all_data.get("surface_kind"),
+            num_dimensions=all_data.get("num_dimensions"),
+            discretization_width=all_data.get("discretization_width"),
+            noise_scale=all_data.get("noise_scale"),
+        )
+        sds.initialized = all_data.get("initialized", False)
+        if sds.initialized:
+            sds._feature_matrix = np.array(all_data.get("feature_matrix"))
+            sds._design_space_labels = np.array(all_data.get("labels"))
+            sds._noise = np.array(all_data.get("noise"))
+        return sds
+
+    @staticmethod
+    def from_json(json_name: str):
+        with open(json_name, "r") as f:
+            all_data = json.load(f)
+        return SyntheticDesignSpace.from_jsonified_dict(all_data)
 
 
 class AcquisitionFunctionSelectorError(Exception):
