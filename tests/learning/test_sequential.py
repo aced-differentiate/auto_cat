@@ -4,6 +4,7 @@ import os
 import pytest
 import numpy as np
 import json
+import itertools
 
 import tempfile
 from sklearn.ensemble import RandomForestRegressor
@@ -13,6 +14,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from dscribe.descriptors import SOAP
 from dscribe.descriptors import SineMatrix
 from matminer.featurizers.composition import ElementProperty
+from olympus import Surface
 
 from scipy import stats
 from ase.io.jsonio import decode as ase_decoder
@@ -34,6 +36,8 @@ from autocat.learning.sequential import CyclicAcquisitionStrategy
 from autocat.learning.sequential import AcquisitionFunctionSelectorError
 from autocat.learning.sequential import CandidateSelector
 from autocat.learning.sequential import CandidateSelectorError
+from autocat.learning.sequential import SyntheticDesignSpace
+from autocat.learning.sequential import SyntheticDesignSpaceError
 from autocat.learning.sequential import simulated_sequential_learning
 from autocat.learning.sequential import multiple_simulated_sequential_learning_runs
 from autocat.learning.sequential import calculate_hhi_scores
@@ -1000,6 +1004,182 @@ def test_get_design_space_from_json():
         assert np.array_equal(
             acds_from_json.design_space_labels, labels, equal_nan=True
         )
+
+
+def test_synthdesign_space_setup():
+    # test setting up an SyntheticDesignSpace
+    sds = SyntheticDesignSpace(
+        surface_kind="Branin",
+        num_dimensions=4,
+        discretization_width=0.25,
+        noise_scale=1.1,
+    )
+    assert sds.surface_kind == "Branin"
+    assert sds.num_dimensions == 4
+    assert np.isclose(sds.discretization_width, 0.25)
+    assert np.isclose(sds.noise_scale, 1.1)
+
+    sds.num_dimensions = 6
+    assert sds.num_dimensions == 6
+
+    sds.discretization_width = 0.33
+    assert np.isclose(sds.discretization_width, 0.33)
+
+    sds.noise_scale = 2.0
+    assert np.isclose(sds.noise_scale, 2.0)
+
+    # test defaults
+    sds = SyntheticDesignSpace()
+    assert sds.surface_kind == "AckleyPath"
+    assert sds.num_dimensions == 2
+    assert np.isclose(sds.discretization_width, 0.01)
+    assert np.isclose(sds.noise_scale, 0)
+
+
+def test_synthdesign_space_initialize():
+    # test initializing SyntheticDesignSpace
+    sds = SyntheticDesignSpace(
+        surface_kind="StyblinskiTang",
+        num_dimensions=6,
+        discretization_width=0.25,
+        noise_scale=1.1,
+    )
+    sds.num_dimensions = 4
+    assert not sds.initialized
+    with pytest.raises(SyntheticDesignSpaceError):
+        sds.feature_matrix
+    with pytest.raises(SyntheticDesignSpaceError):
+        sds.design_space_labels
+
+    sds.initialize()
+    assert sds.initialized
+    assert sds.design_space_labels is not None
+    assert len(sds.design_space_labels) == 5 ** 4
+    assert sds.feature_matrix is not None
+    assert sds.feature_matrix.shape[1] == 4
+    assert sds.feature_matrix.shape[0] == 5 ** 4
+
+    sds.discretization_width = 0.5
+    assert not sds.initialized
+    sds.initialize()
+    assert sds.initialized
+
+    sds.noise_scale = 2.3
+    assert not sds.initialized
+    sds.initialize()
+    assert sds.initialized
+
+
+def test_synthdesign_space_to_jsonified_dict():
+    # Test returning SyntheticDesignSpace as a jsonified dict
+    sds = SyntheticDesignSpace(
+        surface_kind="StyblinskiTang",
+        num_dimensions=6,
+        discretization_width=0.25,
+        noise_scale=1.0,
+    )
+    jsonified_dict = sds.to_jsonified_dict()
+    assert jsonified_dict.get("surface_kind") == "StyblinskiTang"
+    assert jsonified_dict.get("num_dimensions") == 6
+    assert np.isclose(jsonified_dict.get("discretization_width"), 0.25)
+    assert np.isclose(jsonified_dict.get("noise_scale"), 1.0)
+    assert jsonified_dict.get("initialized")
+
+    # check feature matrix propagated
+    j_feat_matr = np.array(jsonified_dict.get("feature_matrix"))
+    assert np.array_equal(j_feat_matr[0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    assert np.array_equal(j_feat_matr[1], [0.0, 0.0, 0.0, 0.0, 0.0, 0.25])
+    assert np.array_equal(j_feat_matr[-1], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+
+    # check values and noise propagated
+    osurface = Surface(kind="StyblinskiTang", param_dim=6)
+    j_dlabels = np.array(jsonified_dict.get("labels"))
+    j_noise = np.array(jsonified_dict.get("noise"))
+    assert np.isclose(
+        osurface.run([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])[0], j_dlabels[0] - j_noise[0]
+    )
+    assert np.isclose(
+        osurface.run([0.25, 0.0, 0.0, 0.0, 0.0, 0.25])[0], j_dlabels[6] - j_noise[6]
+    )
+
+
+def test_write_synthdesign_space_as_json():
+    # Tests writing out the SyntheticDesignSpace to disk
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        sds = SyntheticDesignSpace(
+            surface_kind="Rosenbrock",
+            num_dimensions=4,
+            discretization_width=0.5,
+            noise_scale=0.8,
+        )
+        param_space = sds.feature_matrix
+        values = sds.design_space_labels
+        noise = sds.noise
+        sds.write_json_to_disk(write_location=_tmp_dir)
+        # loads back written json
+        with open(os.path.join(_tmp_dir, "sds.json"), "r") as f:
+            written_sds = json.load(f)
+        written_labels = written_sds.get("labels")
+        assert sds.num_dimensions == written_sds.get("num_dimensions")
+        assert sds.noise_scale == written_sds.get("noise_scale")
+        assert np.array_equal(written_labels, np.array(values))
+        assert np.array_equal(param_space, np.array(written_sds.get("feature_matrix")))
+        assert np.array_equal(noise, np.array(written_sds.get("noise")))
+
+
+def test_get_synthdesign_space_from_json():
+    # Tests generating SyntheticDesignSpace from a json
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        sds = SyntheticDesignSpace(
+            surface_kind="Rosenbrock",
+            num_dimensions=3,
+            discretization_width=0.1,
+            noise_scale=3,
+        )
+        sds.write_json_to_disk("testing.json", write_location=_tmp_dir)
+
+        tmp_json_dir = os.path.join(_tmp_dir, "testing.json")
+        sds_from_json = SyntheticDesignSpace.from_json(tmp_json_dir)
+        assert np.array_equal(
+            sds_from_json.design_space_labels, sds.design_space_labels
+        )
+        assert np.array_equal(sds_from_json.feature_matrix, sds.feature_matrix)
+        assert np.array_equal(sds_from_json.noise, sds.noise)
+        assert sds_from_json.num_dimensions == sds.num_dimensions
+        assert np.isclose(sds_from_json.noise_scale, sds.noise_scale)
+        assert np.isclose(sds_from_json.discretization_width, sds.discretization_width)
+        assert sds_from_json.surface_kind == sds.surface_kind
+
+
+def test_synthdesign_space_from_jsonified_dict():
+    # Test generating SyntheticDesignSpace from jsonified dict
+    noise = np.random.normal(size=3 ** 2)
+    width = 0.5
+    axes = [np.arange(0.0, 1.0 + width, width) for _ in range(2)]
+    parameter_space = np.array(list(itertools.product(*axes)))
+    osurface = Surface(kind="Branin", param_dim=2)
+    labels = osurface.run(parameter_space)
+    sds_dict = {
+        "surface_kind": "Branin",
+        "num_dimensions": 2,
+        "discretization_width": 0.5,
+        "noise_scale": 0.3,
+        "initialized": True,
+        "noise": noise.tolist(),
+        "feature_matrix": parameter_space.tolist(),
+        "labels": labels,
+    }
+    sds = SyntheticDesignSpace.from_jsonified_dict(sds_dict)
+    assert sds.surface_kind == "Branin"
+    assert sds.num_dimensions == 2
+    assert np.isclose(sds.discretization_width, 0.5)
+    assert np.isclose(sds.noise_scale, 0.3)
+    assert sds.initialized
+    assert np.array_equal(sds.noise, noise)
+    assert np.array_equal(sds.feature_matrix.shape, parameter_space.shape)
+    assert np.array_equal(sds.feature_matrix, parameter_space)
+    assert np.array_equal(sds.design_space_labels.shape, np.array(labels).shape)
+    assert np.array_equal(sds.design_space_labels, np.array(labels))
 
 
 def test_cyclic_aq_strat_setup():
