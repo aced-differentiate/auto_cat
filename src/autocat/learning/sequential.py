@@ -1350,6 +1350,8 @@ class SequentialLearner:
             self.sl_kwargs.update({"acquisition_scores": None})
         if "acquisition_score_history" not in self.sl_kwargs:
             self.sl_kwargs.update({"acquisition_score_history": None})
+        if "target_window_history" not in self.sl_kwargs:
+            self.sl_kwargs.update({"target_window_history": None})
 
     def __repr__(self) -> str:
         pt = PrettyTable()
@@ -1463,6 +1465,10 @@ class SequentialLearner:
     def uncertainties_history(self):
         return self.sl_kwargs.get("uncertainties_history", None)
 
+    @property
+    def target_window_history(self):
+        return self.sl_kwargs.get("target_window_history", None)
+
     def copy(self):
         """
         Returns a copy
@@ -1535,10 +1541,10 @@ class SequentialLearner:
 
         # make sure haven't fully searched design space
         if any([np.isnan(label) for label in dlabels]):
+            window = self.candidate_selector.target_window
             if not self.fixed_target:
                 # update target window
                 labels = self.design_space.design_space_labels
-                window = self.candidate_selector.target_window
                 if True not in np.isinf(window):
                     msg = "Movable bounds on target window not currently implemented"
                     raise SequentialLearnerError(msg)
@@ -1551,6 +1557,11 @@ class SequentialLearner:
                     # ie. window = (-inf, val)
                     window[1] = np.minimum(np.nanmin(labels), window[1])
                 self.candidate_selector.target_window = window
+            if window is not None:
+                if self.target_window_history is None:
+                    self.sl_kwargs.update({"target_window_history": [window]})
+                else:
+                    self.sl_kwargs["target_window_history"].append(window)
             # pick next candidate
             candidate_idx, _, aq_scores = self.candidate_selector.choose_candidate(
                 design_space=self.design_space,
@@ -1666,6 +1677,10 @@ class SequentialLearner:
                     sl_kwargs[k] = np.array(raw_sl_kwargs[k], dtype=bool)
                 elif k == "train_idx_history":
                     sl_kwargs[k] = [np.array(i, dtype=bool) for i in raw_sl_kwargs[k]]
+                elif k == "target_window_history":
+                    sl_kwargs[k] = [
+                        [float(v[0]), float(v[1])] for v in raw_sl_kwargs[k]
+                    ]
             else:
                 sl_kwargs[k] = None
 
