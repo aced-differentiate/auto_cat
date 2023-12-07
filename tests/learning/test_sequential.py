@@ -141,11 +141,24 @@ def test_sequential_learner_from_jsonified_dict():
     # test providing sl_kwargs
     j_dict = {
         "design_space": ds_dict,
-        "sl_kwargs": {"candidate_index_history": [[1]], "candidate_indices": [1]},
+        "sl_kwargs": {
+            "candidate_index_history": [[1]],
+            "candidate_indices": [1],
+            "target_window_history": [
+                [30.0, np.inf],
+                [40.0, np.inf],
+                [-np.inf, 5.0],
+                [3.0, 4.0],
+            ],
+        },
     }
     sl = SequentialLearner.from_jsonified_dict(j_dict)
     assert sl.candidate_indices[0] == 1
     assert sl.candidate_index_history[0][0] == 1
+    assert np.array_equal(
+        sl.target_window_history,
+        [[30.0, np.inf], [40.0, np.inf], [-np.inf, 5.0], [3.0, 4.0]],
+    )
 
     # test passing through predictor and candidate selector
     feat_dict = {
@@ -200,7 +213,7 @@ def test_sequential_learner_write_json():
     regressor = GaussianProcessRegressor()
     predictor = Predictor(regressor=regressor, featurizer=featurizer)
     candidate_selector = CandidateSelector(
-        acquisition_function="MU", num_candidates_to_pick=2
+        acquisition_function="MU", num_candidates_to_pick=2, target_window=[4.0, 8.0]
     )
     acds = DesignSpace(structs, labels)
     acsl = SequentialLearner(
@@ -226,7 +239,7 @@ def test_sequential_learner_write_json():
             "hhi_type": "production",
             "include_hhi": False,
             "include_segregation_energies": False,
-            "target_window": None,
+            "target_window": [4.0, 8.0],
             "segregation_energy_data_source": "raban1999",
             "beta": 0.1,
             "epsilon": 0.9,
@@ -243,6 +256,7 @@ def test_sequential_learner_write_json():
             "candidate_index_history": None,
             "acquisition_scores": None,
             "acquisition_score_history": None,
+            "target_window_history": None,
         }
 
     # test after iteration
@@ -268,7 +282,7 @@ def test_sequential_learner_write_json():
             "hhi_type": "production",
             "include_hhi": False,
             "include_segregation_energies": False,
-            "target_window": None,
+            "target_window": [4.0, 8.0],
             "segregation_energy_data_source": "raban1999",
             "beta": 0.1,
             "epsilon": 0.9,
@@ -302,6 +316,9 @@ def test_sequential_learner_write_json():
             a.tolist() for a in acsl.acquisition_score_history
         ]
         assert sl["sl_kwargs"].get("acquisition_score_history") is not None
+        assert np.array_equal(
+            sl["sl_kwargs"].get("target_window_history"), [[4.0, 8.0]]
+        )
 
 
 def test_sequential_learner_to_jsonified_dict():
@@ -324,7 +341,9 @@ def test_sequential_learner_to_jsonified_dict():
     regressor = GaussianProcessRegressor()
     predictor = Predictor(regressor=regressor, featurizer=featurizer)
     candidate_selector = CandidateSelector(
-        acquisition_function="MU", num_candidates_to_pick=2
+        acquisition_function="MU",
+        num_candidates_to_pick=2,
+        target_window=[-np.inf, 0.5],
     )
     acds = DesignSpace(structs, labels)
     acsl = SequentialLearner(
@@ -349,7 +368,7 @@ def test_sequential_learner_to_jsonified_dict():
         "hhi_type": "production",
         "include_hhi": False,
         "include_segregation_energies": False,
-        "target_window": None,
+        "target_window": [-np.inf, 0.5],
         "segregation_energy_data_source": "raban1999",
         "beta": 0.1,
         "epsilon": 0.9,
@@ -366,6 +385,7 @@ def test_sequential_learner_to_jsonified_dict():
         "candidate_index_history": None,
         "acquisition_scores": None,
         "acquisition_score_history": None,
+        "target_window_history": None,
     }
 
     # test after iteration
@@ -389,7 +409,7 @@ def test_sequential_learner_to_jsonified_dict():
         "hhi_type": "production",
         "include_hhi": False,
         "include_segregation_energies": False,
-        "target_window": None,
+        "target_window": [-np.inf, 0.5],
         "segregation_energy_data_source": "raban1999",
         "beta": 0.1,
         "epsilon": 0.9,
@@ -426,6 +446,10 @@ def test_sequential_learner_to_jsonified_dict():
         a.tolist() for a in acsl.acquisition_score_history
     ]
     assert jsonified_dict["sl_kwargs"].get("acquisition_score_history") is not None
+    assert jsonified_dict["sl_kwargs"].get("target_window_history") is not None
+    assert jsonified_dict["sl_kwargs"].get("target_window_history") == [
+        a.tolist() for a in acsl.target_window_history
+    ]
 
     # test when no uncertainty
     regressor = RandomForestRegressor()
@@ -625,9 +649,13 @@ def test_sequential_learner_fixed_target():
     )
     acsl.iterate()
     assert np.array_equal(acsl.candidate_selector.target_window, [-np.inf, -11])
+    assert np.array_equal(acsl.target_window_history, [[-np.inf, -11]])
     acsl.design_space.update(feature_matrix=[[1, 2, 3, 4]], labels=np.array([-90.0]))
     acsl.iterate()
     assert np.array_equal(acsl.candidate_selector.target_window, [-np.inf, -90.0])
+    assert np.array_equal(
+        acsl.target_window_history, [[-np.inf, -11], [-np.inf, -90.0]]
+    )
 
     # catches trying to have movable window
     X = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
