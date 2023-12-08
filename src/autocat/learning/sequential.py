@@ -1171,8 +1171,8 @@ class CandidateSelector:
             if uncertainties is None or predictions is None:
                 msg = f"For {aq}, both uncertainties and predictions must be supplied"
                 raise CandidateSelectorError(msg)
+            target_window = self.target_window
             if aq == "MLI":
-                target_window = self.target_window
                 raw_scores = np.array(
                     [
                         get_overlap_score(
@@ -1181,20 +1181,26 @@ class CandidateSelector:
                         for mean, std in zip(predictions, uncertainties)
                     ]
                 )
-            elif aq == "UCB":
-                raw_scores = predictions + self.beta * uncertainties
-            elif aq == "LCB":
-                raw_scores = predictions - self.beta * uncertainties
-            elif aq == "LCBAdaptive":
-                if number_of_labelled_data_pts is None:
-                    msg = "For LCBAdaptive the iteration count must be provided"
+            elif aq in ["UCB", "LCB", "LCBAdaptive"]:
+                if sum(np.isinf(target_window)) < 1:
+                    msg = "Finite target window not currently supported for confidence bound AQFs"
                     raise CandidateSelectorError(msg)
-                raw_scores = (
-                    predictions
-                    - self.epsilon ** number_of_labelled_data_pts
-                    * np.sqrt(self.beta)
-                    * uncertainties
-                )
+                max_or_min = (-1) ** (np.where(~np.isinf(target_window))[0][0])
+                if aq == "UCB":
+                    raw_scores = predictions + self.beta * uncertainties
+                elif aq == "LCB":
+                    raw_scores = predictions - self.beta * uncertainties
+                elif aq == "LCBAdaptive":
+                    if number_of_labelled_data_pts is None:
+                        msg = "For LCBAdaptive the iteration count must be provided"
+                        raise CandidateSelectorError(msg)
+                    raw_scores = (
+                        predictions
+                        - self.epsilon ** number_of_labelled_data_pts
+                        * np.sqrt(self.beta)
+                        * uncertainties
+                    )
+                raw_scores = raw_scores * max_or_min
 
         aq_scores = raw_scores * hhi_scores * segreg_energy_scores
 
