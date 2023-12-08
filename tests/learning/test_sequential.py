@@ -1625,6 +1625,15 @@ def test_candidate_selector_choose_candidate():
     # need both uncertainty and predictions for UCB
     with pytest.raises(CandidateSelectorError):
         parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    # cannot do finite window with UCB
+    cs.target_window = [0.5, 0.8]
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(
+            design_space=ds, predictions=pred, uncertainties=unc
+        )
+
+    # test maximizing with UCB
+    cs.target_window = (0.15, np.inf)
     pred2 = np.array([3.0, 0.3, 8.9, 9.0])
     unc2 = np.array([0.1, 0.2, 1.0, 0.3])
     parent_idx, _, _ = cs.choose_candidate(
@@ -1645,10 +1654,18 @@ def test_candidate_selector_choose_candidate():
     )
     assert parent_idx[0] == 3
 
+    # test minimizing with LCB
+    cs.target_window = [-np.inf, 0.5]
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds, predictions=pred3, uncertainties=unc3
+    )
+    assert parent_idx[0] == 1
+
     # test LCBAdaptive
     cs.acquisition_function = "LCBAdaptive"
     cs.beta = 9
     cs.epsilon = 0.9
+    cs.target_window = (0.15, np.inf)
     # need both uncertainty and predictions for LCBAdaptive
     with pytest.raises(CandidateSelectorError):
         parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
