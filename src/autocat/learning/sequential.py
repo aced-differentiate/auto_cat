@@ -1784,6 +1784,7 @@ def multiple_simulated_sequential_learning_runs(
                 candidate_selector=candidate_selector,
                 number_of_sl_loops=number_of_sl_loops,
                 init_training_size=init_training_size,
+                fixed_target=fixed_target,
             )
             for i in range(number_of_runs)
         )
