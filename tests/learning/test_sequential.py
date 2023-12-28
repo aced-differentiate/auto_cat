@@ -1661,6 +1661,29 @@ def test_candidate_selector_choose_candidate():
     )
     assert parent_idx[0] == 1
 
+    # test maximizing with MEI
+    cs.acquisition_function = "MEI"
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    cs.target_window = [8.95, np.inf]
+    pred3 = np.array([-1.0, 0.3, 8.9, 8.9])
+    unc3 = np.array([0.1, 0.2, 1.0, 0.3])
+    parent_idx, max_scores, _ = cs.choose_candidate(
+        design_space=ds, predictions=pred3, uncertainties=unc3
+    )
+    assert parent_idx[0] == 2
+    assert np.isclose(max_scores[0], 0.37444)
+
+    # test minimizing with MEI
+    cs.target_window = [-np.inf, -1.2]
+    pred3 = np.array([8.9, -1.0, -1.15, 8.9])
+    unc3 = np.array([0.9, 0.3, 0.05, 1.0])
+    parent_idx, max_scores, _ = cs.choose_candidate(
+        design_space=ds, predictions=pred3, uncertainties=unc3
+    )
+    assert parent_idx[0] == 1
+    assert np.isclose(max_scores[0], 0.04533589)
+
     # test LCBAdaptive
     cs.acquisition_function = "LCBAdaptive"
     cs.beta = 9
