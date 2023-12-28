@@ -796,6 +796,7 @@ class CandidateSelector:
             - MLI: maximum likelihood of improvement (default)
             - Random
             - MU: maximum uncertainty
+            - MEI: maximum expected improvement
             - UCB: upper confidence bound
             - LCB: lower confidence bound
             - LCBAdaptive: adaptive lower confidence bound described by
@@ -884,6 +885,7 @@ class CandidateSelector:
                 "MLI",
                 "MU",
                 "Random",
+                "MEI",
                 "UCB",
                 "LCB",
                 "LCBAdaptive",
@@ -1167,7 +1169,7 @@ class CandidateSelector:
                 raise CandidateSelectorError(msg)
             raw_scores = uncertainties.copy()
 
-        elif aq in ["MLI", "UCB", "LCB", "LCBAdaptive"]:
+        elif aq in ["MLI", "MEI", "UCB", "LCB", "LCBAdaptive"]:
             if uncertainties is None or predictions is None:
                 msg = f"For {aq}, both uncertainties and predictions must be supplied"
                 raise CandidateSelectorError(msg)
@@ -1181,9 +1183,24 @@ class CandidateSelector:
                         for mean, std in zip(predictions, uncertainties)
                     ]
                 )
+            elif aq == "MEI":
+                if sum(np.isinf(target_window)) < 1:
+                    msg = f"Finite target window not currently supported for {aq}"
+                    raise CandidateSelectorError(msg)
+                max_or_min = (-1) ** (np.where(~np.isinf(target_window))[0][0])
+                if max_or_min > 0:
+                    # maximization problem
+                    best = target_window[0]
+                    z = (predictions - best) / uncertainties
+                else:
+                    # minimization problem
+                    best = target_window[1]
+                    z = (best - predictions) / uncertainties
+                norm_dist = stats.norm()
+                raw_scores = uncertainties * (z * norm_dist.cdf(z) + norm_dist.pdf(z))
             elif aq in ["UCB", "LCB", "LCBAdaptive"]:
                 if sum(np.isinf(target_window)) < 1:
-                    msg = "Finite target window not currently supported for confidence bound AQFs"
+                    msg = f"Finite target window not currently supported for {aq}"
                     raise CandidateSelectorError(msg)
                 max_or_min = (-1) ** (np.where(~np.isinf(target_window))[0][0])
                 if aq == "UCB":
