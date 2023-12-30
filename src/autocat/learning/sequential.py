@@ -1063,6 +1063,8 @@ class CandidateSelector:
             pt.add_row(["acquisition function", self.acquisition_function])
             if self.acquisition_function in ["UCB", "LCB", "LCBAdaptive"]:
                 pt.add_row(["beta", self.beta])
+            elif self.acquisition_function == "GP-UCB":
+                pt.add_row(["delta", self.delta])
             if self.acquisition_function == "LCBAdaptive":
                 pt.add_row(["epsilon", self.epsilon])
         pt.max_width = 70
