@@ -243,6 +243,7 @@ def test_sequential_learner_write_json():
             "segregation_energy_data_source": "raban1999",
             "beta": 0.1,
             "epsilon": 0.9,
+            "delta": 0.1,
         }
         assert sl["sl_kwargs"] == {
             "iteration_count": 0,
@@ -286,6 +287,7 @@ def test_sequential_learner_write_json():
             "segregation_energy_data_source": "raban1999",
             "beta": 0.1,
             "epsilon": 0.9,
+            "delta": 0.1,
         }
         assert sl["sl_kwargs"].get("iteration_count") == 1
         assert sl["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
@@ -372,6 +374,7 @@ def test_sequential_learner_to_jsonified_dict():
         "segregation_energy_data_source": "raban1999",
         "beta": 0.1,
         "epsilon": 0.9,
+        "delta": 0.1,
     }
     assert jsonified_dict["sl_kwargs"] == {
         "iteration_count": 0,
@@ -413,6 +416,7 @@ def test_sequential_learner_to_jsonified_dict():
         "segregation_energy_data_source": "raban1999",
         "beta": 0.1,
         "epsilon": 0.9,
+        "delta": 0.1,
     }
     assert jsonified_dict["sl_kwargs"].get("iteration_count") == 1
     assert jsonified_dict["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
@@ -1683,6 +1687,24 @@ def test_candidate_selector_choose_candidate():
     )
     assert parent_idx[0] == 1
     assert np.isclose(max_scores[0], 0.04533589)
+
+    # test GP-UCB
+    cs.acquisition_function = "GP-UCB"
+    cs.delta = 0.2
+    cs.target_window = (2.0, np.inf)
+    # need both uncertainty and predictions for LCBAdaptive
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(design_space=ds, uncertainties=unc)
+    pred4 = np.array([3.0, 0.3, 20.0, 10.0])
+    unc4 = np.array([0.1, 0.2, 5.0, 0.03])
+    parent_idx, max_scores, _ = cs.choose_candidate(
+        design_space=ds,
+        predictions=pred4,
+        uncertainties=unc4,
+        number_of_labelled_data_pts=1,
+    )
+    assert parent_idx[0] == 2
+    assert np.isclose(max_scores[0], 35.620062)
 
     # test LCBAdaptive
     cs.acquisition_function = "LCBAdaptive"
