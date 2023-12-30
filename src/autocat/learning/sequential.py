@@ -783,6 +783,7 @@ class CandidateSelector:
         segregation_energy_data_source: str = None,
         beta: float = None,
         epsilon: float = None,
+        delta: float = None,
     ):
         """
         Constructor.
@@ -799,6 +800,14 @@ class CandidateSelector:
             - MEI: maximum expected improvement
             - UCB: upper confidence bound
             - LCB: lower confidence bound
+            - GP-UCB: upper confidence bound with variable uncertainty weighting
+
+                AQ_j = mu_j + sqrt(beta) * sigma_j for candidate j
+                where beta = 2 log (|D| t**2 pi ** 2 / (6 delta))
+                (D: input domain, t: number of labelled points, delta: hyperparameter)
+
+                For more details see:
+                Srinivas, et. al. arXiv:0912.3995 (2010)
             - LCBAdaptive: adaptive lower confidence bound described by
 
                 AQ_j = mu_j - epsilon^n * beta * sigma_j
@@ -843,6 +852,10 @@ class CandidateSelector:
             If using LCBAdaptive as the acquisition function,
             this is an additonal parameter for weighting of the uncertainty term
             as a function of iteration count
+
+        delta:
+            If using GP-UCB aas the acquisition function, this is an additional
+            paramter in the beta uncertainty weighting term.
         """
         self._acquisition_function = "Random"
         self.acquisition_function = acquisition_function
@@ -874,6 +887,9 @@ class CandidateSelector:
         self._epsilon = 0.9
         self.epsilon = epsilon
 
+        self._delta = 0.1
+        self.delta = delta
+
     @property
     def acquisition_function(self):
         return self._acquisition_function
@@ -888,6 +904,7 @@ class CandidateSelector:
                 "MEI",
                 "UCB",
                 "LCB",
+                "GP-UCB",
                 "LCBAdaptive",
             ]:
                 self._acquisition_function = acquisition_function
@@ -1002,6 +1019,15 @@ class CandidateSelector:
     def epsilon(self, epsilon):
         if epsilon is not None:
             self._epsilon = epsilon
+
+    @property
+    def delta(self):
+        return self._delta
+
+    @delta.setter
+    def delta(self, delta):
+        if delta is not None:
+            self._delta = delta
 
     def __repr__(self) -> str:
         pt = PrettyTable()
@@ -1169,7 +1195,7 @@ class CandidateSelector:
                 raise CandidateSelectorError(msg)
             raw_scores = uncertainties.copy()
 
-        elif aq in ["MLI", "MEI", "UCB", "LCB", "LCBAdaptive"]:
+        elif aq in ["MLI", "MEI", "UCB", "LCB", "LCBAdaptive", "GP-UCB"]:
             if uncertainties is None or predictions is None:
                 msg = f"For {aq}, both uncertainties and predictions must be supplied"
                 raise CandidateSelectorError(msg)
@@ -1198,7 +1224,7 @@ class CandidateSelector:
                     z = (best - predictions) / uncertainties
                 norm_dist = stats.norm()
                 raw_scores = uncertainties * (z * norm_dist.cdf(z) + norm_dist.pdf(z))
-            elif aq in ["UCB", "LCB", "LCBAdaptive"]:
+            elif aq in ["UCB", "LCB", "LCBAdaptive", "GP-UCB"]:
                 if sum(np.isinf(target_window)) < 1:
                     msg = f"Finite target window not currently supported for {aq}"
                     raise CandidateSelectorError(msg)
@@ -1217,6 +1243,19 @@ class CandidateSelector:
                         * np.sqrt(self.beta)
                         * uncertainties
                     )
+                elif aq == "GP-UCB":
+                    if number_of_labelled_data_pts is None:
+                        msg = f"For {aq} the iteration count must be provided"
+                        raise CandidateSelectorError(msg)
+                    D = len(design_space)
+                    beta = 2.0 * np.log(
+                        D
+                        * (number_of_labelled_data_pts + 1) ** 2
+                        * np.pi ** 2
+                        / 6.0
+                        / self.delta
+                    )
+                    raw_scores = predictions + np.sqrt(beta) * uncertainties
                 raw_scores = raw_scores * max_or_min
 
         aq_scores = raw_scores * hhi_scores * segreg_energy_scores
@@ -1248,6 +1287,7 @@ class CandidateSelector:
             "segregation_energy_data_source": self.segregation_energy_data_source,
             "beta": self.beta,
             "epsilon": self.epsilon,
+            "delta": self.delta,
         }
 
     def write_json_to_disk(
@@ -1286,6 +1326,7 @@ class CandidateSelector:
             ),
             beta=all_data.get("beta"),
             epsilon=all_data.get("epsilon"),
+            delta=all_data.get("delta"),
         )
 
     @staticmethod
