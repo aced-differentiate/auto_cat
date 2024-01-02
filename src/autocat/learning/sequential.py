@@ -778,6 +778,18 @@ class AnnealingAcquisitionStrategy:
         """
         Constructor.
 
+        This acquisition strategy selects either the
+        explore or exploit acquisition function at each
+        iteration probabilistically. More explicitly:
+
+        P_i(explore AQF) = exp(-i / ANNEAL_TEMP)
+        is the probability of selecting the explore AQF
+        with i labelled data points
+
+        P_i(exploit AQF) = 1 - P_i(explore AQF)
+        is the probability of selecting the explore AQF
+        with i labelled data points
+
         Parameters
         ----------
 
@@ -790,7 +802,10 @@ class AnnealingAcquisitionStrategy:
             (e.g. Random)
 
         anneal_temp:
-            Temperature for annealing when selecting the acquisition
+            Hyperparameter analogous to temperature for
+            simulated annealing. The higher this hyperparameter
+            is, the more likely the explore AQF is selected
+            deeper into the campaign.
             function. Default: 50
 
         """
