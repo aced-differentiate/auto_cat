@@ -33,6 +33,7 @@ from autocat.learning.sequential import (
     get_overlap_score,
 )
 from autocat.learning.sequential import CyclicAcquisitionStrategy
+from autocat.learning.sequential import AnnealingAcquisitionStrategy
 from autocat.learning.sequential import AcquisitionFunctionSelectorError
 from autocat.learning.sequential import CandidateSelector
 from autocat.learning.sequential import CandidateSelectorError
@@ -1212,6 +1213,112 @@ def test_synthdesign_space_from_jsonified_dict():
     assert np.array_equal(sds.feature_matrix, parameter_space)
     assert np.array_equal(sds.design_space_labels.shape, np.array(labels).shape)
     assert np.array_equal(sds.design_space_labels, np.array(labels))
+
+
+def test_anneal_aq_strat_setup():
+    # Test defaults for annealing acquisition strategy
+    aas = AnnealingAcquisitionStrategy()
+    assert aas.acquisition_function_history is None
+    assert aas.exploit_acquisition_function == "MLI"
+    assert aas.explore_acquisition_function == "Random"
+    assert np.isclose(aas.anneal_temp, 50.0)
+
+    aas = AnnealingAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="MU",
+        anneal_temp=75.0,
+    )
+    assert aas.acquisition_function_history is None
+    assert aas.exploit_acquisition_function == "LCB"
+    assert aas.explore_acquisition_function == "MU"
+    assert np.isclose(aas.anneal_temp, 75.0)
+
+
+def test_anneal_aq_strat_select():
+    # Test selecting acquisition function using anneal strategy
+    aas = AnnealingAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="Random",
+        anneal_temp=np.inf,
+    )
+    aqs_picked = []
+    aqs_picked.append(aas.select_acquisition_function(1))
+    assert aas.acquisition_function_history == aqs_picked
+    assert aqs_picked[0] == "Random"
+    aas.anneal_temp = 1e-5
+    aqs_picked.append(aas.select_acquisition_function(2))
+    assert aas.acquisition_function_history == ["Random", "LCB"]
+
+    # Test selecting acquisition function using anneal strategy
+    aas = AnnealingAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="Random",
+        anneal_temp=5.0,
+    )
+    aqs_picked = []
+    rng = np.random.default_rng(42)
+    for i in range(10):
+        aqs_picked.append(aas.select_acquisition_function(i, rng=rng))
+    assert aas.acquisition_function_history == aqs_picked
+    assert aas.acquisition_function_history == [
+        "Random",
+        "Random",
+        "LCB",
+        "LCB",
+        "Random",
+        "LCB",
+        "LCB",
+        "LCB",
+        "Random",
+        "LCB",
+    ]
+
+
+def test_anneal_to_jsonified_dict():
+    # Tests converting anneal to json dict
+    aas = AnnealingAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="Random",
+        anneal_temp=10.0,
+    )
+    rng = np.random.default_rng(273)
+    for i in range(10):
+        aas.select_acquisition_function(i, rng=rng)
+    conv_j_dict = aas.to_jsonified_dict()
+    assert conv_j_dict.get("exploit_acquisition_function") == "LCB"
+    assert conv_j_dict.get("explore_acquisition_function") == "Random"
+    assert np.isclose(conv_j_dict.get("anneal_temp"), 10.0)
+    assert conv_j_dict.get("afs_kwargs") == {
+        "acquisition_function_history": ["Random"] * 3
+        + ["LCB"] * 4
+        + ["Random"]
+        + ["LCB"] * 2
+    }
+
+
+def test_anneal_selector_from_jsonified_dict():
+    # Tests generating anneal from a json dict
+
+    # test defaults
+    j_dict = {}
+    aas = AnnealingAcquisitionStrategy.from_jsonified_dict(j_dict)
+    assert aas.explore_acquisition_function == "Random"
+    assert aas.exploit_acquisition_function == "MLI"
+    assert np.isclose(aas.anneal_temp, 50)
+    assert aas.afs_kwargs == {"acquisition_function_history": None}
+
+    # test specifying parameters
+    j_dict = {
+        "explore_acquisition_function": "MU",
+        "exploit_acquisition_function": "LCBAdaptive",
+        "anneal_temp": 3.75,
+        "afs_kwargs": {"acquisition_function_history": ["MU", "LCBAdaptive"]},
+    }
+    aas = AnnealingAcquisitionStrategy.from_jsonified_dict(j_dict)
+    assert aas.explore_acquisition_function == "MU"
+    assert aas.exploit_acquisition_function == "LCBAdaptive"
+    assert np.isclose(aas.anneal_temp, 3.75)
+    assert aas.afs_kwargs == {"acquisition_function_history": ["MU", "LCBAdaptive"]}
 
 
 def test_cyclic_aq_strat_setup():
