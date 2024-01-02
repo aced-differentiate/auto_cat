@@ -821,13 +821,13 @@ class AnnealingAcquisitionStrategy:
         """
         Returns a copy
         """
-        fas = self.__class__(
+        aas = self.__class__(
             exploit_acquisition_function=self.exploit_acquisition_function,
             explore_acquisition_function=self.explore_acquisition_function,
-            fixed_cyclic_strategy=self.fixed_cyclic_strategy,
+            anneal_temp=self.anneal_temp,
         )
-        fas.afs_kwargs = copy.deepcopy(self.afs_kwargs)
-        return fas
+        aas.afs_kwargs = copy.deepcopy(self.afs_kwargs)
+        return aas
 
     @property
     def explore_acquisition_function(self):
