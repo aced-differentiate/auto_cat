@@ -4,6 +4,7 @@ import json
 import itertools
 from typing import List
 from typing import Dict
+from typing import Union
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -766,6 +767,176 @@ class CyclicAcquisitionStrategy:
         return CyclicAcquisitionStrategy.from_jsonified_dict(all_data)
 
 
+class AnnealingAcquisitionStrategy:
+    def __init__(
+        self,
+        exploit_acquisition_function: str = None,
+        explore_acquisition_function: str = None,
+        anneal_temp: float = None,
+        afs_kwargs: Dict[str, int] = None,
+    ):
+        """
+        Constructor.
+
+        Parameters
+        ----------
+
+        exploitative_acquisition_function:
+            Acquisition function that is more exploitative
+            (e.g. MLI)
+
+        explorative_acquisition_function:
+            Acquisition function that is more explorative
+            (e.g. Random)
+
+        anneal_temp:
+            Temperature for annealing when selecting the acquisition
+            function. Default: 50
+
+        """
+
+        self._explore_acquisition_function = "Random"
+        self.explore_acquisition_function = explore_acquisition_function
+
+        self._exploit_acquisition_function = "MLI"
+        self.exploit_acquisition_function = exploit_acquisition_function
+
+        self._anneal_temp = 50.0
+        self.anneal_temp = anneal_temp
+
+        # other miscellaneous kw arguments
+        self.afs_kwargs = afs_kwargs if afs_kwargs else {}
+        if "acquisition_function_history" not in self.afs_kwargs:
+            self.afs_kwargs.update({"acquisition_function_history": None})
+
+    def __repr__(self) -> str:
+        pt = PrettyTable()
+        pt.field_names = ["", "Annealing Acquisition Strategy"]
+        pt.add_row(["exploit_acquisition_function", self.exploit_acquisition_function])
+        pt.add_row(["explore_acquisition_function", self.explore_acquisition_function])
+        pt.add_row(["anneal_temp", self.anneal_temp])
+        return str(pt)
+
+    def copy(self):
+        """
+        Returns a copy
+        """
+        fas = self.__class__(
+            exploit_acquisition_function=self.exploit_acquisition_function,
+            explore_acquisition_function=self.explore_acquisition_function,
+            fixed_cyclic_strategy=self.fixed_cyclic_strategy,
+        )
+        fas.afs_kwargs = copy.deepcopy(self.afs_kwargs)
+        return fas
+
+    @property
+    def explore_acquisition_function(self):
+        return self._explore_acquisition_function
+
+    @explore_acquisition_function.setter
+    def explore_acquisition_function(self, explore_acquisition_function):
+        if explore_acquisition_function is not None:
+            self._explore_acquisition_function = explore_acquisition_function
+
+    @property
+    def exploit_acquisition_function(self):
+        return self._exploit_acquisition_function
+
+    @exploit_acquisition_function.setter
+    def exploit_acquisition_function(self, exploit_acquisition_function):
+        if exploit_acquisition_function is not None:
+            self._exploit_acquisition_function = exploit_acquisition_function
+
+    @property
+    def anneal_temp(self):
+        return self._anneal_temp
+
+    @anneal_temp.setter
+    def anneal_temp(self, anneal_temp):
+        if anneal_temp is not None:
+            self._anneal_temp = anneal_temp
+
+    @property
+    def acquisition_function_history(self):
+        return self.afs_kwargs.get("acquisition_function_history", None)
+
+    def select_acquisition_function(
+        self, number_of_labelled_data_pts: int, rng: np.random.Generator = None
+    ):
+        """
+        Selects acquisition function based on number of labelled data points so far
+        within a given search
+
+        Parameters
+        ----------
+
+        number_of_labelled_data_pts:
+            The number of data points for which labels have been calculated
+
+        rng:
+            Numpy random number generator (for testing)
+
+        """
+        aqs = [self.explore_acquisition_function, self.exploit_acquisition_function]
+
+        p_explore = np.exp(-number_of_labelled_data_pts / self.anneal_temp)
+
+        acquisition_function_hist = self.afs_kwargs.get("acquisition_function_history")
+        if acquisition_function_hist is None:
+            acquisition_function_hist = []
+
+        # next acquisition function
+        if rng is None:
+            rng = np.random.default_rng()
+        next_aqf = rng.choice(aqs, p=(p_explore, 1 - p_explore), shuffle=False)
+        acquisition_function_hist.append(next_aqf)
+        self.afs_kwargs.update(
+            {"acquisition_function_history": acquisition_function_hist}
+        )
+
+        return next_aqf
+
+    def to_jsonified_dict(self) -> Dict:
+        """
+        Returns a jsonified dict representation
+        """
+        return {
+            "exploit_acquisition_function": self.exploit_acquisition_function,
+            "explore_acquisition_function": self.explore_acquisition_function,
+            "anneal_temp": self.anneal_temp,
+            "afs_kwargs": self.afs_kwargs,
+        }
+
+    def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
+        """
+        Writes `AnnealingAcquisitionStrategy` to disk as a json
+        """
+        jsonified_list = self.to_jsonified_dict()
+
+        if json_name is None:
+            json_name = "annealing_acquisition_strategy.json"
+
+        json_path = os.path.join(write_location, json_name)
+
+        with open(json_path, "w") as f:
+            json.dump(jsonified_list, f)
+
+    @staticmethod
+    def from_jsonified_dict(all_data: Dict):
+        return AnnealingAcquisitionStrategy(
+            exploit_acquisition_function=all_data.get("exploit_acquisition_function"),
+            explore_acquisition_function=all_data.get("explore_acquisition_function"),
+            anneal_temp=all_data.get("anneal_temp"),
+            afs_kwargs=all_data.get("afs_kwargs", {}),
+        )
+
+    @staticmethod
+    def from_json(json_name: str):
+        with open(json_name, "r") as f:
+            all_data = json.load(f)
+        return AnnealingAcquisitionStrategy.from_jsonified_dict(all_data)
+
+
 class CandidateSelectorError(Exception):
     pass
 
@@ -774,7 +945,9 @@ class CandidateSelector:
     def __init__(
         self,
         acquisition_function: str = None,
-        acquisition_strategy: CyclicAcquisitionStrategy = None,
+        acquisition_strategy: Union[
+            CyclicAcquisitionStrategy, AnnealingAcquisitionStrategy
+        ] = None,
         num_candidates_to_pick: int = None,
         target_window: Array = None,
         include_hhi: bool = None,
