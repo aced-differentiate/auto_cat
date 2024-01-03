@@ -1174,7 +1174,9 @@ class CandidateSelector:
         self,
         acquisition_function: str = None,
         acquisition_strategy: Union[
-            CyclicAcquisitionStrategy, AnnealingAcquisitionStrategy
+            CyclicAcquisitionStrategy,
+            AnnealingAcquisitionStrategy,
+            ThresholdAcquisitionStrategy,
         ] = None,
         num_candidates_to_pick: int = None,
         target_window: Array = None,
@@ -1321,14 +1323,18 @@ class CandidateSelector:
     @acquisition_strategy.setter
     def acquisition_strategy(self, acquisition_strategy):
         if acquisition_strategy is not None and isinstance(
-            acquisition_strategy, CyclicAcquisitionStrategy
+            acquisition_strategy,
+            (
+                CyclicAcquisitionStrategy,
+                AnnealingAcquisitionStrategy,
+                ThresholdAcquisitionStrategy,
+            ),
         ):
             self._acquisition_strategy = acquisition_strategy
         elif acquisition_strategy is None:
             pass
         else:
-            msg = f"Unrecognized acquisition strategy {acquisition_strategy}\
-                 Currently only CyclicAcquisitionStrategy is supported"
+            msg = f"Unrecognized acquisition strategy {acquisition_strategy}"
             raise CandidateSelectorError(msg)
 
     @property
@@ -1512,7 +1518,7 @@ class CandidateSelector:
         predictions: Array = None,
         uncertainties: Array = None,
         number_of_labelled_data_pts: int = None,
-        start_reference: int = 0,
+        **kwargs,
     ):
         """
         Choose the next candidate(s) from a design space
@@ -1581,14 +1587,24 @@ class CandidateSelector:
                 design_space.design_space_structures
             )
 
-        if self.acquisition_strategy is not None:
+        # use acquisition strategy to select acquisition function
+        if isinstance(self.acquisition_strategy, CyclicAcquisitionStrategy):
             aq = self.acquisition_strategy.select_acquisition_function(
-                number_of_labelled_data_pts=number_of_labelled_data_pts,
-                start_reference=start_reference,
+                number_of_labelled_data_pts=number_of_labelled_data_pts, **kwargs
+            )
+        elif isinstance(self.acquisition_strategy, AnnealingAcquisitionStrategy):
+            aq = self.acquisition_strategy.select_acquisition_function(
+                number_of_labelled_data_pts=number_of_labelled_data_pts, **kwargs
+            )
+        elif isinstance(self.acquisition_strategy, ThresholdAcquisitionStrategy):
+            aq = self.acquisition_strategy.select_acquisition_function(
+                uncertainties=uncertainties, allowed_idx=allowed_idx
             )
         else:
+            # acquisition function already directly specified
             aq = self.acquisition_function
 
+        # calculate scores from selected acquisition function
         if aq == "Random":
             raw_scores = np.random.choice(ds_size, size=ds_size, replace=False)
 
