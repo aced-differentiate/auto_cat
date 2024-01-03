@@ -34,6 +34,7 @@ from autocat.learning.sequential import (
 )
 from autocat.learning.sequential import CyclicAcquisitionStrategy
 from autocat.learning.sequential import AnnealingAcquisitionStrategy
+from autocat.learning.sequential import ThresholdAcquisitionStrategy
 from autocat.learning.sequential import AcquisitionFunctionSelectorError
 from autocat.learning.sequential import CandidateSelector
 from autocat.learning.sequential import CandidateSelectorError
@@ -1319,6 +1320,110 @@ def test_anneal_selector_from_jsonified_dict():
     assert aas.exploit_acquisition_function == "LCBAdaptive"
     assert np.isclose(aas.anneal_temp, 3.75)
     assert aas.afs_kwargs == {"acquisition_function_history": ["MU", "LCBAdaptive"]}
+
+
+def test_threshold_aq_strat_setup():
+    # Test defaults for threshold acquisition strategy
+    tas = ThresholdAcquisitionStrategy()
+    assert tas.acquisition_function_history is None
+    assert tas.exploit_acquisition_function == "MLI"
+    assert tas.explore_acquisition_function == "Random"
+    assert np.isclose(tas.uncertainty_cutoff, 0.1)
+    assert np.isclose(tas.min_fraction_less_than_unc_cutoff, 0.75)
+
+    tas = ThresholdAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="MU",
+        uncertainty_cutoff=0.05,
+        min_fraction_less_than_unc_cutoff=0.9,
+    )
+    assert tas.acquisition_function_history is None
+    assert tas.exploit_acquisition_function == "LCB"
+    assert tas.explore_acquisition_function == "MU"
+    assert np.isclose(tas.uncertainty_cutoff, 0.05)
+    assert np.isclose(tas.min_fraction_less_than_unc_cutoff, 0.9)
+
+
+def test_threshold_aq_strat_select():
+    # Test selecting acquisition function using threshold strategy
+    tas = ThresholdAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="Random",
+        uncertainty_cutoff=0.2,
+        min_fraction_less_than_unc_cutoff=0.7,
+    )
+    aqs_picked = []
+    # test when not enough confident candidates
+    uncs = np.array([0.15, 0.9, 0.1, 0.4])
+    allowed_idx = np.ones(4, dtype=bool)
+    aqs_picked.append(
+        tas.select_acquisition_function(uncertainties=uncs, allowed_idx=allowed_idx)
+    )
+    assert tas.acquisition_function_history == aqs_picked
+    assert aqs_picked[0] == "Random"
+    uncs[1] = 0.05
+    aqs_picked.append(
+        tas.select_acquisition_function(uncertainties=uncs, allowed_idx=allowed_idx)
+    )
+    assert tas.acquisition_function_history == ["Random", "LCB"]
+    # test using allowed_idx
+    assert (
+        tas.select_acquisition_function(
+            uncertainties=uncs, allowed_idx=[True, False, True, False]
+        )
+        == "LCB"
+    )
+
+
+def test_threshold_to_jsonified_dict():
+    # Tests converting thhreshold to json dict
+    tas = ThresholdAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="Random",
+        uncertainty_cutoff=0.2,
+        min_fraction_less_than_unc_cutoff=0.7,
+    )
+    uncs = np.array([0.15, 0.9, 0.1, 0.4])
+    allowed_idx = np.ones(4, dtype=bool)
+    tas.select_acquisition_function(uncertainties=uncs, allowed_idx=allowed_idx)
+    uncs[1] = 0.05
+    tas.select_acquisition_function(uncertainties=uncs, allowed_idx=allowed_idx)
+    conv_j_dict = tas.to_jsonified_dict()
+    assert conv_j_dict.get("exploit_acquisition_function") == "LCB"
+    assert conv_j_dict.get("explore_acquisition_function") == "Random"
+    assert np.isclose(conv_j_dict.get("uncertainty_cutoff"), 0.2)
+    assert np.isclose(conv_j_dict.get("min_fraction_less_than_unc_cutoff"), 0.7)
+    assert conv_j_dict.get("afs_kwargs") == {
+        "acquisition_function_history": ["Random", "LCB"]
+    }
+
+
+def test_threshold_selector_from_jsonified_dict():
+    # Tests generating threshold from a json dict
+
+    # test defaults
+    j_dict = {}
+    tas = ThresholdAcquisitionStrategy.from_jsonified_dict(j_dict)
+    assert tas.explore_acquisition_function == "Random"
+    assert tas.exploit_acquisition_function == "MLI"
+    assert np.isclose(tas.uncertainty_cutoff, 0.1)
+    assert np.isclose(tas.min_fraction_less_than_unc_cutoff, 0.75)
+    assert tas.afs_kwargs == {"acquisition_function_history": None}
+
+    # test specifying parameters
+    j_dict = {
+        "explore_acquisition_function": "MU",
+        "exploit_acquisition_function": "LCBAdaptive",
+        "uncertainty_cutoff": 0.02,
+        "min_fraction_less_than_unc_cutoff": 0.99,
+        "afs_kwargs": {"acquisition_function_history": ["MU", "LCBAdaptive"]},
+    }
+    tas = ThresholdAcquisitionStrategy.from_jsonified_dict(j_dict)
+    assert tas.explore_acquisition_function == "MU"
+    assert tas.exploit_acquisition_function == "LCBAdaptive"
+    assert np.isclose(tas.uncertainty_cutoff, 0.02)
+    assert np.isclose(tas.min_fraction_less_than_unc_cutoff, 0.99)
+    assert tas.afs_kwargs == {"acquisition_function_history": ["MU", "LCBAdaptive"]}
 
 
 def test_cyclic_aq_strat_setup():
