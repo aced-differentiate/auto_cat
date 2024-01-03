@@ -1943,7 +1943,7 @@ def test_candidate_selector_choose_candidate():
     )
     assert parent_idx[0] == 2
 
-    # test acquisition strategy
+    # test cyclic acquisition strategy
     fas = CyclicAcquisitionStrategy(
         exploit_acquisition_function="LCB",
         explore_acquisition_function="MU",
@@ -1979,6 +1979,57 @@ def test_candidate_selector_choose_candidate():
         number_of_labelled_data_pts=3,
     )
     assert parent_idx == 2
+
+    # test annealing acquisition strategy
+    pred5 = np.array([3.0, 0.3, 20.0, 10.0])
+    unc5 = np.array([0.1, 0.2, 5.0, 6.0])
+    aas = AnnealingAcquisitionStrategy(
+        explore_acquisition_function="MU",
+        exploit_acquisition_function="LCB",
+        anneal_temp=np.inf,
+    )
+    cs = CandidateSelector(
+        acquisition_strategy=aas,
+        num_candidates_to_pick=1,
+        target_window=[8, np.inf],
+        include_hhi=False,
+        include_segregation_energies=False,
+    )
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds, predictions=pred5, uncertainties=unc5,
+    )
+    assert parent_idx[0] == 3
+    cs.acquisition_strategy.anneal_temp = 1e-5
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds, predictions=pred5, uncertainties=unc5,
+    )
+    assert parent_idx[0] == 2
+
+    # test threshold acquisition strategy
+    pred6 = np.array([3.0, 0.3, 20.0, 10.0])
+    unc6 = np.array([0.1, 0.2, 5.0, 6.0])
+    tas = ThresholdAcquisitionStrategy(
+        explore_acquisition_function="MU",
+        exploit_acquisition_function="LCB",
+        uncertainty_cutoff=0.3,
+        min_fraction_less_than_unc_cutoff=0.6,
+    )
+    cs = CandidateSelector(
+        acquisition_strategy=tas,
+        num_candidates_to_pick=1,
+        target_window=[8, np.inf],
+        include_hhi=False,
+        include_segregation_energies=False,
+    )
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds, predictions=pred6, uncertainties=unc6,
+    )
+    assert parent_idx[0] == 3
+    unc6 = np.array([0.1, 0.2, 0.05, 6.0])
+    parent_idx, _, _ = cs.choose_candidate(
+        design_space=ds, predictions=pred6, uncertainties=unc6,
+    )
+    assert parent_idx[0] == 2
 
 
 def test_candidate_selector_choose_candidate_hhi_weighting():
