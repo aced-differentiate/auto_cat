@@ -952,6 +952,219 @@ class AnnealingAcquisitionStrategy:
         return AnnealingAcquisitionStrategy.from_jsonified_dict(all_data)
 
 
+class ThresholdAcquisitionStrategy:
+    def __init__(
+        self,
+        exploit_acquisition_function: str = None,
+        explore_acquisition_function: str = None,
+        uncertainty_cutoff: float = None,
+        min_fraction_less_than_unc_cutoff: float = None,
+        afs_kwargs: Dict[str, int] = None,
+    ):
+        """
+        Constructor.
+
+        This acquisition strategy selects either the
+        explore or exploit acquisition function at each
+        step based on the fraction of candidate systems
+        whose uncertainties fall below a specified
+        cutoff.
+
+        When the fraction of candidates whose uncertainties
+        are within the cutoff is at the specified minimum,
+        the exploit AQF is picked. Otherwise the explore
+        AQF is used.
+
+        Mathematically:
+
+        AQF = { explore AQF if n(sigma_D < epsilon) / N > k
+              { exploit AQF otherwise
+        where n is the number of candidates with uncertainty less than
+        epsilon, N is the total number of candidates and k is the desired
+        minimum fraction
+
+        Parameters
+        ----------
+
+        exploitative_acquisition_function:
+            Acquisition function that is more exploitative
+            (e.g. MLI)
+
+        explorative_acquisition_function:
+            Acquisition function that is more explorative
+            (e.g. Random)
+
+        uncertainty_cutoff:
+            Maximum allowed uncertainty that is acceptable
+
+        min_fraction_less_than_unc_cutoff:
+            Desired fraction of candidate systems whose uncertainties
+            are less than the cutoff defined by `uncertainty_cutoff`
+
+        """
+
+        self._explore_acquisition_function = "Random"
+        self.explore_acquisition_function = explore_acquisition_function
+
+        self._exploit_acquisition_function = "MLI"
+        self.exploit_acquisition_function = exploit_acquisition_function
+
+        self._uncertainty_cutoff = 0.1
+        self.uncertainty_cutoff = uncertainty_cutoff
+
+        self._min_fraction_less_than_unc_cutoff = 0.75
+        self.min_fraction_less_than_unc_cutoff = min_fraction_less_than_unc_cutoff
+
+        # other miscellaneous kw arguments
+        self.afs_kwargs = afs_kwargs if afs_kwargs else {}
+        if "acquisition_function_history" not in self.afs_kwargs:
+            self.afs_kwargs.update({"acquisition_function_history": None})
+
+    def __repr__(self) -> str:
+        pt = PrettyTable()
+        pt.field_names = ["", "Annealing Acquisition Strategy"]
+        pt.add_row(["exploit_acquisition_function", self.exploit_acquisition_function])
+        pt.add_row(["explore_acquisition_function", self.explore_acquisition_function])
+        pt.add_row(["uncertainty cutoff", self.uncertainty_cutoff])
+        pt.add_row(
+            [
+                "fraction less than uncertainty cutoff",
+                self.min_fraction_less_than_unc_cutoff,
+            ]
+        )
+        return str(pt)
+
+    def copy(self):
+        """
+        Returns a copy
+        """
+        tas = self.__class__(
+            exploit_acquisition_function=self.exploit_acquisition_function,
+            explore_acquisition_function=self.explore_acquisition_function,
+            uncertainty_cutoff=self.uncertainty_cutoff,
+            min_fraction_less_than_unc_cutoff=self.min_fraction_less_than_unc_cutoff,
+        )
+        tas.afs_kwargs = copy.deepcopy(self.afs_kwargs)
+        return tas
+
+    @property
+    def explore_acquisition_function(self):
+        return self._explore_acquisition_function
+
+    @explore_acquisition_function.setter
+    def explore_acquisition_function(self, explore_acquisition_function):
+        if explore_acquisition_function is not None:
+            self._explore_acquisition_function = explore_acquisition_function
+
+    @property
+    def exploit_acquisition_function(self):
+        return self._exploit_acquisition_function
+
+    @exploit_acquisition_function.setter
+    def exploit_acquisition_function(self, exploit_acquisition_function):
+        if exploit_acquisition_function is not None:
+            self._exploit_acquisition_function = exploit_acquisition_function
+
+    @property
+    def uncertainty_cutoff(self):
+        return self._uncertainty_cutoff
+
+    @uncertainty_cutoff.setter
+    def uncertainty_cutoff(self, uncertainty_cutoff):
+        if uncertainty_cutoff is not None:
+            self._uncertainty_cutoff = uncertainty_cutoff
+
+    @property
+    def min_fraction_less_than_unc_cutoff(self):
+        return self._min_fraction_less_than_unc_cutoff
+
+    @min_fraction_less_than_unc_cutoff.setter
+    def min_fraction_less_than_unc_cutoff(self, min_fraction_less_than_unc_cutoff):
+        if min_fraction_less_than_unc_cutoff is not None:
+            self._min_fraction_less_than_unc_cutoff = min_fraction_less_than_unc_cutoff
+
+    @property
+    def acquisition_function_history(self):
+        return self.afs_kwargs.get("acquisition_function_history", None)
+
+    def select_acquisition_function(self, uncertainties: Array, allowed_idx: Array):
+        """
+        Selects acquisition function based on number of labelled data points so far
+        within a given search
+
+        Parameters
+        ----------
+
+        number_of_labelled_data_pts:
+            The number of data points for which labels have been calculated
+
+        """
+        acquisition_function_hist = self.afs_kwargs.get("acquisition_function_history")
+        if acquisition_function_hist is None:
+            acquisition_function_hist = []
+
+        cand_uncs = uncertainties[allowed_idx]
+        fraction_certain = sum(cand_uncs < self.uncertainty_cutoff) / len(cand_uncs)
+
+        # next acquisition function
+        if fraction_certain > self.min_fraction_less_than_unc_cutoff:
+            next_aqf = self.exploit_acquisition_function
+
+        else:
+            next_aqf = self.explore_acquisition_function
+
+        acquisition_function_hist.append(next_aqf)
+        self.afs_kwargs.update(
+            {"acquisition_function_history": acquisition_function_hist}
+        )
+
+        return next_aqf
+
+    def to_jsonified_dict(self) -> Dict:
+        """
+        Returns a jsonified dict representation
+        """
+        return {
+            "exploit_acquisition_function": self.exploit_acquisition_function,
+            "explore_acquisition_function": self.explore_acquisition_function,
+            "uncertainty_cutoff": self.uncertainty_cutoff,
+            "min_fraction_less_than_unc_cutoff": self.min_fraction_less_than_unc_cutoff,
+            "afs_kwargs": self.afs_kwargs,
+        }
+
+    def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
+        """
+        Writes `ThresholdAcquisitionStrategy` to disk as a json
+        """
+        jsonified_list = self.to_jsonified_dict()
+
+        if json_name is None:
+            json_name = "threshold_acquisition_strategy.json"
+
+        json_path = os.path.join(write_location, json_name)
+
+        with open(json_path, "w") as f:
+            json.dump(jsonified_list, f)
+
+    @staticmethod
+    def from_jsonified_dict(all_data: Dict):
+        return ThresholdAcquisitionStrategy(
+            exploit_acquisition_function=all_data.get("exploit_acquisition_function"),
+            explore_acquisition_function=all_data.get("explore_acquisition_function"),
+            uncertainty_cutoff=all_data.get("uncertainty_cutoff"),
+            min_fraction_less_than_unc_cutoff=all_data.get(
+                "min_fraction_less_than_unc_cutoff"
+            ),
+            afs_kwargs=all_data.get("afs_kwargs", {}),
+        )
+
+    @staticmethod
+    def from_json(json_name: str):
+        with open(json_name, "r") as f:
+            all_data = json.load(f)
+        return ThresholdAcquisitionStrategy.from_jsonified_dict(all_data)
+
+
 class CandidateSelectorError(Exception):
     pass
 
