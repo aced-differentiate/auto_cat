@@ -1266,8 +1266,13 @@ class CandidateSelector:
             as a function of iteration count
 
         delta:
-            If using GP-UCB aas the acquisition function, this is an additional
-            paramter in the beta uncertainty weighting term.
+            If using GP-UCB as the acquisition function, this is an additional
+            parameter in the beta uncertainty weighting term.
+
+        eta:
+            If using EIAbrupt as the acquisition function, this hyperparameter
+            is used to pick either MEI or LCB based on gradient across last 3
+            iterations
         """
         self._acquisition_function = "Random"
         self.acquisition_function = acquisition_function
