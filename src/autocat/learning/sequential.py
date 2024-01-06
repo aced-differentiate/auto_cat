@@ -2090,6 +2090,19 @@ class SequentialLearner:
                     self.sl_kwargs.update({"target_window_history": [window]})
                 else:
                     self.sl_kwargs["target_window_history"].append(window)
+            cand_label_hist = None
+            if self.candidate_selector.acquisition_function == "EIAbrupt":
+                # get history of candidate labels for last three iterations
+                cand_idx_hist = self.candidate_index_history
+                if len(cand_idx_hist) > 3:
+                    # this is done in case less than three iterations have
+                    # completed.
+                    # even though EIAbrupt uses exactly last three iterations,
+                    # so less than three will be discarded,
+                    # this might still be useful to have for future AQF
+                    # development?
+                    cand_idx_hist = cand_idx_hist[-3:]
+                cand_label_hist = dlabels[[idx[0] for idx in cand_idx_hist]]
             # pick next candidate
             candidate_idx, _, aq_scores = self.candidate_selector.choose_candidate(
                 design_space=self.design_space,
@@ -2097,6 +2110,7 @@ class SequentialLearner:
                 predictions=preds,
                 uncertainties=unc,
                 number_of_labelled_data_pts=sum(train_idx),
+                cand_label_hist=cand_label_hist,
             )
         # if fully searched, no more candidate structures
         else:
