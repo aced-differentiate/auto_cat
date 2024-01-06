@@ -246,6 +246,7 @@ def test_sequential_learner_write_json():
             "beta": 0.1,
             "epsilon": 0.9,
             "delta": 0.1,
+            "eta": 0.0,
         }
         assert sl["sl_kwargs"] == {
             "iteration_count": 0,
@@ -290,6 +291,7 @@ def test_sequential_learner_write_json():
             "beta": 0.1,
             "epsilon": 0.9,
             "delta": 0.1,
+            "eta": 0.0,
         }
         assert sl["sl_kwargs"].get("iteration_count") == 1
         assert sl["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
@@ -377,6 +379,7 @@ def test_sequential_learner_to_jsonified_dict():
         "beta": 0.1,
         "epsilon": 0.9,
         "delta": 0.1,
+        "eta": 0.0,
     }
     assert jsonified_dict["sl_kwargs"] == {
         "iteration_count": 0,
@@ -419,6 +422,7 @@ def test_sequential_learner_to_jsonified_dict():
         "beta": 0.1,
         "epsilon": 0.9,
         "delta": 0.1,
+        "eta": 0.0,
     }
     assert jsonified_dict["sl_kwargs"].get("iteration_count") == 1
     assert jsonified_dict["sl_kwargs"].get("train_idx") == acsl.train_idx.tolist()
@@ -1943,12 +1947,43 @@ def test_candidate_selector_choose_candidate():
     )
     assert parent_idx[0] == 2
 
+    # test EIAbrupt
+    cs.acquisition_function = "EIAbrupt"
+    cs.target_window = (12, np.inf)
+    # need candidate uncertainty history
+    with pytest.raises(CandidateSelectorError):
+        parent_idx, _, _ = cs.choose_candidate(
+            design_space=ds, uncertainties=unc, predictions=pred
+        )
+    pred8 = np.array([3.0, 0.3, 11.0, 10.0])
+    unc8 = np.array([0.1, 0.2, 2.0, 3.0])
+    cand_label_hist = [0, 1, 2]
+    _, max_scores, _ = cs.choose_candidate(
+        design_space=ds,
+        predictions=pred8,
+        uncertainties=unc8,
+        cand_label_hist=cand_label_hist,
+    )
+    # should be MEI
+    assert np.isclose(max_scores[0], 0.45335894)
+    # should be LCB
+    cand_label_hist = [0, 2, 2]
+    cs.beta = 0.3
+    _, max_scores, _ = cs.choose_candidate(
+        design_space=ds,
+        predictions=pred8,
+        uncertainties=unc8,
+        cand_label_hist=cand_label_hist,
+    )
+    assert np.isclose(max_scores[0], 10.4)
+
     # test cyclic acquisition strategy
     fas = CyclicAcquisitionStrategy(
         exploit_acquisition_function="LCB",
         explore_acquisition_function="MU",
         fixed_cyclic_strategy=[0, 0, 1],
     )
+    cs.target_window = (0.15, np.inf)
     cs.beta = 3.0
     cs.acquisition_strategy = fas
     parent_idx, _, _ = cs.choose_candidate(
