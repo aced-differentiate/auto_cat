@@ -1187,6 +1187,7 @@ class CandidateSelector:
         beta: float = None,
         epsilon: float = None,
         delta: float = None,
+        eta: float = None,
     ):
         """
         Constructor.
@@ -1214,6 +1215,14 @@ class CandidateSelector:
             - LCBAdaptive: adaptive lower confidence bound described by
 
                 AQ_j = mu_j - epsilon^n * beta * sigma_j
+                for candidate j.
+
+                For more details see:
+                Siemenn, et. al., npj Comp. Mater, 9, 79 (2023)
+            - EIAbrupt: adaptive function consisting of EI and LCB as follows:
+
+                AQ_j = {MEI if |Delta(y_{n-3}, ..., y_{n})| < eta
+                       {LCB else
                 for candidate j.
 
                 For more details see:
@@ -1293,6 +1302,9 @@ class CandidateSelector:
         self._delta = 0.1
         self.delta = delta
 
+        self._eta = 0.0
+        self.eta = eta
+
     @property
     def acquisition_function(self):
         return self._acquisition_function
@@ -1309,11 +1321,13 @@ class CandidateSelector:
                 "LCB",
                 "GP-UCB",
                 "LCBAdaptive",
+                "EIAbrupt",
             ]:
                 self._acquisition_function = acquisition_function
             else:
                 msg = f"Unrecognized acquisition function {acquisition_function}\
-                     Please select one of 'MLI', 'MU', 'Random', 'UCB', 'LCB', 'LCBAdaptive'"
+                     Please select one of 'MLI', 'MU', 'Random', 'UCB', 'LCB', 'LCBAdaptive',\
+                     'GP-UCB', 'EIAbrupt'"
                 raise CandidateSelectorError(msg)
 
     @property
@@ -1436,6 +1450,15 @@ class CandidateSelector:
         if delta is not None:
             self._delta = delta
 
+    @property
+    def eta(self):
+        return self._eta
+
+    @eta.setter
+    def eta(self, eta):
+        if eta is not None:
+            self._eta = eta
+
     def __repr__(self) -> str:
         pt = PrettyTable()
         pt.field_names = ["", "Candidate Selector"]
@@ -1518,6 +1541,7 @@ class CandidateSelector:
         predictions: Array = None,
         uncertainties: Array = None,
         number_of_labelled_data_pts: int = None,
+        cand_label_hist: Array = None,
         **kwargs,
     ):
         """
@@ -1603,6 +1627,20 @@ class CandidateSelector:
         else:
             # acquisition function already directly specified
             aq = self.acquisition_function
+
+        # pick either MEI or LCB using EIAbrupt
+        if aq == "EIAbrupt":
+            if cand_label_hist is None:
+                msg = "Uncertainty history must be provided for EIAbrupt"
+                raise CandidateSelectorError(msg)
+            elif (
+                len(cand_label_hist) < 3
+                or not abs(min(np.gradient(cand_label_hist[-3:]))) > self.eta
+            ):
+                # stuck in a well or very early in search
+                aq = "LCB"
+            else:
+                aq = "MEI"
 
         # calculate scores from selected acquisition function
         if aq == "Random":
@@ -1707,6 +1745,7 @@ class CandidateSelector:
             "beta": self.beta,
             "epsilon": self.epsilon,
             "delta": self.delta,
+            "eta": self.eta,
         }
 
     def write_json_to_disk(
@@ -1746,6 +1785,7 @@ class CandidateSelector:
             beta=all_data.get("beta"),
             epsilon=all_data.get("epsilon"),
             delta=all_data.get("delta"),
+            eta=all_data.get("eta"),
         )
 
     @staticmethod
