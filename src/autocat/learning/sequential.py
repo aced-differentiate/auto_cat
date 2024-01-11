@@ -2248,6 +2248,7 @@ def multiple_simulated_sequential_learning_runs(
     candidate_selector: CandidateSelector = None,
     fixed_target: bool = True,
     init_training_size: int = 10,
+    training_inclusion_window: Array = None,
     number_of_sl_loops: int = None,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -2282,6 +2283,9 @@ def multiple_simulated_sequential_learning_runs(
         Size of the initial training set to be selected from
         the full space.
         Default: 10
+
+    training_inclusion_window:
+        Window of target values that the initial training set can be selected from
 
     number_of_sl_loops:
         Integer specifying the number of sequential learning loops to be conducted.
@@ -2327,6 +2331,7 @@ def multiple_simulated_sequential_learning_runs(
                 number_of_sl_loops=number_of_sl_loops,
                 init_training_size=init_training_size,
                 fixed_target=fixed_target,
+                training_inclusion_window=training_inclusion_window,
             )
             for i in range(number_of_runs)
         )
@@ -2340,6 +2345,7 @@ def multiple_simulated_sequential_learning_runs(
                 fixed_target=fixed_target,
                 number_of_sl_loops=number_of_sl_loops,
                 init_training_size=init_training_size,
+                training_inclusion_window=training_inclusion_window,
             )
             for i in range(number_of_runs)
         ]
@@ -2364,6 +2370,7 @@ def simulated_sequential_learning(
     candidate_selector: CandidateSelector = None,
     fixed_target: bool = True,
     init_training_size: int = 10,
+    training_inclusion_window: Array = None,
     number_of_sl_loops: int = None,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -2399,6 +2406,9 @@ def simulated_sequential_learning(
         Size of the initial training set to be selected from
         the full space.
         Default: 10
+
+    training_inclusion_window:
+        Window of target values that the initial training set can be selected from
 
     number_of_sl_loops:
         Integer specifying the number of sequential learning loops to be conducted.
@@ -2457,8 +2467,11 @@ def simulated_sequential_learning(
         raise SequentialLearnerError(msg)
 
     # generate initial training set
-    init_idx = np.zeros(ds_size, dtype=bool)
-    init_idx[np.random.choice(ds_size, init_training_size, replace=False)] = 1
+    init_idx = generate_initial_training_idx(
+        training_set_size=init_training_size,
+        design_space=full_design_space,
+        inclusion_window=training_inclusion_window,
+    )
 
     if full_design_space.feature_matrix is not None:
         init_systems = full_design_space.feature_matrix[np.where(init_idx)]
