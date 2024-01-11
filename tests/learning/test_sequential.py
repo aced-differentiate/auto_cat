@@ -43,6 +43,7 @@ from autocat.learning.sequential import SyntheticDesignSpaceError
 from autocat.learning.sequential import simulated_sequential_learning
 from autocat.learning.sequential import multiple_simulated_sequential_learning_runs
 from autocat.learning.sequential import calculate_hhi_scores
+from autocat.learning.sequential import generate_initial_training_idx
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
@@ -2632,6 +2633,36 @@ def test_multiple_sequential_learning_write_to_disk():
             written_run.candidate_index_history, runs_history[i].candidate_index_history
         )
         assert written_run.candidate_selector == runs_history[i].candidate_selector
+
+
+def test_generate_init_training_idx():
+    # Test generating initial index
+    X = np.array([[3, 6, 9], [2, 4, 6], [4, 8, 12], [5, 10, 15]])
+    labels = np.array([11.0, 25.0, -14.0, -1.0])
+    ds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+
+    # improper inclusion window
+    with pytest.raises(Exception):
+        generate_initial_training_idx(
+            training_set_size=2, design_space=ds, inclusion_window=[3, 4, 5]
+        )
+
+    # inf inclusion window
+    rng = np.random.default_rng(3404)
+    init = generate_initial_training_idx(training_set_size=2, design_space=ds, rng=rng)
+    assert np.array_equal(init, [True, False, False, True])
+
+    # semi-bounded inclusion window
+    init = generate_initial_training_idx(
+        training_set_size=2, design_space=ds, inclusion_window=(0.0, np.inf)
+    )
+    assert np.array_equal(init, [True, True, False, False])
+
+    # finite inclusion window
+    init = generate_initial_training_idx(
+        training_set_size=3, design_space=ds, inclusion_window=(12.0, -20.0)
+    )
+    assert np.array_equal(init, [True, False, True, True])
 
 
 def test_get_overlap_score():
