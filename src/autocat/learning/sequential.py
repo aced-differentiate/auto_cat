@@ -2521,6 +2521,50 @@ def simulated_sequential_learning(
     return sl
 
 
+def generate_initial_training_idx(
+    training_set_size: int,
+    design_space: DesignSpace,
+    inclusion_window: Array = None,
+    rng: np.random.Generator = None,
+):
+    """
+    Returns a mask for an initial training set to be used for a simulated search
+
+    Parameters
+    ----------
+
+    training_set_size:
+        Size of the initial training set to be selected
+
+    design_space:
+        DesignSpace to generate an initial training set for
+
+    inclusion_window:
+        When generating the initial training set, only include systems whose
+        label falls within the specified window
+
+    rng:
+        Numpy random number generator (for testing)
+    """
+    if inclusion_window is None:
+        inclusion_window = (-np.inf, np.inf)
+    elif len(inclusion_window) != 2:
+        msg = "Inclusion window must be defined by a tuple of exactly 2 bounds"
+        raise Exception(msg)
+    window = np.sort(inclusion_window)
+
+    if rng is None:
+        rng = np.random.default_rng()
+
+    labels = design_space.design_space_labels
+    possible_idx = np.where((labels > window[0]) & (labels < window[1]))[0]
+
+    init_idx = np.zeros(len(design_space), dtype=bool)
+    init_idx[rng.choice(possible_idx, size=training_set_size, replace=False)] = 1
+
+    return init_idx
+
+
 def get_overlap_score(mean: float, std: float, x2: float = None, x1: float = None):
     """Calculate overlap score given targets x2 (max) and x1 (min)"""
     if x1 is None and x2 is None:
