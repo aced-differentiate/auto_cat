@@ -2093,7 +2093,9 @@ class SequentialLearner:
             cand_label_hist = None
             if self.candidate_selector.acquisition_function == "EIAbrupt":
                 # get history of candidate labels for last three iterations
-                cand_idx_hist = self.candidate_index_history
+                cand_idx_hist = (
+                    self.candidate_index_history if self.candidate_index_history else []
+                )
                 if len(cand_idx_hist) > 3:
                     # this is done in case less than three iterations have
                     # completed.
@@ -2102,7 +2104,11 @@ class SequentialLearner:
                     # this might still be useful to have for future AQF
                     # development?
                     cand_idx_hist = cand_idx_hist[-3:]
-                cand_label_hist = dlabels[[idx[0] for idx in cand_idx_hist]]
+
+                if len(cand_idx_hist) == 0:
+                    cand_label_hist = []
+                else:
+                    cand_label_hist = dlabels[[idx[0] for idx in cand_idx_hist]]
             # pick next candidate
             candidate_idx, _, aq_scores = self.candidate_selector.choose_candidate(
                 design_space=self.design_space,
