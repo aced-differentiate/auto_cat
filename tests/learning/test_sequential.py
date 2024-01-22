@@ -2641,26 +2641,26 @@ def test_generate_init_training_idx():
     labels = np.array([11.0, 25.0, -14.0, -1.0])
     ds = DesignSpace(feature_matrix=X, design_space_labels=labels)
 
-    # improper inclusion window
+    # improper target window
     with pytest.raises(Exception):
         generate_initial_training_idx(
-            training_set_size=2, design_space=ds, inclusion_window=[3, 4, 5]
+            training_set_size=2, design_space=ds, target_window=[3, 4, 5]
         )
 
-    # inf inclusion window
+    # inf target window
     rng = np.random.default_rng(3404)
     init = generate_initial_training_idx(training_set_size=2, design_space=ds, rng=rng)
     assert np.array_equal(init, [True, False, False, True])
 
-    # semi-bounded inclusion window
+    # semi-bounded target window
     init = generate_initial_training_idx(
-        training_set_size=2, design_space=ds, inclusion_window=(0.0, np.inf)
+        training_set_size=2, design_space=ds, target_window=(-np.inf, 0.0)
     )
     assert np.array_equal(init, [True, True, False, False])
 
-    # finite inclusion window
+    # finite target window
     init = generate_initial_training_idx(
-        training_set_size=3, design_space=ds, inclusion_window=(12.0, -20.0)
+        training_set_size=3, design_space=ds, target_window=(26.0, 24.0)
     )
     assert np.array_equal(init, [True, False, True, True])
 
