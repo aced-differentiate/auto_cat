@@ -2254,6 +2254,7 @@ def multiple_simulated_sequential_learning_runs(
     candidate_selector: CandidateSelector = None,
     fixed_target: bool = True,
     init_training_size: int = 10,
+    training_inclusion_window: Array = None,
     number_of_sl_loops: int = None,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -2261,10 +2262,6 @@ def multiple_simulated_sequential_learning_runs(
 ) -> List[SequentialLearner]:
     """
     Conducts multiple simulated sequential learning runs
-
-    When selecting the initial training set, systems
-    within the target window (as defined in `candidate_selector`)
-    will be excluded.
 
     Parameters
     ----------
@@ -2292,6 +2289,9 @@ def multiple_simulated_sequential_learning_runs(
         Size of the initial training set to be selected from
         the full space.
         Default: 10
+
+    training_inclusion_window:
+        Window of target values that the initial training set can be selected from
 
     number_of_sl_loops:
         Integer specifying the number of sequential learning loops to be conducted.
@@ -2337,6 +2337,7 @@ def multiple_simulated_sequential_learning_runs(
                 number_of_sl_loops=number_of_sl_loops,
                 init_training_size=init_training_size,
                 fixed_target=fixed_target,
+                training_inclusion_window=training_inclusion_window,
             )
             for i in range(number_of_runs)
         )
@@ -2350,6 +2351,7 @@ def multiple_simulated_sequential_learning_runs(
                 fixed_target=fixed_target,
                 number_of_sl_loops=number_of_sl_loops,
                 init_training_size=init_training_size,
+                training_inclusion_window=training_inclusion_window,
             )
             for i in range(number_of_runs)
         ]
@@ -2374,6 +2376,7 @@ def simulated_sequential_learning(
     candidate_selector: CandidateSelector = None,
     fixed_target: bool = True,
     init_training_size: int = 10,
+    training_inclusion_window: Array = None,
     number_of_sl_loops: int = None,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -2382,10 +2385,6 @@ def simulated_sequential_learning(
     """
     Conducts a simulated sequential learning loop for a
     fully labelled design space to explore.
-
-    When selecting the initial training set, systems
-    within the target window (as defined in `candidate_selector`)
-    will be excluded.
 
     Parameters
     ----------
@@ -2413,6 +2412,9 @@ def simulated_sequential_learning(
         Size of the initial training set to be selected from
         the full space.
         Default: 10
+
+    training_inclusion_window:
+        Window of target values that the initial training set can be selected from
 
     number_of_sl_loops:
         Integer specifying the number of sequential learning loops to be conducted.
@@ -2474,7 +2476,7 @@ def simulated_sequential_learning(
     init_idx = generate_initial_training_idx(
         training_set_size=init_training_size,
         design_space=full_design_space,
-        target_window=candidate_selector.target_window,
+        inclusion_window=training_inclusion_window,
     )
 
     if full_design_space.feature_matrix is not None:
@@ -2541,7 +2543,7 @@ def simulated_sequential_learning(
 def generate_initial_training_idx(
     training_set_size: int,
     design_space: DesignSpace,
-    target_window: Array = None,
+    inclusion_window: Array = None,
     rng: np.random.Generator = None,
 ):
     """
@@ -2556,28 +2558,25 @@ def generate_initial_training_idx(
     design_space:
         DesignSpace to generate an initial training set for
 
-    target_window:
+    inclusion_window:
         When generating the initial training set, only include systems whose
-        label falls outside target window
+        label falls within the specified window
 
     rng:
         Numpy random number generator (for testing)
     """
-    if target_window is None:
-        target_window = (np.inf, -np.inf)
-    elif len(target_window) != 2:
-        msg = "Target window must be defined by a tuple of exactly 2 bounds"
+    if inclusion_window is None:
+        inclusion_window = (-np.inf, np.inf)
+    elif len(inclusion_window) != 2:
+        msg = "Inclusion window must be defined by a tuple of exactly 2 bounds"
         raise Exception(msg)
-    else:
-        target_window = np.sort(target_window)
+    window = np.sort(inclusion_window)
 
     if rng is None:
         rng = np.random.default_rng()
 
     labels = design_space.design_space_labels
-    possible_idx = np.where((labels < target_window[0]) | (labels > target_window[1]))[
-        0
-    ]
+    possible_idx = np.where((labels > window[0]) & (labels < window[1]))[0]
 
     init_idx = np.zeros(len(design_space), dtype=bool)
     init_idx[rng.choice(possible_idx, size=training_set_size, replace=False)] = 1
