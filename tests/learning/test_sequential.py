@@ -2152,6 +2152,28 @@ def test_candidate_selector_choose_candidate():
     )
     assert parent_idx[0] == 2
 
+    # test proba acquisition strategy
+    pred7 = np.array([3.0, 0.3, 20.0, 10.0])
+    unc7 = np.array([0.1, 0.2, 5.0, 6.0])
+    rng = np.random.default_rng(8)
+    pas = ProbabilisticAcquisitionStrategy(
+        explore_acquisition_function="MU",
+        exploit_acquisition_function="MEI",
+        explore_probability=0.75,
+        random_num_generator=rng,
+    )
+    cs = CandidateSelector(
+        acquisition_strategy=pas,
+        num_candidates_to_pick=1,
+        target_window=[8, np.inf],
+        include_hhi=False,
+        include_segregation_energies=False,
+    )
+    _, max_scores, _ = cs.choose_candidate(
+        design_space=ds, predictions=pred7, uncertainties=unc7,
+    )
+    assert np.isclose(max_scores[0], 6.0)
+
 
 def test_candidate_selector_choose_candidate_hhi_weighting():
     # Tests that the HHI weighting is properly applied
