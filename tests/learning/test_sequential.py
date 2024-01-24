@@ -32,6 +32,7 @@ from autocat.learning.sequential import (
     calculate_segregation_energy_scores,
     get_overlap_score,
 )
+from autocat.learning.sequential import ProbabilisticAcquisitionStrategy
 from autocat.learning.sequential import CyclicAcquisitionStrategy
 from autocat.learning.sequential import AnnealingAcquisitionStrategy
 from autocat.learning.sequential import ThresholdAcquisitionStrategy
@@ -1429,6 +1430,90 @@ def test_threshold_selector_from_jsonified_dict():
     assert np.isclose(tas.uncertainty_cutoff, 0.02)
     assert np.isclose(tas.min_fraction_less_than_unc_cutoff, 0.99)
     assert tas.afs_kwargs == {"acquisition_function_history": ["MU", "LCBAdaptive"]}
+
+
+def test_proba_aq_strat_setup():
+    # Test defaults for proba acquisition strategy
+    pas = ProbabilisticAcquisitionStrategy()
+    assert pas.acquisition_function_history is None
+    assert pas.exploit_acquisition_function == "MLI"
+    assert pas.explore_acquisition_function == "Random"
+    assert np.isclose(pas.explore_probability, 0.5)
+
+    pas = ProbabilisticAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="MU",
+        explore_probability=0.75,
+    )
+    assert pas.acquisition_function_history is None
+    assert pas.exploit_acquisition_function == "LCB"
+    assert pas.explore_acquisition_function == "MU"
+    assert np.isclose(pas.explore_probability, 0.75)
+
+
+def test_proba_aq_strat_select():
+    # Test selecting acquisition function using proba strategy
+    rng = np.random.default_rng(1234)
+    pas = ProbabilisticAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="Random",
+        explore_probability=0.3,
+        random_num_generator=rng,
+    )
+    aq = pas.select_acquisition_function()
+    assert aq == "LCB"
+    pas.explore_probability = 0.0
+    aq = pas.select_acquisition_function()
+    assert aq == "LCB"
+    pas.explore_probability = 1.0
+    aq = pas.select_acquisition_function()
+    assert aq == "Random"
+    assert pas.acquisition_function_history == ["LCB"] * 2 + ["Random"]
+
+
+def test_proba_to_jsonified_dict():
+    # Tests converting proba to json dict
+    rng = np.random.default_rng(2024)
+    pas = ProbabilisticAcquisitionStrategy(
+        exploit_acquisition_function="LCB",
+        explore_acquisition_function="Random",
+        explore_probability=0.4,
+        random_num_generator=rng,
+    )
+    for i in range(5):
+        pas.select_acquisition_function()
+    conv_j_dict = pas.to_jsonified_dict()
+    assert conv_j_dict.get("exploit_acquisition_function") == "LCB"
+    assert conv_j_dict.get("explore_acquisition_function") == "Random"
+    assert np.isclose(conv_j_dict.get("explore_probability"), 0.4)
+    assert conv_j_dict.get("afs_kwargs") == {
+        "acquisition_function_history": ["LCB"] + ["Random"] * 2 + ["LCB"] * 2
+    }
+
+
+def test_proba_selector_from_jsonified_dict():
+    # Tests generating proba from a json dict
+
+    # test defaults
+    j_dict = {}
+    pas = ProbabilisticAcquisitionStrategy.from_jsonified_dict(j_dict)
+    assert pas.explore_acquisition_function == "Random"
+    assert np.isclose(pas.explore_probability, 0.5)
+    assert pas.exploit_acquisition_function == "MLI"
+    assert pas.afs_kwargs == {"acquisition_function_history": None}
+
+    # test specifying parameters
+    j_dict = {
+        "explore_acquisition_function": "MU",
+        "exploit_acquisition_function": "LCBAdaptive",
+        "explore_probability": 0.8,
+        "afs_kwargs": {"acquisition_function_history": ["MU", "LCBAdaptive"]},
+    }
+    pas = ProbabilisticAcquisitionStrategy.from_jsonified_dict(j_dict)
+    assert pas.explore_acquisition_function == "MU"
+    assert pas.exploit_acquisition_function == "LCBAdaptive"
+    assert np.isclose(pas.explore_probability, 0.8)
+    assert pas.afs_kwargs == {"acquisition_function_history": ["MU", "LCBAdaptive"]}
 
 
 def test_cyclic_aq_strat_setup():
