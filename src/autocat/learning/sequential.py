@@ -767,6 +767,190 @@ class CyclicAcquisitionStrategy:
         return CyclicAcquisitionStrategy.from_jsonified_dict(all_data)
 
 
+class ProbabilisticAcquisitionStrategy:
+    def __init__(
+        self,
+        exploit_acquisition_function: str = None,
+        explore_acquisition_function: str = None,
+        explore_probability: float = None,
+        random_num_generator: np.random.Generator = None,
+        afs_kwargs: Dict[str, int] = None,
+    ):
+        """
+        Constructor.
+
+        Parameters
+        ----------
+
+        exploitative_acquisition_function:
+            Acquisition function that is more exploitative
+            (e.g. MLI)
+
+        explorative_acquisition_function:
+            Acquisition function that is more explorative
+            (e.g. Random)
+
+        explore_probability:
+            Probability of selecting the explore acquisition
+            function. Otherwise the exploit acquisition
+            function is picked.
+            Default: 0.5 (equal chance of picking explore/exploit)
+
+        random_num_generator:
+            Numpy random number generator to be used to
+            probabilistically choose the acquisition function
+
+        """
+        if random_num_generator is None:
+            random_num_generator = np.random.default_rng()
+        self._random_num_generator = random_num_generator
+
+        self._explore_acquisition_function = "Random"
+        self.explore_acquisition_function = explore_acquisition_function
+
+        self._exploit_acquisition_function = "MLI"
+        self.exploit_acquisition_function = exploit_acquisition_function
+
+        self._explore_probability = 0.5
+        self.explore_probability = explore_probability
+
+        # other miscellaneous kw arguments
+        self.afs_kwargs = afs_kwargs if afs_kwargs else {}
+        if "acquisition_function_history" not in self.afs_kwargs:
+            self.afs_kwargs.update({"acquisition_function_history": None})
+
+    def __repr__(self) -> str:
+        pt = PrettyTable()
+        pt.field_names = ["", "Fixed Acquisition Strategy"]
+        pt.add_row(["exploit_acquisition_function", self.exploit_acquisition_function])
+        pt.add_row(["explore_acquisition_function", self.explore_acquisition_function])
+        pt.add_row(["explore_probability", self.explore_probability])
+        return str(pt)
+
+    def copy(self):
+        """
+        Returns a copy
+        """
+        fas = self.__class__(
+            exploit_acquisition_function=self.exploit_acquisition_function,
+            explore_acquisition_function=self.explore_acquisition_function,
+            explore_probability=self.explore_probability,
+        )
+        fas.afs_kwargs = copy.deepcopy(self.afs_kwargs)
+        return fas
+
+    @property
+    def explore_acquisition_function(self):
+        return self._explore_acquisition_function
+
+    @explore_acquisition_function.setter
+    def explore_acquisition_function(self, explore_acquisition_function):
+        if explore_acquisition_function is not None:
+            self._explore_acquisition_function = explore_acquisition_function
+
+    @property
+    def exploit_acquisition_function(self):
+        return self._exploit_acquisition_function
+
+    @exploit_acquisition_function.setter
+    def exploit_acquisition_function(self, exploit_acquisition_function):
+        if exploit_acquisition_function is not None:
+            self._exploit_acquisition_function = exploit_acquisition_function
+
+    @property
+    def explore_probability(self):
+        return self._explore_probability
+
+    @explore_probability.setter
+    def explore_probability(self, explore_probability):
+        if explore_probability is not None:
+            self._explore_probability = explore_probability
+
+    @property
+    def acquisition_function_history(self):
+        return self.afs_kwargs.get("acquisition_function_history", None)
+
+    @property
+    def random_num_generator(self):
+        return self._random_num_generator
+
+    def select_acquisition_function(self):
+        """
+        Probabilistically selects either an explorative or exploitative
+        acquisition function
+
+        Parameters
+        ----------
+
+        number_of_labelled_data_pts:
+            The number of data points for which labels have been calculated
+
+        start_reference:
+            Number of labelled data points fixed cycle should start from.
+            Useful if changing strategy mid-search
+
+            e.g. for fixed schedule [0, 0, 0, 1] and start_reference=3 will
+            start from the last element of this cycle
+
+        """
+        aqs = [self.explore_acquisition_function, self.exploit_acquisition_function]
+
+        acquisition_function_hist = self.afs_kwargs.get("acquisition_function_history")
+        if acquisition_function_hist is None:
+            acquisition_function_hist = []
+
+        # next acquisition function
+        next_aqf = self.random_num_generator.choice(
+            aqs, p=[self.explore_probability, 1.0 - self.explore_probability]
+        )
+        acquisition_function_hist.append(next_aqf)
+        self.afs_kwargs.update(
+            {"acquisition_function_history": acquisition_function_hist}
+        )
+
+        return next_aqf
+
+    def to_jsonified_dict(self) -> Dict:
+        """
+        Returns a jsonified dict representation
+        """
+        return {
+            "exploit_acquisition_function": self.exploit_acquisition_function,
+            "explore_acquisition_function": self.explore_acquisition_function,
+            "explore_probability": self.explore_probability,
+            "afs_kwargs": self.afs_kwargs,
+        }
+
+    def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
+        """
+        Writes `ProbabilisticAcquisitionStrategy` to disk as a json
+        """
+        jsonified_list = self.to_jsonified_dict()
+
+        if json_name is None:
+            json_name = "proba_acquisition_strategy.json"
+
+        json_path = os.path.join(write_location, json_name)
+
+        with open(json_path, "w") as f:
+            json.dump(jsonified_list, f)
+
+    @staticmethod
+    def from_jsonified_dict(all_data: Dict):
+        return ProbabilisticAcquisitionStrategy(
+            exploit_acquisition_function=all_data.get("exploit_acquisition_function"),
+            explore_acquisition_function=all_data.get("explore_acquisition_function"),
+            explore_probability=all_data.get("explore_probability"),
+            afs_kwargs=all_data.get("afs_kwargs", {}),
+        )
+
+    @staticmethod
+    def from_json(json_name: str):
+        with open(json_name, "r") as f:
+            all_data = json.load(f)
+        return ProbabilisticAcquisitionStrategy.from_jsonified_dict(all_data)
+
+
 class AnnealingAcquisitionStrategy:
     def __init__(
         self,
