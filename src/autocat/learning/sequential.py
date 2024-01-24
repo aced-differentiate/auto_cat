@@ -1361,6 +1361,7 @@ class CandidateSelector:
             CyclicAcquisitionStrategy,
             AnnealingAcquisitionStrategy,
             ThresholdAcquisitionStrategy,
+            ProbabilisticAcquisitionStrategy,
         ] = None,
         num_candidates_to_pick: int = None,
         target_window: Array = None,
@@ -1531,6 +1532,7 @@ class CandidateSelector:
                 CyclicAcquisitionStrategy,
                 AnnealingAcquisitionStrategy,
                 ThresholdAcquisitionStrategy,
+                ProbabilisticAcquisitionStrategy,
             ),
         ):
             self._acquisition_strategy = acquisition_strategy
@@ -1801,7 +1803,9 @@ class CandidateSelector:
             )
 
         # use acquisition strategy to select acquisition function
-        if isinstance(self.acquisition_strategy, CyclicAcquisitionStrategy):
+        if isinstance(self.acquisition_strategy, ProbabilisticAcquisitionStrategy):
+            aq = self.acquisition_strategy.select_acquisition_function()
+        elif isinstance(self.acquisition_strategy, CyclicAcquisitionStrategy):
             aq = self.acquisition_strategy.select_acquisition_function(
                 number_of_labelled_data_pts=number_of_labelled_data_pts, **kwargs
             )
