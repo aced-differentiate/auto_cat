@@ -2257,6 +2257,34 @@ def test_candidate_selector_choose_candidate_segregation_energy_weighting():
         )
 
 
+def test_simulated_sequential_initial_training_given():
+    rng = np.random.default_rng(5718)
+    X = rng.random((20, 3))
+    labels = rng.random(20)
+    ds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+    candidate_selector = CandidateSelector(acquisition_function="Random")
+    predictor = Predictor()
+    init_training_set = generate_initial_training_idx(
+        training_set_size=5, design_space=ds, inclusion_window=(0, 0.3), rng=rng
+    )
+
+    sl = simulated_sequential_learning(
+        full_design_space=ds,
+        init_training_idx=init_training_set,
+        number_of_sl_loops=2,
+        candidate_selector=candidate_selector,
+        predictor=predictor,
+        # below parameters should be superceded
+        init_training_size=8,
+        training_inclusion_window=[0.4, 0.5],
+    )
+
+    assert np.array_equal(init_training_set, sl.train_idx_history[0])
+    # check parameters are superceded when given initial training idx
+    assert sum(sl.train_idx_history[0]) == 5
+    assert len(np.where(sl.train_idx_history[0] > 0.3)[0])
+
+
 def test_simulated_sequential_histories():
     # Test output sl has appropriate histories
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
