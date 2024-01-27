@@ -2441,6 +2441,7 @@ def multiple_simulated_sequential_learning_runs(
     predictor: Predictor = None,
     candidate_selector: CandidateSelector = None,
     fixed_target: bool = True,
+    set_init_training_idx: List[Array] = None,
     init_training_size: int = 10,
     training_inclusion_window: Array = None,
     number_of_sl_loops: int = None,
@@ -2472,6 +2473,12 @@ def multiple_simulated_sequential_learning_runs(
         change according to maximum observed value in search so far.
         Currently only implemented for maximization and minimization problems
         Defaults to having a fixed target
+
+    set_init_training_idx:
+        List of initial training sets to be used for the search.
+        Must have the same size as the full design space provided and
+        contain same number of sets as `number_of_runs`
+        Supercedes `init_training_size` and `training_inclusion_window`
 
     init_training_size:
         Size of the initial training set to be selected from
@@ -2516,6 +2523,14 @@ def multiple_simulated_sequential_learning_runs(
         List of SequentialLearner objects for each simulated run
     """
 
+    if set_init_training_idx is not None:
+        if len(set_init_training_idx) != number_of_runs:
+            msg = f"Number of initial training sets ({len(set_init_training_idx)})\
+                must match number of runs ({number_of_runs})"
+            raise SequentialLearnerError(msg)
+    else:
+        set_init_training_idx = [None] * number_of_runs
+
     if number_parallel_jobs is not None:
         runs_history = Parallel(n_jobs=number_parallel_jobs)(
             delayed(simulated_sequential_learning)(
@@ -2523,11 +2538,12 @@ def multiple_simulated_sequential_learning_runs(
                 predictor=predictor,
                 candidate_selector=candidate_selector,
                 number_of_sl_loops=number_of_sl_loops,
+                init_training_idx=init,
                 init_training_size=init_training_size,
                 fixed_target=fixed_target,
                 training_inclusion_window=training_inclusion_window,
             )
-            for i in range(number_of_runs)
+            for init in set_init_training_idx
         )
 
     else:
@@ -2538,10 +2554,11 @@ def multiple_simulated_sequential_learning_runs(
                 candidate_selector=candidate_selector,
                 fixed_target=fixed_target,
                 number_of_sl_loops=number_of_sl_loops,
+                init_training_idx=init,
                 init_training_size=init_training_size,
                 training_inclusion_window=training_inclusion_window,
             )
-            for i in range(number_of_runs)
+            for init in set_init_training_idx
         ]
 
     # TODO: separate dictionary representation and writing to disk
