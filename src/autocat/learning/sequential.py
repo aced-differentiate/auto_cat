@@ -2563,6 +2563,7 @@ def simulated_sequential_learning(
     predictor: Predictor = None,
     candidate_selector: CandidateSelector = None,
     fixed_target: bool = True,
+    init_training_idx: Array = None,
     init_training_size: int = 10,
     training_inclusion_window: Array = None,
     number_of_sl_loops: int = None,
@@ -2595,6 +2596,11 @@ def simulated_sequential_learning(
         change according to maximum observed value in search so far.
         Currently only implemented for maximization and minimization problems
         Defaults to having a fixed target
+
+    init_training_idx:
+        Mask specifying initial training set to be used for the search. Must
+        have the same size as the full design space provided
+        Supercedes `init_training_size` and `training_inclusion_window`
 
     init_training_size:
         Size of the initial training set to be selected from
@@ -2640,11 +2646,27 @@ def simulated_sequential_learning(
         )
         raise SequentialLearnerError(msg)
 
-    # check that specified initial training size makes sense
-    if init_training_size > ds_size:
-        msg = f"Initial training size ({init_training_size})\
-             larger than design space ({ds_size})"
-        raise SequentialLearnerError(msg)
+    if init_training_idx is not None:
+        # initial training set provided
+        if len(init_training_idx) != ds_size:
+            msg = f"Initial training set mask size ({len(init_training_idx)})\
+                  must match with design space size ({ds_size})"
+            raise SequentialLearnerError(msg)
+        init_training_size = sum(init_training_idx)
+        init_idx = init_training_idx
+    else:
+        # need to generate initial training set
+        # check that specified initial training size makes sense
+        if init_training_size > ds_size:
+            msg = f"Initial training size ({init_training_size})\
+                 larger than design space ({ds_size})"
+            raise SequentialLearnerError(msg)
+        # generate initial training set
+        init_idx = generate_initial_training_idx(
+            training_set_size=init_training_size,
+            design_space=full_design_space,
+            inclusion_window=training_inclusion_window,
+        )
 
     batch_size_to_add = candidate_selector.num_candidates_to_pick
     max_num_sl_loops = int(np.ceil((ds_size - init_training_size) / batch_size_to_add))
@@ -2659,13 +2681,6 @@ def simulated_sequential_learning(
             f" ({max_num_sl_loops})"
         )
         raise SequentialLearnerError(msg)
-
-    # generate initial training set
-    init_idx = generate_initial_training_idx(
-        training_set_size=init_training_size,
-        design_space=full_design_space,
-        inclusion_window=training_inclusion_window,
-    )
 
     if full_design_space.feature_matrix is not None:
         init_systems = full_design_space.feature_matrix[np.where(init_idx)]
