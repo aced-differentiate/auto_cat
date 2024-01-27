@@ -2658,6 +2658,43 @@ def test_simulated_sequential_learning_fully_explored():
         )
 
 
+def test_multiple_sequential_learning_init_set_given():
+    # Tests giving set of initial training idx
+    rng = np.random.default_rng(44)
+    X = rng.random((6, 2))
+    labels = rng.random(6)
+    ds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+    predictor = Predictor(GaussianProcessRegressor())
+    candidate_selector = CandidateSelector(acquisition_function="MU")
+    init_set = []
+    for i in range(3):
+        init = generate_initial_training_idx(
+            training_set_size=2, design_space=ds, rng=rng
+        )
+        init_set.append(init)
+    with pytest.raises(SequentialLearnerError):
+        # not enough initial training sets provided
+        runs_history = multiple_simulated_sequential_learning_runs(
+            full_design_space=ds,
+            number_of_runs=4,
+            predictor=predictor,
+            candidate_selector=candidate_selector,
+            number_of_sl_loops=1,
+            set_init_training_idx=init_set,
+        )
+
+    runs_history = multiple_simulated_sequential_learning_runs(
+        full_design_space=ds,
+        number_of_runs=3,
+        predictor=predictor,
+        candidate_selector=candidate_selector,
+        number_of_sl_loops=1,
+        set_init_training_idx=init_set,
+    )
+    for idx, init in enumerate(init_set):
+        assert np.array_equal(runs_history[idx].train_idx_history[0], init)
+
+
 def test_multiple_sequential_learning_serial():
     # Tests serial implementation
     sub1 = generate_surface_structures(["Pt"], facets={"Pt": ["111"]})["Pt"]["fcc111"][
