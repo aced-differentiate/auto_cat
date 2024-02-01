@@ -41,6 +41,7 @@ from autocat.learning.sequential import CandidateSelector
 from autocat.learning.sequential import CandidateSelectorError
 from autocat.learning.sequential import SyntheticDesignSpace
 from autocat.learning.sequential import SyntheticDesignSpaceError
+from autocat.learning.sequential import GenerateTrainingIdxError
 from autocat.learning.sequential import simulated_sequential_learning
 from autocat.learning.sequential import multiple_simulated_sequential_learning_runs
 from autocat.learning.sequential import calculate_hhi_scores
@@ -2265,7 +2266,7 @@ def test_simulated_sequential_initial_training_given():
     candidate_selector = CandidateSelector(acquisition_function="Random")
     predictor = Predictor()
     init_training_set = generate_initial_training_idx(
-        training_set_size=5, design_space=ds, inclusion_window=(0, 0.3), rng=rng
+        training_set_size=5, design_space=ds, exclusion_window=(0, 0.3), rng=rng
     )
 
     sl = simulated_sequential_learning(
@@ -2276,13 +2277,13 @@ def test_simulated_sequential_initial_training_given():
         predictor=predictor,
         # below parameters should be superceded
         init_training_size=8,
-        training_inclusion_window=[0.4, 0.5],
+        training_exclusion_window=[0.4, 0.5],
     )
 
     assert np.array_equal(init_training_set, sl.train_idx_history[0])
     # check parameters are superceded when given initial training idx
     assert sum(sl.train_idx_history[0]) == 5
-    assert len(np.where(sl.train_idx_history[0] > 0.3)[0])
+    assert len(np.where(labels[sl.train_idx_history[0]] < 0.3)[0]) == 0
 
 
 def test_simulated_sequential_histories():
@@ -2813,28 +2814,34 @@ def test_generate_init_training_idx():
     labels = np.array([11.0, 25.0, -14.0, -1.0])
     ds = DesignSpace(feature_matrix=X, design_space_labels=labels)
 
-    # improper inclusion window
+    # improper exclusion window
     with pytest.raises(Exception):
         generate_initial_training_idx(
-            training_set_size=2, design_space=ds, inclusion_window=[3, 4, 5]
+            training_set_size=2, design_space=ds, exclusion_window=[3, 4, 5]
         )
 
-    # inf inclusion window
+    # no exclusion window
     rng = np.random.default_rng(3404)
     init = generate_initial_training_idx(training_set_size=2, design_space=ds, rng=rng)
     assert np.array_equal(init, [True, False, False, True])
 
-    # semi-bounded inclusion window
+    # semi-bounded exclusion window
     init = generate_initial_training_idx(
-        training_set_size=2, design_space=ds, inclusion_window=(0.0, np.inf)
+        training_set_size=2, design_space=ds, exclusion_window=(0.0, np.inf)
     )
-    assert np.array_equal(init, [True, True, False, False])
+    assert np.array_equal(init, [False, False, True, True])
 
-    # finite inclusion window
+    # not enough points after applying exclusion
+    with pytest.raises(GenerateTrainingIdxError):
+        init = generate_initial_training_idx(
+            training_set_size=3, design_space=ds, exclusion_window=(12.0, -20.0)
+        )
+
+    # finite exclusion window
     init = generate_initial_training_idx(
-        training_set_size=3, design_space=ds, inclusion_window=(12.0, -20.0)
+        training_set_size=2, design_space=ds, exclusion_window=(12.0, -2.0)
     )
-    assert np.array_equal(init, [True, False, True, True])
+    assert np.array_equal(init, [False, True, True, False])
 
 
 def test_get_overlap_score():
