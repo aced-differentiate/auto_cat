@@ -2443,7 +2443,7 @@ def multiple_simulated_sequential_learning_runs(
     fixed_target: bool = True,
     set_init_training_idx: List[Array] = None,
     init_training_size: int = 10,
-    training_inclusion_window: Array = None,
+    training_exclusion_window: Array = None,
     number_of_sl_loops: int = None,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -2485,8 +2485,8 @@ def multiple_simulated_sequential_learning_runs(
         the full space.
         Default: 10
 
-    training_inclusion_window:
-        Window of target values that the initial training set can be selected from
+    training_exclusion_window:
+        Window of target values that the initial training set cannot be selected from
 
     number_of_sl_loops:
         Integer specifying the number of sequential learning loops to be conducted.
@@ -2541,7 +2541,7 @@ def multiple_simulated_sequential_learning_runs(
                 init_training_idx=init,
                 init_training_size=init_training_size,
                 fixed_target=fixed_target,
-                training_inclusion_window=training_inclusion_window,
+                training_exclusion_window=training_exclusion_window,
             )
             for init in set_init_training_idx
         )
@@ -2556,7 +2556,7 @@ def multiple_simulated_sequential_learning_runs(
                 number_of_sl_loops=number_of_sl_loops,
                 init_training_idx=init,
                 init_training_size=init_training_size,
-                training_inclusion_window=training_inclusion_window,
+                training_exclusion_window=training_exclusion_window,
             )
             for init in set_init_training_idx
         ]
@@ -2582,7 +2582,7 @@ def simulated_sequential_learning(
     fixed_target: bool = True,
     init_training_idx: Array = None,
     init_training_size: int = 10,
-    training_inclusion_window: Array = None,
+    training_exclusion_window: Array = None,
     number_of_sl_loops: int = None,
     write_to_disk: bool = False,
     write_location: str = ".",
@@ -2624,8 +2624,8 @@ def simulated_sequential_learning(
         the full space.
         Default: 10
 
-    training_inclusion_window:
-        Window of target values that the initial training set can be selected from
+    training_exclusion_window:
+        Window of target values that the initial training set cannot be selected from
 
     number_of_sl_loops:
         Integer specifying the number of sequential learning loops to be conducted.
@@ -2682,7 +2682,7 @@ def simulated_sequential_learning(
         init_idx = generate_initial_training_idx(
             training_set_size=init_training_size,
             design_space=full_design_space,
-            inclusion_window=training_inclusion_window,
+            exclusion_window=training_exclusion_window,
         )
 
     batch_size_to_add = candidate_selector.num_candidates_to_pick
@@ -2760,10 +2760,14 @@ def simulated_sequential_learning(
     return sl
 
 
+class GenerateTrainingIdxError(Exception):
+    pass
+
+
 def generate_initial_training_idx(
     training_set_size: int,
     design_space: DesignSpace,
-    inclusion_window: Array = None,
+    exclusion_window: Array = None,
     rng: np.random.Generator = None,
 ):
     """
@@ -2778,25 +2782,31 @@ def generate_initial_training_idx(
     design_space:
         DesignSpace to generate an initial training set for
 
-    inclusion_window:
-        When generating the initial training set, only include systems whose
+    exclusion_window:
+        When generating the initial training set, exclude systems whose
         label falls within the specified window
 
     rng:
         Numpy random number generator (for testing)
     """
-    if inclusion_window is None:
-        inclusion_window = (-np.inf, np.inf)
-    elif len(inclusion_window) != 2:
-        msg = "Inclusion window must be defined by a tuple of exactly 2 bounds"
+    if exclusion_window is None:
+        window = (np.inf, -np.inf)
+    elif len(exclusion_window) != 2:
+        msg = "Exclusion window must be defined by a tuple of exactly 2 bounds"
         raise Exception(msg)
-    window = np.sort(inclusion_window)
+    else:
+        window = np.sort(exclusion_window)
 
     if rng is None:
         rng = np.random.default_rng()
 
     labels = design_space.design_space_labels
-    possible_idx = np.where((labels > window[0]) & (labels < window[1]))[0]
+    possible_idx = np.where((labels < window[0]) | (labels > window[1]))[0]
+
+    if sum(possible_idx) < training_set_size:
+        msg = f"Applying exclusion window less than {training_set_size} systems\
+             to pick from"
+        raise GenerateTrainingIdxError(msg)
 
     init_idx = np.zeros(len(design_space), dtype=bool)
     init_idx[rng.choice(possible_idx, size=training_set_size, replace=False)] = 1
