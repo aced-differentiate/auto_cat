@@ -114,6 +114,43 @@ def test_sequential_learner_from_json():
         )
         assert np.array_equal(written_acsl.acquisition_scores, acsl.acquisition_scores)
 
+    with tempfile.TemporaryDirectory() as _tmp_dir:
+        acsl.write_json_to_disk(_tmp_dir, "testing_compress.json", compress=True)
+        json_path = os.path.join(_tmp_dir, "testing_compress.json.gz")
+        c_written_acsl = SequentialLearner.from_json(json_path, compress=True)
+        assert np.array_equal(
+            c_written_acsl.design_space.design_space_labels,
+            acds.design_space_labels,
+            equal_nan=True,
+        )
+        assert (
+            c_written_acsl.design_space.design_space_structures
+            == acds.design_space_structures
+        )
+        assert c_written_acsl.predictor.featurizer == acsl.predictor.featurizer
+        assert isinstance(c_written_acsl.predictor.regressor, GaussianProcessRegressor)
+        assert c_written_acsl.candidate_selector == acsl.candidate_selector
+        assert c_written_acsl.iteration_count == 1
+        assert np.array_equal(c_written_acsl.train_idx, acsl.train_idx)
+        assert c_written_acsl.train_idx[0] in [True, False]
+        assert np.array_equal(c_written_acsl.train_idx_history, acsl.train_idx_history)
+        assert c_written_acsl.train_idx_history[0][0] in [True, False]
+        assert np.array_equal(c_written_acsl.predictions, acsl.predictions)
+        assert np.array_equal(
+            c_written_acsl.predictions_history, acsl.predictions_history
+        )
+        assert np.array_equal(c_written_acsl.uncertainties, acsl.uncertainties)
+        assert np.array_equal(
+            c_written_acsl.uncertainties_history, acsl.uncertainties_history
+        )
+        assert np.array_equal(c_written_acsl.candidate_indices, acsl.candidate_indices)
+        assert np.array_equal(
+            c_written_acsl.candidate_index_history, acsl.candidate_index_history
+        )
+        assert np.array_equal(
+            c_written_acsl.acquisition_scores, acsl.acquisition_scores
+        )
+
 
 def test_sequential_learner_from_jsonified_dict():
     # Tests generating a SequentialLearner from a json dict
