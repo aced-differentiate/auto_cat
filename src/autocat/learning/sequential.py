@@ -16,6 +16,7 @@ from ase.io.jsonio import decode as atoms_decoder
 from scipy import stats
 from olympus import Surface
 from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.preprocessing import StandardScaler
 
 from autocat.learning.predictors import Predictor
 from autocat.data.hhi import HHI
@@ -2867,7 +2868,10 @@ def gen_cluster_around_point(
     init_idx = np.zeros(len(feature_matrix), dtype=bool)
     init_idx[reference_idx] = 1
 
-    distances = euclidean_distances([feature_matrix[reference_idx]], feature_matrix)
+    scaler = StandardScaler()
+    scaled_feat_mat = scaler.fit_transform(feature_matrix)
+
+    distances = euclidean_distances([scaled_feat_mat[reference_idx]], scaled_feat_mat)
 
     sorted_distance_idx = np.argsort(distances).reshape(-1,)
     cluster_idx = sorted_distance_idx[1:cluster_size]
