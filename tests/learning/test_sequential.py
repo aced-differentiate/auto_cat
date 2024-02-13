@@ -46,6 +46,7 @@ from autocat.learning.sequential import simulated_sequential_learning
 from autocat.learning.sequential import multiple_simulated_sequential_learning_runs
 from autocat.learning.sequential import calculate_hhi_scores
 from autocat.learning.sequential import generate_initial_training_idx
+from autocat.learning.sequential import gen_cluster_around_point
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
@@ -2879,6 +2880,13 @@ def test_generate_init_training_idx():
         training_set_size=2, design_space=ds, exclusion_window=(12.0, -2.0)
     )
     assert np.array_equal(init, [False, True, True, False])
+
+
+def test_gen_cluster_around_point():
+    X = np.array([[0, 1], [2, 0], [1, 0], [0, 6]])
+    init_train = gen_cluster_around_point(X, 0, 2)
+    assert sum(init_train) == 2
+    assert np.array_equal(init_train, [True, False, True, False])
 
 
 def test_get_overlap_score():
