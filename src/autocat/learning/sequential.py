@@ -1,6 +1,7 @@
 import copy
 import os
 import json
+import gzip
 import itertools
 from typing import List
 from typing import Dict
@@ -2365,7 +2366,9 @@ class SequentialLearner:
             "sl_kwargs": jsonified_sl_kwargs,
         }
 
-    def write_json_to_disk(self, write_location: str = ".", json_name: str = None):
+    def write_json_to_disk(
+        self, write_location: str = ".", json_name: str = None, compress: bool = False
+    ):
         """
         Writes `SequentialLearner` to disk as a json
         """
@@ -2376,8 +2379,12 @@ class SequentialLearner:
 
         json_path = os.path.join(write_location, json_name)
 
-        with open(json_path, "w") as f:
-            json.dump(jsonified_list, f)
+        if compress:
+            with gzip.open(json_path + ".gz", "w") as f:
+                f.write(json.dumps(jsonified_list).encode("utf-8"))
+        else:
+            with open(json_path, "w") as f:
+                json.dump(jsonified_list, f)
 
     @staticmethod
     def from_jsonified_dict(all_data: Dict):
@@ -2428,9 +2435,13 @@ class SequentialLearner:
         )
 
     @staticmethod
-    def from_json(json_name: str):
-        with open(json_name, "r") as f:
-            all_data = json.load(f)
+    def from_json(json_name: str, compress: bool = False):
+        if compress:
+            with gzip.open(json_name, "r") as f:
+                all_data = json.loads(f.read().decode("utf-8"))
+        else:
+            with open(json_name, "r") as f:
+                all_data = json.load(f)
         return SequentialLearner.from_jsonified_dict(all_data)
 
 
@@ -2448,6 +2459,7 @@ def multiple_simulated_sequential_learning_runs(
     write_to_disk: bool = False,
     write_location: str = ".",
     json_name_prefix: str = None,
+    compress: bool = False,
 ) -> List[SequentialLearner]:
     """
     Conducts multiple simulated sequential learning runs
@@ -2516,6 +2528,9 @@ def multiple_simulated_sequential_learning_runs(
         The naming convention is `{json_name_prefix}_{run #}.json`
         Default: acsl_run
 
+    compress:
+        Whether the simulated runs should be compressed with gzip before writing to disk
+
     Returns
     -------
 
@@ -2569,7 +2584,9 @@ def multiple_simulated_sequential_learning_runs(
             json_name_prefix = "acsl_run"
         for i, run in enumerate(runs_history):
             name = json_name_prefix + "_" + str(i) + ".json"
-            run.write_json_to_disk(write_location=write_location, json_name=name)
+            run.write_json_to_disk(
+                write_location=write_location, json_name=name, compress=compress
+            )
         print(f"SL histories written to {write_location}")
 
     return runs_history
@@ -2587,6 +2604,7 @@ def simulated_sequential_learning(
     write_to_disk: bool = False,
     write_location: str = ".",
     json_name: str = None,
+    compress: bool = False,
 ) -> SequentialLearner:
     """
     Conducts a simulated sequential learning loop for a
@@ -2642,6 +2660,9 @@ def simulated_sequential_learning(
         String with the location where the resulting sequential learner
         should be written to disk.
         Defaults to current directory.
+
+    compress:
+        Whether the simulated runs should be compressed with gzip before writing to disk
 
     Returns
     -------
@@ -2754,7 +2775,9 @@ def simulated_sequential_learning(
             sl.iterate()
 
     if write_to_disk:
-        sl.write_json_to_disk(write_location=write_location, json_name=json_name)
+        sl.write_json_to_disk(
+            write_location=write_location, json_name=json_name, compress=compress
+        )
         print(f"SL dictionary written to {write_location}")
 
     return sl
