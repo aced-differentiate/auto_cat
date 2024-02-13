@@ -15,6 +15,7 @@ from ase.io.jsonio import encode as atoms_encoder
 from ase.io.jsonio import decode as atoms_decoder
 from scipy import stats
 from olympus import Surface
+from sklearn.metrics.pairwise import euclidean_distances
 
 from autocat.learning.predictors import Predictor
 from autocat.data.hhi import HHI
@@ -2834,6 +2835,44 @@ def generate_initial_training_idx(
     init_idx = np.zeros(len(design_space), dtype=bool)
     init_idx[rng.choice(possible_idx, size=training_set_size, replace=False)] = 1
 
+    return init_idx
+
+
+def gen_cluster_around_point(
+    feature_matrix: Array, reference_idx: int, cluster_size: int,
+):
+    """
+    Given a feature matrix and reference point, returns a mask identifying a cluster
+    around that point
+
+    Parameters
+    ----------
+
+    feature_matrix:
+        Feature matrix for entire design space (n_systems, n_features)
+
+    reference_idx:
+        Index from which the cluster should be built around
+
+    cluster_size:
+        Size of cluster to generate (including reference point)
+
+    Returns
+    -------
+
+    init_idx:
+        Boolean mask indicating which rows were selected
+        to comprise the cluster (n_systems,)
+    """
+    init_idx = np.zeros(len(feature_matrix), dtype=bool)
+    init_idx[reference_idx] = 1
+
+    distances = euclidean_distances([feature_matrix[reference_idx]], feature_matrix)
+
+    sorted_distance_idx = np.argsort(distances).reshape(-1,)
+    cluster_idx = sorted_distance_idx[1:cluster_size]
+
+    init_idx[cluster_idx] = 1
     return init_idx
 
 
