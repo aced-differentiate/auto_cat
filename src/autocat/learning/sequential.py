@@ -18,6 +18,7 @@ from olympus import Surface
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.preprocessing import StandardScaler
 
+from autocat.learning.featurizers import Featurizer
 from autocat.learning.predictors import Predictor
 from autocat.data.hhi import HHI
 from autocat.data.segregation_energies import SEGREGATION_ENERGIES
@@ -2793,6 +2794,10 @@ def generate_initial_training_idx(
     training_set_size: int,
     design_space: DesignSpace,
     exclusion_window: Array = None,
+    selection_mode: str = "label_window",
+    cluster_mode: str = "tight",
+    cluster_reference_idx: int = None,
+    featurizer: Featurizer = None,
     rng: np.random.Generator = None,
 ):
     """
@@ -2811,6 +2816,29 @@ def generate_initial_training_idx(
         When generating the initial training set, exclude systems whose
         label falls within the specified window
 
+    selection_mode:
+        How the initial training set will be generated
+        Options:
+            label_window: randomly sample excluding samples with labels in a window
+            cluster: generate a cluster around a reference system
+
+    cluster_mode:
+        When generating a cluster, how it will be constructed
+        Options:
+            - tight: pick nearest neighbors around reference until size is met
+            - loose: pick neighbors probabilitistically by distance from the reference
+                the probability of selecting system i is calculated by:
+                p = inv_dist_i / ||{inv_dist}||1
+                where inv_dist is max({distance_i}) - distance_i
+                and ||{x}||1 is the L1 norm over set of distances {x}
+
+    cluster_reference_idx:
+        Index for reference system from which the cluster will be made
+
+    featurizer:
+        Featurizer object to featurize structures if design space
+        does not have a feature matrix already
+
     rng:
         Numpy random number generator (for testing)
     """
@@ -2825,16 +2853,38 @@ def generate_initial_training_idx(
     if rng is None:
         rng = np.random.default_rng()
 
-    labels = design_space.design_space_labels
-    possible_idx = np.where((labels < window[0]) | (labels > window[1]))[0]
+    if selection_mode == "label_window":
+        labels = design_space.design_space_labels
+        possible_idx = np.where((labels < window[0]) | (labels > window[1]))[0]
 
-    if sum(possible_idx) < training_set_size:
-        msg = f"Applying exclusion window less than {training_set_size} systems\
-             to pick from"
-        raise GenerateTrainingIdxError(msg)
+        if sum(possible_idx) < training_set_size:
+            msg = f"Applying exclusion window less than {training_set_size} systems\
+                 to pick from"
+            raise GenerateTrainingIdxError(msg)
 
-    init_idx = np.zeros(len(design_space), dtype=bool)
-    init_idx[rng.choice(possible_idx, size=training_set_size, replace=False)] = 1
+        init_idx = np.zeros(len(design_space), dtype=bool)
+        init_idx[rng.choice(possible_idx, size=training_set_size, replace=False)] = 1
+
+    elif selection_mode == "cluster":
+        X = design_space.feature_matrix
+        if X is None:
+            if featurizer is None:
+                featurizer = Featurizer()
+            X = featurizer.featurize_multiple(design_space.design_space_structures)
+
+        if cluster_reference_idx is None:
+            cluster_reference_idx = rng.choice(len(X))
+
+        init_idx = generate_cluster_around_point(
+            feature_matrix=X,
+            cluster_size=training_set_size,
+            mode=cluster_mode,
+            reference_idx=cluster_reference_idx,
+            random_num_generator=rng,
+        )
+
+    else:
+        msg = f"Unrecognized selection mode {selection_mode}. Please use label_window or cluster"
 
     return init_idx
 
