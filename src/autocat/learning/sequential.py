@@ -2839,8 +2839,12 @@ def generate_initial_training_idx(
     return init_idx
 
 
-def gen_cluster_around_point(
-    feature_matrix: Array, reference_idx: int, cluster_size: int,
+def generate_cluster_around_point(
+    feature_matrix: Array,
+    reference_idx: int,
+    cluster_size: int,
+    mode: str = "tight",
+    random_num_generator: np.random.Generator = None,
 ):
     """
     Given a feature matrix and reference point, returns a mask identifying a cluster
@@ -2858,6 +2862,16 @@ def gen_cluster_around_point(
     cluster_size:
         Size of cluster to generate (including reference point)
 
+    mode:
+        How to pick systems to add to the cluster
+        Options:
+            - tight: pick nearest neighbors around reference until size is met
+            - loose: pick neighbors probabilitistically by distance from the reference
+                the probability of selecting system i is calculated by:
+                p = inv_dist_i / ||{inv_dist}||1
+                where inv_dist is max({distance_i}) - distance_i
+                and ||{x}||1 is the L1 norm over set of distances {x}
+
     Returns
     -------
 
@@ -2872,10 +2886,28 @@ def gen_cluster_around_point(
     scaled_feat_mat = scaler.fit_transform(feature_matrix)
 
     distances = euclidean_distances([scaled_feat_mat[reference_idx]], scaled_feat_mat)
+    distances = distances.reshape(-1,)
 
-    sorted_distance_idx = np.argsort(distances).reshape(-1,)
-    cluster_idx = sorted_distance_idx[1:cluster_size]
-
+    if mode == "tight":
+        sorted_distance_idx = np.argsort(distances)
+        cluster_idx = sorted_distance_idx[1:cluster_size]
+    elif mode == "loose":
+        dist_exc_ref = distances[~init_idx]
+        inv_distances = max(dist_exc_ref) - dist_exc_ref
+        normalized_inv_distances = inv_distances / np.linalg.norm(inv_distances, ord=1)
+        if random_num_generator is None:
+            random_num_generator = np.random.default_rng()
+        select_idx = random_num_generator.choice(
+            len(normalized_inv_distances),
+            p=normalized_inv_distances,
+            size=cluster_size - 1,
+            replace=False,
+            shuffle=False,
+        )
+        cluster_idx = np.arange(distances.shape[0])[~init_idx][select_idx]
+    else:
+        msg = f"Unrecognized mode {mode}. Please select tight or loose mode"
+        raise GenerateTrainingIdxError(msg)
     init_idx[cluster_idx] = 1
     return init_idx
 
