@@ -46,7 +46,7 @@ from autocat.learning.sequential import simulated_sequential_learning
 from autocat.learning.sequential import multiple_simulated_sequential_learning_runs
 from autocat.learning.sequential import calculate_hhi_scores
 from autocat.learning.sequential import generate_initial_training_idx
-from autocat.learning.sequential import gen_cluster_around_point
+from autocat.learning.sequential import generate_cluster_around_point
 from autocat.surface import generate_surface_structures
 from autocat.adsorption import place_adsorbate
 from autocat.saa import generate_saa_structures
@@ -2882,11 +2882,25 @@ def test_generate_init_training_idx():
     assert np.array_equal(init, [False, True, True, False])
 
 
-def test_gen_cluster_around_point():
-    X = np.array([[0, 1], [2, 0], [1, 0], [0, 6]])
-    init_train = gen_cluster_around_point(X, 0, 2)
+def test_generate_cluster_around_point():
+    # tight clustering
+    X = np.array([[2, 0], [0, 1], [1, 0], [0, 6]])
+    init_train = generate_cluster_around_point(X, 1, 2)
     assert sum(init_train) == 2
-    assert np.array_equal(init_train, [True, False, True, False])
+    assert np.array_equal(init_train, [False, True, True, False])
+
+    # loose clustering
+    rng = np.random.default_rng(123)
+    X = np.array([[7, 3], [0, 1], [2, 0], [1, 0], [0, 6], [5, 5]])
+    init_train = generate_cluster_around_point(
+        feature_matrix=X,
+        reference_idx=2,
+        cluster_size=3,
+        mode="loose",
+        random_num_generator=rng,
+    )
+    assert sum(init_train) == 3
+    assert np.array_equal(init_train, [True, False, True, True, False, False])
 
 
 def test_get_overlap_score():
