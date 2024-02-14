@@ -2463,6 +2463,7 @@ def multiple_simulated_sequential_learning_runs(
     write_location: str = ".",
     json_name_prefix: str = None,
     compress: bool = False,
+    **cluster_gen_kwargs,
 ) -> List[SequentialLearner]:
     """
     Conducts multiple simulated sequential learning runs
@@ -2560,6 +2561,7 @@ def multiple_simulated_sequential_learning_runs(
                 init_training_size=init_training_size,
                 fixed_target=fixed_target,
                 training_exclusion_window=training_exclusion_window,
+                **cluster_gen_kwargs,
             )
             for init in set_init_training_idx
         )
@@ -2575,6 +2577,7 @@ def multiple_simulated_sequential_learning_runs(
                 init_training_idx=init,
                 init_training_size=init_training_size,
                 training_exclusion_window=training_exclusion_window,
+                **cluster_gen_kwargs,
             )
             for init in set_init_training_idx
         ]
@@ -2608,6 +2611,7 @@ def simulated_sequential_learning(
     write_location: str = ".",
     json_name: str = None,
     compress: bool = False,
+    **cluster_gen_kwargs,
 ) -> SequentialLearner:
     """
     Conducts a simulated sequential learning loop for a
@@ -2707,6 +2711,7 @@ def simulated_sequential_learning(
             training_set_size=init_training_size,
             design_space=full_design_space,
             exclusion_window=training_exclusion_window,
+            **cluster_gen_kwargs,
         )
 
     batch_size_to_add = candidate_selector.num_candidates_to_pick
