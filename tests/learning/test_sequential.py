@@ -2846,7 +2846,7 @@ def test_multiple_sequential_learning_write_to_disk():
         assert written_run.candidate_selector == runs_history[i].candidate_selector
 
 
-def test_generate_init_training_idx():
+def test_generate_init_training_idx_label_window():
     # Test generating initial index
     X = np.array([[3, 6, 9], [2, 4, 6], [4, 8, 12], [5, 10, 15]])
     labels = np.array([11.0, 25.0, -14.0, -1.0])
@@ -2882,10 +2882,46 @@ def test_generate_init_training_idx():
     assert np.array_equal(init, [False, True, True, False])
 
 
+def test_generate_init_training_idx_cluster():
+    # test with feature matrix provided but no reference idx specified
+    rng = np.random.default_rng(1)
+    X = np.array([[2, 0], [0, 1], [1, 0], [0, 6]])
+    labels = np.array([11.0, 25.0, -14.0, -1.0])
+    ds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+    init = generate_initial_training_idx(
+        training_set_size=2, design_space=ds, selection_mode="cluster", rng=rng
+    )
+    assert np.array_equal(init, [False, True, True, False])
+
+    # test without feature matrix provided
+    featurizer = Featurizer(ElementProperty, preset="magpie")
+    sub1 = generate_surface_structures(["Fe"], facets={"Fe": ["110"]})["Fe"]["bcc110"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["Cu"], facets={"Cu": ["100"]})["Cu"]["fcc100"][
+        "structure"
+    ]
+    base_struct1 = place_adsorbate(sub1, Atoms("H"))
+    base_struct2 = place_adsorbate(sub2, Atoms("N"))
+    ds_structs = [base_struct1, base_struct2, sub1, sub2]
+    ds_labels = np.array([5.0, 6.0, 7.0, 8.0])
+    ds = DesignSpace(ds_structs, ds_labels)
+    init = generate_initial_training_idx(
+        training_set_size=3,
+        design_space=ds,
+        selection_mode="cluster",
+        cluster_reference_idx=0,
+        featurizer=featurizer,
+    )
+    assert np.array_equal(init, [True, True, True, False])
+
+
 def test_generate_cluster_around_point():
     # tight clustering
     X = np.array([[2, 0], [0, 1], [1, 0], [0, 6]])
-    init_train = generate_cluster_around_point(X, 1, 2)
+    init_train = generate_cluster_around_point(
+        feature_matrix=X, reference_idx=1, cluster_size=2
+    )
     assert sum(init_train) == 2
     assert np.array_equal(init_train, [False, True, True, False])
 
