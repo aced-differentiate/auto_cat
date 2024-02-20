@@ -1003,7 +1003,7 @@ def test_query_design_space():
     with pytest.raises(DesignSpaceError):
         ds.query(sub1)
 
-    assert np.isclose(ds.query([-2, 4, 5]), 6)
+    assert np.isclose(ds.query(np.array([-2, 4, 5])), 6)
     assert ds.query([0.2, 0.4, 0.6]) is None
 
 
