@@ -201,6 +201,42 @@ class DesignSpace:
                 species_list.extend(new_species)
             return species_list
 
+    def query(self, system: Union[Array, Atoms]) -> float:
+        """
+        Query the design space for a specific feature vector or structure
+
+        Parameters
+        ----------
+
+        system:
+            Feature vector or Atoms object of system to query
+
+        Returns
+        -------
+
+        Corresponding label if system is in the design space, otherwise None
+        """
+        idx = None
+        if isinstance(system, Atoms):
+            if self.design_space_structures is None:
+                msg = "Design space does not have structures. Please provide a\
+                      vector representation"
+                raise DesignSpaceError(msg)
+            elif system in self.design_space_structures:
+                idx = self.design_space_structures.index(system)
+        else:
+            if self.feature_matrix is None:
+                msg = "Design space does not have feature matrix. Please provide\
+                    an Atoms structure"
+                raise DesignSpaceError(msg)
+            elif system in self.feature_matrix.tolist():
+                idx = self.feature_matrix.tolist().index(system)
+
+        if idx is not None:
+            return self.design_space_labels[idx]
+        else:
+            return None
+
     def update(
         self,
         structures: List[Atoms] = None,
