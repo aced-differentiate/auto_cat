@@ -990,6 +990,7 @@ def test_query_design_space():
     labels = np.array([4.0, 5.0, 6.0])
     ds = DesignSpace(design_space_structures=structs, design_space_labels=labels)
 
+    # test system fmt mismatch
     with pytest.raises(DesignSpaceError):
         ds.query([0.33, 0.2, -0.7])
 
@@ -1000,11 +1001,20 @@ def test_query_design_space():
     X = np.array([[1.0, 4.0, 5.0], [0.1, 50.0, 90.0], [-2.0, 4.0, 5.0]])
     ds = DesignSpace(feature_matrix=X, design_space_labels=labels)
 
+    # test system fmt mismatch
     with pytest.raises(DesignSpaceError):
         ds.query(sub1)
 
     assert np.isclose(ds.query(np.array([-2, 4, 5])), 6)
     assert ds.query([0.2, 0.4, 0.6]) is None
+
+    # wrong system type
+    with pytest.raises(DesignSpaceError):
+        ds.query(4.0)
+
+    # wrong feature vector size
+    with pytest.raises(DesignSpaceError):
+        ds.query(np.array([3.0, 2.0]))
 
 
 def test_write_design_space_as_json():

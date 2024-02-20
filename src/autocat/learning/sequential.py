@@ -224,15 +224,22 @@ class DesignSpace:
                 raise DesignSpaceError(msg)
             elif system in self.design_space_structures:
                 idx = self.design_space_structures.index(system)
-        else:
+        elif isinstance(system, (np.ndarray, list, tuple)):
             if isinstance(system, np.ndarray):
                 system = system.tolist()
             if self.feature_matrix is None:
                 msg = "Design space does not have feature matrix. Please provide\
                     an Atoms structure"
                 raise DesignSpaceError(msg)
+            elif len(system) != self.feature_matrix.shape[1]:
+                msg = f"System has {len(system)} features,\
+                      but design space has {self.feature_matrix.shape[1]} features"
+                raise DesignSpaceError(msg)
             elif system in self.feature_matrix.tolist():
                 idx = self.feature_matrix.tolist().index(system)
+        else:
+            msg = f"System must be array-like or an Atoms object, not {type(system)}"
+            raise DesignSpaceError(msg)
 
         if idx is not None:
             return self.design_space_labels[idx]
