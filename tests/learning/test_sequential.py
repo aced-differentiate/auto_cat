@@ -972,6 +972,41 @@ def test_updating_design_space():
         acds.update(feature_matrix=np.array([2.3, 4.0, 5.0]), labels=np.array([4.0]))
 
 
+def test_query_design_space():
+    # test with design space structures
+    sub1 = generate_surface_structures(["Ag"], facets={"Ag": ["100"]})["Ag"]["fcc100"][
+        "structure"
+    ]
+    sub2 = generate_surface_structures(["Li"], facets={"Li": ["110"]})["Li"]["bcc110"][
+        "structure"
+    ]
+    sub3 = generate_surface_structures(["Na"], facets={"Na": ["110"]})["Na"]["bcc110"][
+        "structure"
+    ]
+    sub4 = generate_surface_structures(["Ru"], facets={"Ru": ["0001"]})["Ru"][
+        "hcp0001"
+    ]["structure"]
+    structs = [sub1, sub2, sub3]
+    labels = np.array([4.0, 5.0, 6.0])
+    ds = DesignSpace(design_space_structures=structs, design_space_labels=labels)
+
+    with pytest.raises(DesignSpaceError):
+        ds.query([0.33, 0.2, -0.7])
+
+    assert np.isclose(ds.query(sub2), 5.0)
+    assert ds.query(sub4) is None
+
+    # test with feature matrix
+    X = np.array([[1.0, 4.0, 5.0], [0.1, 50.0, 90.0], [-2.0, 4.0, 5.0]])
+    ds = DesignSpace(feature_matrix=X, design_space_labels=labels)
+
+    with pytest.raises(DesignSpaceError):
+        ds.query(sub1)
+
+    assert np.isclose(ds.query([-2, 4, 5]), 6)
+    assert ds.query([0.2, 0.4, 0.6]) is None
+
+
 def test_write_design_space_as_json():
     # Tests writing out the DesignSpace to disk
     sub1 = generate_surface_structures(["Pd"], facets={"Pd": ["111"]})["Pd"]["fcc111"][
