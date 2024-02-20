@@ -225,6 +225,8 @@ class DesignSpace:
             elif system in self.design_space_structures:
                 idx = self.design_space_structures.index(system)
         else:
+            if isinstance(system, np.ndarray):
+                system = system.tolist()
             if self.feature_matrix is None:
                 msg = "Design space does not have feature matrix. Please provide\
                     an Atoms structure"
