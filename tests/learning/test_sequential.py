@@ -2979,6 +2979,7 @@ def test_generate_cluster_around_point():
         cluster_size=3,
         mode="loose",
         random_num_generator=rng,
+        spread=1.0,
     )
     assert sum(init_train) == 3
     assert np.array_equal(init_train, [True, False, True, True, False, False])

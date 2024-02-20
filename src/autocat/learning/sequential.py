@@ -2847,6 +2847,7 @@ def generate_initial_training_idx(
     selection_mode: str = "label_window",
     cluster_mode: str = "tight",
     cluster_reference_idx: int = None,
+    cluster_spread: float = 0.2,
     featurizer: Featurizer = None,
     rng: np.random.Generator = None,
 ):
@@ -2878,12 +2879,17 @@ def generate_initial_training_idx(
             - tight: pick nearest neighbors around reference until size is met
             - loose: pick neighbors probabilitistically by distance from the reference
                 the probability of selecting system i is calculated by:
-                p = inv_dist_i / ||{inv_dist}||1
-                where inv_dist is max({distance_i}) - distance_i
-                and ||{x}||1 is the L1 norm over set of distances {x}
+                    p = exp(-distance_i / spread) / ||{exp(-distance / spread)}||1
+                    where spread is a constant, distance_i is the distance from the cluster
+                    reference, and ||{x}||1 is the L1 norm over all distances
 
     cluster_reference_idx:
         Index for reference system from which the cluster will be made
+
+    cluster_spread:
+        Parameter that determines the spread of the cluster when using
+        loose clustering. Higher values indicates looser clustering
+        Default: 0.2
 
     featurizer:
         Featurizer object to featurize structures if design space
@@ -2930,6 +2936,7 @@ def generate_initial_training_idx(
             cluster_size=training_set_size,
             mode=cluster_mode,
             reference_idx=cluster_reference_idx,
+            spread=cluster_spread,
             random_num_generator=rng,
         )
 
@@ -2944,6 +2951,7 @@ def generate_cluster_around_point(
     reference_idx: int,
     cluster_size: int,
     mode: str = "tight",
+    spread: float = 0.2,
     random_num_generator: np.random.Generator = None,
 ):
     """
@@ -2968,9 +2976,14 @@ def generate_cluster_around_point(
             - tight: pick nearest neighbors around reference until size is met
             - loose: pick neighbors probabilitistically by distance from the reference
                 the probability of selecting system i is calculated by:
-                p = inv_dist_i / ||{inv_dist}||1
-                where inv_dist is max({distance_i}) - distance_i
-                and ||{x}||1 is the L1 norm over set of distances {x}
+                p = exp(-distance_i / spread) / ||{exp(-distance / spread)}||1
+                where spread is a constant, distance_i is the distance from the cluster
+                reference, and ||{x}||1 is the L1 norm over all distances
+
+    spread:
+        Parameter that determines the spread of the cluster when using
+        loose clustering. Higher values indicates looser clustering
+        Default: 0.2
 
     Returns
     -------
@@ -2993,8 +3006,9 @@ def generate_cluster_around_point(
         cluster_idx = sorted_distance_idx[1:cluster_size]
     elif mode == "loose":
         dist_exc_ref = distances[~init_idx]
-        inv_distances = max(dist_exc_ref) - dist_exc_ref
-        normalized_inv_distances = inv_distances / np.linalg.norm(inv_distances, ord=1)
+        normalized_inv_distances = np.exp(-dist_exc_ref / spread) / np.linalg.norm(
+            np.exp(-dist_exc_ref / spread), ord=1
+        )
         if random_num_generator is None:
             random_num_generator = np.random.default_rng()
         select_idx = random_num_generator.choice(
