@@ -246,6 +246,19 @@ class DesignSpace:
         else:
             return None
 
+    def query_multiple(self, systems: Union[Array, List[Atoms]]) -> np.ndarray:
+        if not isinstance(systems, (list, tuple, np.ndarray)):
+            msg = f"Must be an array of multiple systems, got {type(systems)}"
+            raise DesignSpaceError(msg)
+        values_list = []
+        for row in systems:
+            val = self.query(row)
+            if val is None:
+                values_list.append(np.nan)
+            else:
+                values_list.append(val)
+        return np.array(values_list)
+
     def update(
         self,
         structures: List[Atoms] = None,
