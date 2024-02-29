@@ -671,6 +671,42 @@ def test_sequential_learner_iterate():
     assert np.count_nonzero(acsl.train_idx_history[-1]) == 3
 
 
+def test_sequential_learner_w_aq_strat():
+    # Tests using acquisition strategy with sequential learner
+    X = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
+    y = np.array([1, 3, np.nan, np.nan])
+    ds = DesignSpace(feature_matrix=X, design_space_labels=y)
+    regressor = GaussianProcessRegressor()
+    predictor = Predictor(regressor=regressor)
+    rng = np.random.default_rng(211)
+    pas = ProbabilisticAcquisitionStrategy(
+        exploit_acquisition_function="MLI",
+        explore_acquisition_function="MU",
+        explore_probability=0.4,
+        random_num_generator=rng,
+    )
+    cs = CandidateSelector(acquisition_strategy=pas, target_window=[4, np.inf])
+    sl = SequentialLearner(design_space=ds, predictor=predictor, candidate_selector=cs)
+    sl.iterate()
+    assert sl.iteration_count == 1
+    assert (
+        len(sl.candidate_selector.acquisition_strategy.acquisition_function_history)
+        == 1
+    )
+    assert sl.candidate_selector.acquisition_strategy.acquisition_function_history == [
+        "MLI"
+    ]
+    sl.iterate()
+    assert (
+        len(sl.candidate_selector.acquisition_strategy.acquisition_function_history)
+        == 2
+    )
+    assert sl.candidate_selector.acquisition_strategy.acquisition_function_history == [
+        "MLI",
+        "MU",
+    ]
+
+
 def test_sequential_learner_fixed_target():
     # Tests having movable target value (max)
     X = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]])
