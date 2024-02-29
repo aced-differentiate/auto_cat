@@ -793,6 +793,7 @@ class CyclicAcquisitionStrategy:
         Returns a jsonified dict representation
         """
         return {
+            "acquisition_strategy_type": "cyclic",
             "exploit_acquisition_function": self.exploit_acquisition_function,
             "explore_acquisition_function": self.explore_acquisition_function,
             "fixed_cyclic_strategy": self.fixed_cyclic_strategy,
@@ -977,6 +978,7 @@ class ProbabilisticAcquisitionStrategy:
         Returns a jsonified dict representation
         """
         return {
+            "acquisition_strategy_type": "proba",
             "exploit_acquisition_function": self.exploit_acquisition_function,
             "explore_acquisition_function": self.explore_acquisition_function,
             "explore_probability": self.explore_probability,
@@ -1162,6 +1164,7 @@ class AnnealingAcquisitionStrategy:
         Returns a jsonified dict representation
         """
         return {
+            "acquisition_strategy_type": "annealing",
             "exploit_acquisition_function": self.exploit_acquisition_function,
             "explore_acquisition_function": self.explore_acquisition_function,
             "anneal_temp": self.anneal_temp,
@@ -1371,6 +1374,7 @@ class ThresholdAcquisitionStrategy:
         Returns a jsonified dict representation
         """
         return {
+            "acquisition_strategy_type": "threshold",
             "exploit_acquisition_function": self.exploit_acquisition_function,
             "explore_acquisition_function": self.explore_acquisition_function,
             "uncertainty_cutoff": self.uncertainty_cutoff,
@@ -2023,9 +2027,17 @@ class CandidateSelector:
         target_window = all_data.get("target_window")
         if target_window is not None:
             target_window = np.array(target_window)
+        aq_strat_cls = {
+            "annealing": AnnealingAcquisitionStrategy,
+            "cyclic": CyclicAcquisitionStrategy,
+            "threshold": ThresholdAcquisitionStrategy,
+            "proba": ProbabilisticAcquisitionStrategy,
+        }
         cas = all_data.get("acquisition_strategy")
         if cas is not None:
-            cas = CyclicAcquisitionStrategy.from_jsonified_dict(cas)
+            cas = aq_strat_cls[cas["acquisition_strategy_type"]].from_jsonified_dict(
+                cas
+            )
         return CandidateSelector(
             acquisition_function=all_data.get("acquisition_function"),
             acquisition_strategy=cas,
