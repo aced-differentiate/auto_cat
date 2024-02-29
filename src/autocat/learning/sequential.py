@@ -898,6 +898,7 @@ class ProbabilisticAcquisitionStrategy:
             exploit_acquisition_function=self.exploit_acquisition_function,
             explore_acquisition_function=self.explore_acquisition_function,
             explore_probability=self.explore_probability,
+            random_num_generator=self.random_num_generator,
         )
         fas.afs_kwargs = copy.deepcopy(self.afs_kwargs)
         return fas
@@ -1780,9 +1781,12 @@ class CandidateSelector:
         """
         Returns a copy of the CandidateSelector
         """
+        aq_strat_copy = None
+        if self.acquisition_strategy is not None:
+            aq_strat_copy = self.acquisition_strategy.copy()
         cs = self.__class__(
             acquisition_function=self.acquisition_function,
-            acquisition_strategy=self.acquisition_strategy,
+            acquisition_strategy=aq_strat_copy,
             num_candidates_to_pick=self.num_candidates_to_pick,
             target_window=self.target_window,
             include_hhi=self.include_hhi,
