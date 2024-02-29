@@ -551,6 +551,7 @@ def test_sequential_learner_to_jsonified_dict_with_strat():
     )
     jsonified_dict = acsl.to_jsonified_dict()
     cyc_dict = {
+        "acquisition_strategy_type": "cyclic",
         "exploit_acquisition_function": "LCBAdaptive",
         "explore_acquisition_function": "MU",
         "fixed_cyclic_strategy": [0, 1, 1],
@@ -1820,6 +1821,7 @@ def test_candidate_selector_from_jsonified_dict():
     assert np.isclose(cs.epsilon, 0.4)
     # test with acquisition strategy
     j_dict["acquisition_strategy"] = {
+        "acquisition_strategy_type": "cyclic",
         "explore_acquisition_function": "MU",
         "exploit_acquisition_function": "LCBAdaptive",
         "fixed_cyclic_strategy": [0, 1, 1, 0],
@@ -1852,17 +1854,18 @@ def test_candidate_selector_to_jsonified_dict():
     assert np.array_equal(conv_j_dict.get("target_window"), [-10.0, np.inf])
     assert np.isclose(conv_j_dict.get("beta"), 0.05)
     assert np.isclose(conv_j_dict.get("epsilon"), 4)
-    cas = CyclicAcquisitionStrategy(
+    cas = ProbabilisticAcquisitionStrategy(
         exploit_acquisition_function="LCB",
         explore_acquisition_function="MU",
-        fixed_cyclic_strategy=[0, 1, 1, 0],
+        explore_probability=0.3,
         afs_kwargs={"acquisition_function_history": ["MU", "LCB"]},
     )
     cs = CandidateSelector(acquisition_strategy=cas,)
     cas_dict = {
+        "acquisition_strategy_type": "proba",
         "explore_acquisition_function": "MU",
         "exploit_acquisition_function": "LCB",
-        "fixed_cyclic_strategy": [0, 1, 1, 0],
+        "explore_probability": 0.3,
         "afs_kwargs": {"acquisition_function_history": ["MU", "LCB"]},
     }
     conv_j_dict = cs.to_jsonified_dict()
@@ -1897,6 +1900,9 @@ def test_get_candidate_selector_from_json():
     with tempfile.TemporaryDirectory() as _tmp_dir:
         cs = CandidateSelector(
             acquisition_function="MLI",
+            acquisition_strategy=ProbabilisticAcquisitionStrategy(
+                exploit_acquisition_function="MLI", explore_acquisition_function="MU"
+            ),
             include_segregation_energies=True,
             target_window=(-3.0, np.inf),
             segregation_energy_data_source="rao2020",
@@ -1910,6 +1916,11 @@ def test_get_candidate_selector_from_json():
         assert not cs_from_json.include_hhi
         assert cs_from_json.segregation_energy_data_source == "rao2020"
         assert np.array_equal(cs_from_json.target_window, [-3.0, np.inf])
+        assert isinstance(
+            cs_from_json.acquisition_strategy, ProbabilisticAcquisitionStrategy
+        )
+        assert cs_from_json.acquisition_strategy.exploit_acquisition_function == "MLI"
+        assert cs_from_json.acquisition_strategy.explore_acquisition_function == "MU"
 
 
 def test_candidate_selector_eq():
