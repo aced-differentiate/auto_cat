@@ -898,7 +898,6 @@ class ProbabilisticAcquisitionStrategy:
             exploit_acquisition_function=self.exploit_acquisition_function,
             explore_acquisition_function=self.explore_acquisition_function,
             explore_probability=self.explore_probability,
-            random_num_generator=self.random_num_generator,
         )
         fas.afs_kwargs = copy.deepcopy(self.afs_kwargs)
         return fas
