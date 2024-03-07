@@ -968,6 +968,11 @@ def test_updating_design_space():
     assert np.array_equal(acds.feature_matrix, np.vstack((X, [2.0, 2.0, 2.0])))
     assert np.array_equal(acds.design_space_labels, np.array([-45.0, 5.0, 6.0, -10.0]))
 
+    # Test updating single system
+    next_system = acds.feature_matrix.take(1, axis=0).reshape(1, -1)
+    acds.update(feature_matrix=next_system, labels=[77])
+    assert np.isclose(acds.design_space_labels[1], 77.0)
+
     # Test wrong number of features
     with pytest.raises(AssertionError):
         acds.update(feature_matrix=np.array([2.3, 4.0, 5.0]), labels=np.array([4.0]))
