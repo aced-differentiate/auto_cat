@@ -1791,6 +1791,11 @@ class CandidateSelector:
             include_hhi=self.include_hhi,
             hhi_type=self.hhi_type,
             include_segregation_energies=self.include_segregation_energies,
+            segregation_energy_data_source=self.segregation_energy_data_source,
+            beta=self.beta,
+            epsilon=self.epsilon,
+            delta=self.delta,
+            eta=self.eta,
         )
         return cs
 
@@ -1995,9 +2000,11 @@ class CandidateSelector:
             target_window = [float(x) for x in target_window]
         return {
             "acquisition_function": self.acquisition_function,
-            "acquisition_strategy": self.acquisition_strategy.to_jsonified_dict()
-            if self.acquisition_strategy
-            else None,
+            "acquisition_strategy": (
+                self.acquisition_strategy.to_jsonified_dict()
+                if self.acquisition_strategy
+                else None
+            ),
             "num_candidates_to_pick": self.num_candidates_to_pick,
             "target_window": target_window,
             "include_hhi": self.include_hhi,
